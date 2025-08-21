@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>剧本标注工具</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h2>剧本标注工具</h2>
+
+  <!-- 顶部按钮栏 -->
+  <div class="top-bar">
+    <button id="importBtn">导入 JSON</button>
+    <input type="file" id="importJSON" accept=".json" style="display:none;">
+    <button id="saveBtn">保存 JSON</button>
+    <button id="clearBtn">清空数据</button>
+    <span id="importMsg" style="color: green; margin-left: 10px;"></span>
+  </div>
+
+  <div class="container">
+    <!-- 左侧：文本编辑 + 标注 -->
+    <div class="left-panel">
+      <!-- 粘贴/编辑文本 -->
+      <div class="panel-section">
+        <div class="panel-header">文本输入</div>
+        <div class="panel-content">
+          <textarea id="textInput" rows="10" placeholder="粘贴或输入文本..."></textarea><br>
+          <button id="confirmText">确认文本</button>
+        </div>
+      </div>
+
+      <!-- 标注选择 -->
+      <div class="panel-section">
+        <div class="panel-header">标注区</div>
+        <div class="panel-content" id="annotationArea"></div>
+      </div>
+    </div>
+
+    <!-- 右侧：渲染结果 -->
+    <div class="right-panel">
+      <div class="panel-header">渲染结果</div>
+      <div class="panel-content chat-box" id="renderArea"></div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
