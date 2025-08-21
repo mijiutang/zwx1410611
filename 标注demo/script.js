@@ -7,7 +7,6 @@ const importJSON = document.getElementById("importJSON");
 const importMsg = document.getElementById("importMsg");
 const renderArea = document.getElementById("renderArea");
 const saveBtn = document.getElementById("saveBtn");
-const clearBtn = document.getElementById("clearBtn");
 
 let data = [];
 
@@ -42,7 +41,6 @@ editText.addEventListener("click", () => {
   editText.style.display = "none";
   annotationArea.style.display = "none";
 
-  // 回填文本
   textInput.value = data.map(item => item.text).join("\n");
 });
 
@@ -95,13 +93,11 @@ function renderAnnotationUI(lines, restore = false) {
     const select = div.querySelector("select");
     const label = div.querySelector("label");
 
-    // 下拉框改变类型
     select.addEventListener("change", () => {
       data[index].type = select.value;
       renderChat(data);
     });
 
-    // 点击文本 -> 可编辑
     label.addEventListener("click", () => {
       const input = document.createElement("input");
       input.type = "text";
@@ -110,7 +106,7 @@ function renderAnnotationUI(lines, restore = false) {
       div.replaceChild(input, label);
       input.focus();
 
-      // 按 Enter -> 光标后的文字剪切到下一行开头
+      // 只保留 Enter → 光标后文本剪切到下一行
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
@@ -118,23 +114,18 @@ function renderAnnotationUI(lines, restore = false) {
           const textBefore = input.value.slice(0, cursorPos);
           const textAfter = input.value.slice(cursorPos);
 
-          // 更新当前行文本
           data[index].text = textBefore;
 
-          // 下一行处理
           if (index + 1 < annotationArea.children.length) {
             const nextDiv = annotationArea.children[index + 1];
             const nextLabel = nextDiv.querySelector("label");
             data[index + 1].text = textAfter + nextLabel.textContent;
           } else {
-            // 如果没有下一行，新建一行
             data.splice(index + 1, 0, { type: "system", text: textAfter });
           }
 
-          // 重新渲染标注
           renderAnnotationUI(data.map(d => d.text), true);
 
-          // 聚焦下一行开头
           const nextInput = annotationArea.children[index + 1].querySelector("input");
           if (nextInput) {
             nextInput.focus();
@@ -144,7 +135,6 @@ function renderAnnotationUI(lines, restore = false) {
         }
       });
 
-      // 失焦自动保存
       input.addEventListener("blur", () => {
         data[index].text = input.value;
         renderAnnotationUI(data.map(d => d.text), true);
@@ -174,17 +164,11 @@ function renderChat(data) {
     }
   });
 
-  // 自动滚动到底部
   renderArea.scrollTop = renderArea.scrollHeight;
 }
 
-// 左右同步滚动
-annotationArea.addEventListener("scroll", () => {
-  const ratio = annotationArea.scrollTop / (annotationArea.scrollHeight - annotationArea.clientHeight);
-  renderArea.scrollTop = ratio * (renderArea.scrollHeight - renderArea.clientHeight);
-});
 
-// 保存 JSON → 自动下载 data.json
+// 保存 JSON
 saveBtn.addEventListener("click", () => {
   localStorage.setItem("chatData", JSON.stringify(data));
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -192,18 +176,4 @@ saveBtn.addEventListener("click", () => {
   a.href = URL.createObjectURL(blob);
   a.download = "data.json";
   a.click();
-});
-
-// 清空数据
-clearBtn.addEventListener("click", () => {
-  if (!confirm("确定清空吗？")) return;
-  data = [];
-  annotationArea.innerHTML = "";
-  renderArea.innerHTML = "";
-  textInput.value = "";
-  textInput.style.display = "block";
-  confirmText.style.display = "inline-block";
-  editText.style.display = "none";
-  annotationArea.style.display = "none";
-  localStorage.removeItem("chatData");
 });
