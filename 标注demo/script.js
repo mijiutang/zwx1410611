@@ -31,7 +31,7 @@ confirmText.addEventListener("click", () => {
   textInput.style.display = "none";
   confirmText.style.display = "none";
   editText.style.display = "inline-block";
-  annotationArea.style.display = "block";
+  annotationArea.style.display = "grid";
 });
 
 // 编辑文本 → 切换回编辑模式
@@ -81,62 +81,74 @@ function renderAnnotationUI(lines, restore = false) {
 
     const div = document.createElement("div");
     div.innerHTML = `
+      <span>${index + 1}</span>
       <select data-index="${index}">
         <option value="system" ${current.type === "system" ? "selected" : ""}>非对话</option>
         <option value="me" ${current.type === "me" ? "selected" : ""}>对话(我)</option>
         <option value="other" ${current.type === "other" ? "selected" : ""}>对话(别人)</option>
       </select>
-      <span>${index + 1}</span>
       <label>${line}</label>
     `;
 
     const select = div.querySelector("select");
     const label = div.querySelector("label");
 
+    // 下拉框改变类型
     select.addEventListener("change", () => {
       data[index].type = select.value;
       renderChat(data);
     });
 
+    // 点击 label → 编辑
     label.addEventListener("click", () => {
-      const input = document.createElement("input");
-      input.type = "text";
-      input.value = label.textContent;
-      input.style.flex = "1";
-      div.replaceChild(input, label);
-      input.focus();
+      const textarea = document.createElement("textarea");
+      textarea.value = label.textContent;
+      textarea.style.flex = "1";
+      div.replaceChild(textarea, label);
+      textarea.focus();
+      textarea.selectionStart = textarea.value.length;
 
-      // 只保留 Enter → 光标后文本剪切到下一行
-      input.addEventListener("keydown", (e) => {
+      // 按 Enter 拆分
+      textarea.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
-          const cursorPos = input.selectionStart;
-          const textBefore = input.value.slice(0, cursorPos);
-          const textAfter = input.value.slice(cursorPos);
+          const cursorPos = textarea.selectionStart;
+          const textBefore = textarea.value.slice(0, cursorPos);
+          const textAfter = textarea.value.slice(cursorPos);
 
           data[index].text = textBefore;
 
           if (index + 1 < annotationArea.children.length) {
             const nextDiv = annotationArea.children[index + 1];
             const nextLabel = nextDiv.querySelector("label");
-            data[index + 1].text = textAfter + nextLabel.textContent;
-          } else {
-            data.splice(index + 1, 0, { type: "system", text: textAfter });
+
+            if (textAfter.trim()) {
+              // 将光标后文本放到下一行前面
+              data[index + 1].text = textAfter + nextLabel.textContent;
+            }
+          } else if (textAfter.trim()) {
+            // 最后一行，光标后有文本 → 新建一行
+            data.push({ type: "system", text: textAfter });
           }
 
+          // 光标后没文本 → 当前行结束编辑
           renderAnnotationUI(data.map(d => d.text), true);
 
-          const nextInput = annotationArea.children[index + 1].querySelector("input");
-          if (nextInput) {
-            nextInput.focus();
-            nextInput.selectionStart = 0;
-            nextInput.selectionEnd = 0;
+          // 焦点移动到下一行 textarea（如果存在）
+          if (annotationArea.children[index + 1]) {
+            const nextInput = annotationArea.children[index + 1].querySelector("textarea");
+            if (nextInput) {
+              nextInput.focus();
+              nextInput.selectionStart = 0;
+              nextInput.selectionEnd = 0;
+            }
           }
         }
       });
 
-      input.addEventListener("blur", () => {
-        data[index].text = input.value;
+      // 失焦事件
+      textarea.addEventListener("blur", () => {
+        data[index].text = textarea.value;
         renderAnnotationUI(data.map(d => d.text), true);
       });
     });
@@ -166,7 +178,6 @@ function renderChat(data) {
 
   renderArea.scrollTop = renderArea.scrollHeight;
 }
-
 
 // 保存 JSON
 saveBtn.addEventListener("click", () => {
