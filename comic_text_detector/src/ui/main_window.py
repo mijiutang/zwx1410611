@@ -43,14 +43,6 @@ class DetectionWorker(QThread):
 
 class ComicTextDetectorGUI(QMainWindow):
     """漫画文本检测器GUI主窗口"""
-
-    ASPECT_RATIO = 11 / 12  # 你想要的长宽比
-
-    def resizeEvent(self, event):
-        w = event.size().width()
-        h = int(w / self.ASPECT_RATIO)
-        self.resize(w, h)
-        super().resizeEvent(event)
     
     def __init__(self):
         super().__init__()
