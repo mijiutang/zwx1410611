@@ -168,8 +168,17 @@ class ComicTextDetectorGUI(QMainWindow):
         exit_action.setShortcut('Ctrl+Q')
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
-        
+
+        # 视图菜单
         view_menu = menubar.addMenu('视图(&V)')
+        
+        # 添加显示检测区域的动作
+        self.toggle_regions_action = QAction('显示检测区域(&R)', self)
+        self.toggle_regions_action.setShortcut('Ctrl+R')
+        self.toggle_regions_action.setCheckable(True)
+        self.toggle_regions_action.setChecked(True)  # 默认显示
+        self.toggle_regions_action.triggered.connect(self.toggle_detection_regions)
+        view_menu.addAction(self.toggle_regions_action)
 
         # 帮助菜单
         help_menu = menubar.addMenu('帮助(&H)')
@@ -198,6 +207,15 @@ class ComicTextDetectorGUI(QMainWindow):
         save_action = QAction(QIcon(), '保存', self)
         save_action.triggered.connect(self.save_results)
         toolbar.addAction(save_action)
+
+    def toggle_detection_regions(self):
+        """切换检测区域显示"""
+        self.image_viewer.toggle_regions()
+        # 更新动作文本
+        if self.image_viewer.show_regions:
+            self.toggle_regions_action.setText('隐藏检测区域(&R)')
+        else:
+            self.toggle_regions_action.setText('显示检测区域(&R)')
     
     def init_detector(self):
         """初始化检测器"""

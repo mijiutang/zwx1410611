@@ -309,19 +309,15 @@ class ImageViewer(QScrollArea):
         menu = QMenu(self)
         
         if self.original_image is not None:
-            # 视图切换
+            # 只保留视图切换功能（如果有结果图的话）
             if self.result_image is not None:
                 toggle_action = QAction("切换到结果图" if self.show_original else "切换到原图", self)
                 toggle_action.triggered.connect(self.toggle_view)
                 menu.addAction(toggle_action)
             
-            # 区域显示切换
-            regions_action = QAction("隐藏区域" if self.show_regions else "显示区域", self)
-            regions_action.triggered.connect(self.toggle_regions)
-            menu.addAction(regions_action)
-        
-        if menu.actions():
-            menu.exec_(self.mapToGlobal(pos))
+            # 如果菜单不为空才显示
+            if menu.actions():
+                menu.exec_(self.mapToGlobal(pos))
     
     def show_error(self, message: str):
         """显示错误信息"""

@@ -867,7 +867,7 @@ class ComicTextDetector:
                 nms_thresh=self.nms_thresh,
                 mask_thresh=self.mask_thresh
             )
-            print(f"检测器初始化成功: {self.device}, 输入尺寸: {self.input_size}")
+
         except Exception as e:
             raise RuntimeError(f"检测器初始化失败: {e}")
     
@@ -892,8 +892,6 @@ class ComicTextDetector:
         img = imread(image_path)
         if img is None:
             raise ValueError(f"无法读取图片: {image_path}")
-        
-        print(f"开始检测: {Path(image_path).name}, 尺寸: {img.shape}")
         
         # 创建结果对象
         results = DetectionResults(image_path, img.copy())
@@ -2035,14 +2033,6 @@ class DetectionWorker(QThread):
 
 class ComicTextDetectorGUI(QMainWindow):
     """漫画文本检测器GUI主窗口"""
-
-    ASPECT_RATIO = 11 / 12  # 你想要的长宽比
-
-    def resizeEvent(self, event):
-        w = event.size().width()
-        h = int(w / self.ASPECT_RATIO)
-        self.resize(w, h)
-        super().resizeEvent(event)
     
     def __init__(self):
         super().__init__()
@@ -2858,7 +2848,7 @@ class DragDropImageViewer(ImageViewer):
 
 from pathlib import Path
 from typing import Dict, Any
-
+import torch
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
