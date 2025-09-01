@@ -1,4 +1,4 @@
-# 测试 - Markdown文档
+# comic_text_detector - Markdown文档
 
 ---
 
@@ -291,7 +291,7 @@ sys.path.insert(0, str(project_root))
 from src.core.detector import ComicTextDetector
 from src.gui.app import ComicTextDetectorGUI
 from config.config import Config
-from src.utils.general import setup_logging
+from src.utils.general import set_logging
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="漫画文本检测器")
@@ -358,7 +358,7 @@ def main():
     args = parse_arguments()
     
     # 设置日志
-    setup_logging(verbose=args.verbose)
+    set_logging(verbose=args.verbose)
     
     if args.mode == "cli":
         return run_cli_mode(args)
