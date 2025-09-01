@@ -13,7 +13,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from src.core.detector import ComicTextDetector
-from src.gui.app import ComicTextDetectorGUI
+from src.ui.main_window import ComicTextDetectorGUI
 from config.config import Config
 from src.utils.general import set_logging
 

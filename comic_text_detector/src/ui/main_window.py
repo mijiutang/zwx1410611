@@ -15,8 +15,8 @@ except ImportError:
     raise ImportError("PyQt5未安装，请运行：pip install PyQt5")
 
 from src.core.detector import ComicTextDetector, DetectionResults
-from src.gui.widgets.image_viewer import ImageViewer
-from src.gui.widgets.parameter_panel import ParameterPanel
+from src.ui.widgets.image_viewer import ImageViewer
+from src.ui.widgets.parameter_panel import ParameterPanel
 from config.config import Config
 
 
