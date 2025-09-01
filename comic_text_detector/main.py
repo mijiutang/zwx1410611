@@ -25,6 +25,8 @@ def parse_arguments():
     parser.add_argument("--model", type=str, help="模型文件路径")
     parser.add_argument("--output", type=str, help="输出目录")
     parser.add_argument("--config", type=str, help="配置文件路径")
+    parser.add_argument("--device", type=str, choices=["auto", "cpu", "cuda", "cuda:0", "cuda:1"], 
+                       default="auto", help="计算设备 (auto/cpu/cuda/cuda:0/cuda:1)")
     parser.add_argument("--verbose", action="store_true", help="详细输出")
     
     return parser.parse_args()
@@ -39,7 +41,7 @@ def run_cli_mode(args):
     config = Config(args.config) if args.config else Config()
     detector = ComicTextDetector(
         model_path=args.model or config.model_path,
-        device=config.device,
+        device=args.device,  # 添加这行
         **config.detector_params
     )
     

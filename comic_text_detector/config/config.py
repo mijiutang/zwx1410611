@@ -30,7 +30,7 @@ class Config:
             },
             
             # 设备配置
-            "device": "cuda" if torch.cuda.is_available() else "cpu",
+            "device": "auto",  # 改为 "auto" 而不是直接判断
             
             # 检测器参数
             "detector": {
@@ -38,7 +38,8 @@ class Config:
                 "conf_thresh": 0.4,
                 "nms_thresh": 0.35,
                 "mask_thresh": 0.3,
-                "allowed_languages": ["zh", "ja"]
+                "allowed_languages": ["zh", "ja"],
+                "device": "auto"
             },
             
             # GUI配置

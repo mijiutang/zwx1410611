@@ -216,9 +216,10 @@ class ComicTextDetectorGUI(QMainWindow):
                 self.detector = ComicTextDetector(
                     model_path=model_path,
                     config=self.config,
-                    **params
+                    **params  # 这样会包含device参数
                 )
-                self.status_label.setText(f"检测器已加载: {Path(model_path).name}")
+                device_info = f"({self.detector.device})" if hasattr(self.detector, 'device') else ""
+                self.status_label.setText(f"检测器已加载: {Path(model_path).name} {device_info}")
             else:
                 self.status_label.setText("请选择模型文件")
         except Exception as e:
@@ -335,13 +336,18 @@ class ComicTextDetectorGUI(QMainWindow):
         """参数变化回调"""
         if hasattr(self, 'detector') and self.detector:
             try:
-                # 重新初始化检测器
+                # 获取新参数
+                params = self.parameter_panel.get_parameters()
                 model_path = self.parameter_panel.get_model_path()
-                if model_path != self.detector.model_path:
+                
+                # 如果模型路径或设备改变了，需要重新初始化检测器
+                need_reinit = (model_path != self.detector.model_path or 
+                            params.get('device') != self.detector.device)
+                
+                if need_reinit:
                     self.init_detector()
                 else:
-                    # 仅更新参数
-                    params = self.parameter_panel.get_parameters()
+                    # 仅更新其他参数
                     self.detector.update_parameters(**params)
             except Exception as e:
                 QMessageBox.warning(self, "警告", f"参数更新失败: {e}")

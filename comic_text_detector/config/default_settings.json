@@ -6,6 +6,12 @@
     "default_model": "data\\models\\comictextdetector.pt"
   },
   "device": "cpu",
+  "paths": {
+    "models_dir": "data/models",
+    "examples_dir": "data/examples",
+    "results_dir": "data/results",
+    "default_model": "data/models/comictextdetector.pt"
+  },
   "detector": {
     "input_size": 1536,
     "conf_thresh": 0.5,

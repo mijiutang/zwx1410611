@@ -39,7 +39,7 @@ class Config:
             },
             
             # 设备配置
-            "device": "cuda" if torch.cuda.is_available() else "cpu",
+            "device": "auto",  # 改为 "auto" 而不是直接判断
             
             # 检测器参数
             "detector": {
@@ -47,7 +47,8 @@ class Config:
                 "conf_thresh": 0.4,
                 "nms_thresh": 0.35,
                 "mask_thresh": 0.3,
-                "allowed_languages": ["zh", "ja"]
+                "allowed_languages": ["zh", "ja"],
+                "device": "auto"
             },
             
             # GUI配置
@@ -330,7 +331,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from src.core.detector import ComicTextDetector
-from src.gui.app import ComicTextDetectorGUI
+from src.ui.main_window import ComicTextDetectorGUI
 from config.config import Config
 from src.utils.general import set_logging
 
@@ -342,6 +343,8 @@ def parse_arguments():
     parser.add_argument("--model", type=str, help="模型文件路径")
     parser.add_argument("--output", type=str, help="输出目录")
     parser.add_argument("--config", type=str, help="配置文件路径")
+    parser.add_argument("--device", type=str, choices=["auto", "cpu", "cuda", "cuda:0", "cuda:1"], 
+                       default="auto", help="计算设备 (auto/cpu/cuda/cuda:0/cuda:1)")
     parser.add_argument("--verbose", action="store_true", help="详细输出")
     
     return parser.parse_args()
@@ -356,7 +359,7 @@ def run_cli_mode(args):
     config = Config(args.config) if args.config else Config()
     detector = ComicTextDetector(
         model_path=args.model or config.model_path,
-        device=config.device,
+        device=args.device,  # 添加这行
         **config.detector_params
     )
     
@@ -785,16 +788,16 @@ class ComicTextDetector:
     """漫画文本检测器主类"""
     
     def __init__(self, 
-                 model_path: Optional[str] = None,
-                 device: Optional[str] = None,
-                 config: Optional[Config] = None,
-                 **kwargs):
+             model_path: Optional[str] = None,
+             device: Optional[str] = None,
+             config: Optional[Config] = None,
+             **kwargs):
         """
         初始化检测器
         
         Args:
             model_path: 模型文件路径
-            device: 计算设备 ('cuda', 'cpu', 'auto')
+            device: 计算设备 ('cuda', 'cpu', 'auto', 'cuda:0', 'cuda:1', etc.)
             config: 配置对象
             **kwargs: 其他检测参数
         """
@@ -802,9 +805,10 @@ class ComicTextDetector:
         self.config = config or Config()
         
         # 设备设置
-        if device == 'auto' or device is None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.device = device
+        if device is None:
+            device = kwargs.get('device', self.config.get('detector.device', 'auto'))
+        
+        self.device = self._resolve_device(device)
         
         # 模型路径
         self.model_path = model_path or str(self.config.model_path)
@@ -827,6 +831,30 @@ class ComicTextDetector:
         # 统计信息
         self.detection_count = 0
         self.total_time = 0.0
+
+    def _resolve_device(self, device: str) -> str:
+        """解析设备字符串"""
+        if device == 'auto':
+            if torch.cuda.is_available():
+                return 'cuda'
+            else:
+                return 'cpu'
+        elif device.startswith('cuda'):
+            if torch.cuda.is_available():
+                # 检查指定的GPU是否存在
+                if ':' in device:
+                    gpu_id = int(device.split(':')[1])
+                    if gpu_id < torch.cuda.device_count():
+                        return device
+                    else:
+                        print(f"警告: GPU {gpu_id} 不存在，回退到 cuda:0")
+                        return 'cuda:0' if torch.cuda.device_count() > 0 else 'cpu'
+                return 'cuda'
+            else:
+                print("警告: CUDA不可用，回退到CPU")
+                return 'cpu'
+        else:
+            return 'cpu'
     
     def _init_detector(self):
         """初始化底层检测器"""
@@ -1324,1418 +1352,6 @@ if __name__ == '__main__':
     save_dir = r'data/backup'
     model2annotations(model_path, img_dir, save_dir, save_json=True)
     traverse_by_dict(img_dir, save_dir)
-```
-
-### `__init__.py`
-
-```py
-
-```
-
-## `gui`
-
-### `app.py`
-
-```py
-"""
-GUI应用主类
-"""
-
-import sys
-import json
-from pathlib import Path
-from typing import Optional, List
-
-try:
-    from PyQt5.QtWidgets import *
-    from PyQt5.QtCore import *
-    from PyQt5.QtGui import *
-except ImportError:
-    raise ImportError("PyQt5未安装，请运行：pip install PyQt5")
-
-from src.core.detector import ComicTextDetector, DetectionResults
-from src.gui.widgets.image_viewer import ImageViewer
-from src.gui.widgets.parameter_panel import ParameterPanel
-from config.config import Config
-
-
-class DetectionWorker(QThread):
-    """检测工作线程"""
-    
-    finished = pyqtSignal(object)  # DetectionResults
-    error = pyqtSignal(str)
-    progress = pyqtSignal(str)
-    
-    def __init__(self, detector: ComicTextDetector, image_path: str):
-        super().__init__()
-        self.detector = detector
-        self.image_path = image_path
-    
-    def run(self):
-        try:
-            self.progress.emit("正在执行文字检测...")
-            results = self.detector.detect(self.image_path)
-            self.finished.emit(results)
-        except Exception as e:
-            self.error.emit(str(e))
-
-
-class ComicTextDetectorGUI(QMainWindow):
-    """漫画文本检测器GUI主窗口"""
-
-    ASPECT_RATIO = 11 / 12  # 你想要的长宽比
-
-    def resizeEvent(self, event):
-        w = event.size().width()
-        h = int(w / self.ASPECT_RATIO)
-        self.resize(w, h)
-        super().resizeEvent(event)
-    
-    def __init__(self):
-        super().__init__()
-        
-        # 配置
-        self.config = Config()
-        
-        # 应用状态
-        self.detector: Optional[ComicTextDetector] = None
-        self.current_results: Optional[DetectionResults] = None
-        self.current_image_path: Optional[str] = None
-        self.recent_files: List[str] = []
-        
-        # 工作线程
-        self.detection_worker: Optional[DetectionWorker] = None
-        
-        # 初始化UI
-        self.init_ui()
-        self.init_detector()
-        self.load_settings()
-    
-    def init_ui(self):
-        """初始化用户界面"""
-        self.setWindowTitle("漫画文本检测器 v1.0")
-        self.setMinimumSize(1000, 700)
-        
-        # 设置窗口大小
-        gui_config = self.config.gui_params
-        if 'window_size' in gui_config:
-            self.resize(*gui_config['window_size'])
-        
-        # 创建中央部件
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        
-        # 主布局
-        main_layout = QHBoxLayout(central_widget)
-        
-        # 左侧面板 - 参数控制
-        self.parameter_panel = ParameterPanel(self.config)
-        self.parameter_panel.parameters_changed.connect(self.on_parameters_changed)
-        main_layout.addWidget(self.parameter_panel, stretch=0)
-        
-        # 右侧面板 - 图像显示
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        
-        # 图像查看器
-        self.image_viewer = ImageViewer()
-        right_layout.addWidget(self.image_viewer, stretch=1)
-        
-        # 状态和控制栏
-        status_widget = QWidget()
-        status_layout = QHBoxLayout(status_widget)
-        status_layout.setContentsMargins(0, 5, 0, 5)
-        
-        # 检测按钮
-        self.detect_button = QPushButton("开始检测")
-        self.detect_button.clicked.connect(self.start_detection)
-        self.detect_button.setEnabled(False)
-        status_layout.addWidget(self.detect_button)
-        
-        # 进度条
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        status_layout.addWidget(self.progress_bar)
-        
-        # 状态标签
-        self.status_label = QLabel("就绪")
-        status_layout.addWidget(self.status_label)
-        
-        status_layout.addStretch()
-        
-        # 保存按钮
-        self.save_button = QPushButton("保存结果")
-        self.save_button.clicked.connect(self.save_results)
-        self.save_button.setEnabled(False)
-        status_layout.addWidget(self.save_button)
-        
-        right_layout.addWidget(status_widget)
-        main_layout.addWidget(right_widget, stretch=1)
-        
-        # 创建菜单栏
-        self.create_menu_bar()
-        
-        # 创建工具栏
-        self.create_toolbar()
-        
-        # 创建状态栏
-        self.statusBar().showMessage("就绪")
-    
-    def create_menu_bar(self):
-        """创建菜单栏"""
-        menubar = self.menuBar()
-        
-        # 文件菜单
-        file_menu = menubar.addMenu('文件(&F)')
-        
-        # 打开文件
-        open_action = QAction('打开图片(&O)', self)
-        open_action.setShortcut('Ctrl+O')
-        open_action.triggered.connect(self.open_file)
-        file_menu.addAction(open_action)
-        
-        # 最近文件
-        self.recent_menu = file_menu.addMenu('最近文件(&R)')
-        self.update_recent_menu()
-        
-        file_menu.addSeparator()
-        
-        # 保存结果
-        save_action = QAction('保存结果(&S)', self)
-        save_action.setShortcut('Ctrl+S')
-        save_action.triggered.connect(self.save_results)
-        file_menu.addAction(save_action)
-        
-        # 移除导出配置选项
-        
-        file_menu.addSeparator()
-        
-        # 退出
-        exit_action = QAction('退出(&X)', self)
-        exit_action.setShortcut('Ctrl+Q')
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-        
-        # 视图菜单
-        view_menu = menubar.addMenu('视图(&V)')
-        
-        # 缩放操作
-        zoom_in_action = QAction('放大(&I)', self)
-        zoom_in_action.setShortcut('Ctrl++')
-        zoom_in_action.triggered.connect(self.image_viewer.zoom_in)
-        view_menu.addAction(zoom_in_action)
-        
-        zoom_out_action = QAction('缩小(&O)', self)
-        zoom_out_action.setShortcut('Ctrl+-')
-        zoom_out_action.triggered.connect(self.image_viewer.zoom_out)
-        view_menu.addAction(zoom_out_action)
-        
-        fit_window_action = QAction('适应窗口(&F)', self)
-        fit_window_action.setShortcut('Ctrl+F')
-        fit_window_action.triggered.connect(self.image_viewer.fit_to_window)
-        view_menu.addAction(fit_window_action)
-        
-        actual_size_action = QAction('实际大小(&A)', self)
-        actual_size_action.setShortcut('Ctrl+1')
-        actual_size_action.triggered.connect(self.image_viewer.actual_size)
-        view_menu.addAction(actual_size_action)
-        
-        # 帮助菜单
-        help_menu = menubar.addMenu('帮助(&H)')
-        
-        about_action = QAction('关于(&A)', self)
-        about_action.triggered.connect(self.show_about)
-        help_menu.addAction(about_action)
-    
-    def create_toolbar(self):
-        """创建工具栏"""
-        toolbar = self.addToolBar('主工具栏')
-        
-        # 打开文件
-        open_action = QAction(QIcon(), '打开', self)
-        open_action.triggered.connect(self.open_file)
-        toolbar.addAction(open_action)
-        
-        toolbar.addSeparator()
-        
-        # 检测
-        detect_action = QAction(QIcon(), '检测', self)
-        detect_action.triggered.connect(self.start_detection)
-        toolbar.addAction(detect_action)
-        
-        # 保存
-        save_action = QAction(QIcon(), '保存', self)
-        save_action.triggered.connect(self.save_results)
-        toolbar.addAction(save_action)
-    
-    def init_detector(self):
-        """初始化检测器"""
-        try:
-            model_path = self.parameter_panel.get_model_path()
-            if model_path and Path(model_path).exists():
-                params = self.parameter_panel.get_parameters()
-                self.detector = ComicTextDetector(
-                    model_path=model_path,
-                    config=self.config,
-                    **params
-                )
-                self.status_label.setText(f"检测器已加载: {Path(model_path).name}")
-            else:
-                self.status_label.setText("请选择模型文件")
-        except Exception as e:
-            QMessageBox.warning(self, "警告", f"检测器初始化失败: {e}")
-            self.status_label.setText("检测器初始化失败")
-    
-    def open_file(self):
-        """打开图片文件"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择图片文件", 
-            str(self.config.examples_dir),
-            "图片文件 (*.png *.jpg *.jpeg *.bmp *.tiff)"
-        )
-        
-        if file_path:
-            self.load_image(file_path)
-    
-    def load_image(self, file_path: str):
-        """加载图片"""
-        try:
-            # 显示图片
-            self.image_viewer.load_image(file_path)
-            self.current_image_path = file_path
-            
-            # 更新UI状态
-            self.detect_button.setEnabled(self.detector is not None)
-            self.save_button.setEnabled(False)
-            
-            # 更新最近文件
-            self.add_recent_file(file_path)
-            
-            # 更新状态
-            self.status_label.setText(f"已加载: {Path(file_path).name}")
-            self.statusBar().showMessage(f"图片已加载: {file_path}")
-            
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"无法加载图片: {e}")
-    
-    def start_detection(self):
-        """开始检测"""
-        if not self.current_image_path or not self.detector:
-            return
-        
-        # 更新检测器参数
-        params = self.parameter_panel.get_parameters()
-        self.detector.update_parameters(**params)
-        
-        # 禁用按钮，显示进度
-        self.detect_button.setEnabled(False)
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)  # 不确定进度
-        
-        # 启动检测线程
-        self.detection_worker = DetectionWorker(self.detector, self.current_image_path)
-        self.detection_worker.finished.connect(self.on_detection_finished)
-        self.detection_worker.error.connect(self.on_detection_error)
-        self.detection_worker.progress.connect(self.on_detection_progress)
-        self.detection_worker.start()
-    
-    def on_detection_finished(self, results: DetectionResults):
-        """检测完成回调"""
-        self.current_results = results
-        
-        # 显示结果图片
-        self.image_viewer.set_result_image(results.result_image)
-        self.image_viewer.set_detection_regions(results.text_regions)
-        
-        # 更新UI状态
-        self.detect_button.setEnabled(True)
-        self.save_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
-        
-        # 更新状态信息
-        region_count = len(results.text_regions)
-        detection_time = results.detection_time
-        self.status_label.setText(f"检测完成: {region_count} 个区域, {detection_time:.2f}s")
-        self.statusBar().showMessage(f"检测完成: 找到 {region_count} 个文字区域")
-        
-        # 更新参数面板统计信息
-        self.parameter_panel.update_stats(results.to_dict())
-    
-    def on_detection_error(self, error_msg: str):
-        """检测错误回调"""
-        self.detect_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
-        self.status_label.setText("检测失败")
-        
-        QMessageBox.critical(self, "检测失败", f"检测过程中发生错误: {error_msg}")
-    
-    def on_detection_progress(self, message: str):
-        """检测进度回调"""
-        self.statusBar().showMessage(message)
-    
-    def save_results(self):
-        """保存检测结果"""
-        if not self.current_results:
-            QMessageBox.information(self, "提示", "没有检测结果可保存")
-            return
-        
-        # 选择保存目录
-        output_dir = QFileDialog.getExistingDirectory(
-            self, "选择保存目录", str(self.config.results_dir)
-        )
-        
-        if output_dir:
-            try:
-                saved_dir = self.detector.save_results(self.current_results, output_dir)
-                QMessageBox.information(self, "成功", f"结果已保存到: {saved_dir}")
-                self.statusBar().showMessage(f"结果已保存: {saved_dir}")
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"保存失败: {e}")
-    
-    def on_parameters_changed(self):
-        """参数变化回调"""
-        if hasattr(self, 'detector') and self.detector:
-            try:
-                # 重新初始化检测器
-                model_path = self.parameter_panel.get_model_path()
-                if model_path != self.detector.model_path:
-                    self.init_detector()
-                else:
-                    # 仅更新参数
-                    params = self.parameter_panel.get_parameters()
-                    self.detector.update_parameters(**params)
-            except Exception as e:
-                QMessageBox.warning(self, "警告", f"参数更新失败: {e}")
-    
-    def add_recent_file(self, file_path: str):
-        """添加到最近文件"""
-        if file_path in self.recent_files:
-            self.recent_files.remove(file_path)
-        
-        self.recent_files.insert(0, file_path)
-        
-        # 限制最近文件数量
-        max_recent = self.config.gui_params.get('recent_files_count', 10)
-        if len(self.recent_files) > max_recent:
-            self.recent_files = self.recent_files[:max_recent]
-        
-        self.update_recent_menu()
-    
-    def update_recent_menu(self):
-        """更新最近文件菜单"""
-        self.recent_menu.clear()
-        
-        for i, file_path in enumerate(self.recent_files):
-            if Path(file_path).exists():
-                action = QAction(f"{i+1}. {Path(file_path).name}", self)
-                action.triggered.connect(lambda checked, path=file_path: self.load_image(path))
-                self.recent_menu.addAction(action)
-        
-        if not self.recent_files:
-            action = QAction("(空)", self)
-            action.setEnabled(False)
-            self.recent_menu.addAction(action)
-    
-    def export_config(self):
-        """导出配置"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "导出配置", "config.yaml", "配置文件 (*.yaml *.json)"
-        )
-        
-        if file_path:
-            try:
-                self.config.save(file_path)
-                QMessageBox.information(self, "成功", f"配置已导出到: {file_path}")
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"导出失败: {e}")
-    
-    def show_about(self):
-        """显示关于对话框"""
-        about_text = """
-        <h3>漫画文本检测器 v1.0</h3>
-        <p>基于深度学习的漫画文本检测工具</p>
-        <p><b>特性:</b></p>
-        <ul>
-        <li>支持中文和日文文本检测</li>
-        <li>高精度的文本区域定位</li>
-        <li>友好的图形用户界面</li>
-        <li>可配置的检测参数</li>
-        </ul>
-        <p><b>技术支持:</b> PyQt5, PyTorch, OpenCV</p>
-        """
-        QMessageBox.about(self, "关于", about_text)
-    
-    def load_settings(self):
-        """加载设置"""
-        settings = QSettings("ComicTextDetector", "MainWindow")
-        
-        # 恢复窗口几何
-        geometry = settings.value("geometry")
-        if geometry:
-            self.restoreGeometry(geometry)
-        
-        # 恢复最近文件
-        recent_files = settings.value("recent_files", [])
-        if isinstance(recent_files, list):
-            self.recent_files = recent_files
-            self.update_recent_menu()
-    
-    def save_settings(self):
-        """保存设置"""
-        settings = QSettings("ComicTextDetector", "MainWindow")
-        
-        # 保存窗口几何
-        settings.setValue("geometry", self.saveGeometry())
-        
-        # 保存最近文件
-        settings.setValue("recent_files", self.recent_files)
-    
-    def closeEvent(self, event):
-        """关闭事件处理"""
-        # 停止检测线程
-        if self.detection_worker and self.detection_worker.isRunning():
-            reply = QMessageBox.question(
-                self, "确认退出", "检测正在进行中，确定要退出吗？",
-                QMessageBox.Yes | QMessageBox.No
-            )
-            if reply == QMessageBox.No:
-                event.ignore()
-                return
-            
-            self.detection_worker.quit()
-            self.detection_worker.wait()
-        
-        # 保存设置
-        self.save_settings()
-        
-        # 清理资源
-        if self.detector:
-            del self.detector
-        
-        event.accept()
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    app.setApplicationName("漫画文本检测器")
-    app.setApplicationVersion("1.0")
-    
-    window = ComicTextDetectorGUI()
-    window.show()
-    
-    sys.exit(app.exec_())
-```
-
-### `widgets`
-
-#### `image_viewer.py`
-
-```py
-"""
-图像查看器组件
-"""
-
-import cv2
-import numpy as np
-from pathlib import Path
-from typing import List, Dict, Optional, Tuple
-
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-
-
-
-class ImageViewer(QScrollArea):
-    """图像查看器组件"""
-    
-    image_clicked = pyqtSignal(QPoint)
-    region_selected = pyqtSignal(int)
-    
-    def __init__(self):
-        super().__init__()
-        
-        # 图像标签
-        self.image_label = QLabel()
-        self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setStyleSheet("QLabel { background-color: #f0f0f0; }")
-        self.image_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
-        self.image_label.setScaledContents(False)
-        
-        # 设置滚动区域
-        self.setWidget(self.image_label)
-        self.setWidgetResizable(True)
-        self.setAlignment(Qt.AlignCenter)
-        
-        # 图像数据
-        self.original_image: Optional[np.ndarray] = None
-        self.result_image: Optional[np.ndarray] = None
-        self.current_pixmap: Optional[QPixmap] = None
-        
-        # 检测区域
-        self.detection_regions: List[Dict] = []
-        self.selected_region: Optional[int] = None
-        
-        # 显示状态
-        self.zoom_factor = 1.0
-        self.show_original = True
-        self.show_regions = True
-        self.auto_fit = True
-        
-        # 鼠标事件
-        self.image_label.mousePressEvent = self.mouse_press_event
-        
-        # 初始化UI
-        self.init_ui()
-    
-    def init_ui(self):
-        """初始化UI"""
-        # 右键菜单
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_context_menu)
-        
-        # 默认显示
-        self.show_placeholder()
-    
-    def show_placeholder(self):
-        """显示占位符"""
-        pixmap = QPixmap(400, 300)
-        pixmap.fill(Qt.lightGray)
-        
-        painter = QPainter(pixmap)
-        painter.setPen(Qt.darkGray)
-        painter.setFont(QFont("Arial", 14))
-        painter.drawText(pixmap.rect(), Qt.AlignCenter, "点击打开图片\n或拖拽图片到此处")
-        painter.end()
-        
-        self.image_label.setPixmap(pixmap)
-    
-    def load_image(self, image_path: str):
-        """加载图片"""
-        try:
-            # 使用OpenCV读取图片
-            img = cv2.imread(image_path)
-            if img is None:
-                raise ValueError("无法读取图片文件")
-            
-            # 转换为RGB格式
-            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            self.original_image = img_rgb.copy()
-            self.result_image = None
-            
-            # 清空检测结果
-            self.detection_regions.clear()
-            self.selected_region = None
-            
-            # 显示图片
-            self.display_image(self.original_image)
-            
-            # 重置缩放
-            self.zoom_factor = 1.0
-            self.fit_to_window()
-            
-        except Exception as e:
-            self.show_error(f"加载图片失败: {e}")
-    
-    def resizeEvent(self, event):
-        """窗口大小改变事件处理"""
-        super().resizeEvent(event)
-        if self.auto_fit and self.current_pixmap is not None:
-            # 延迟执行适应窗口，避免频繁调用
-            QTimer.singleShot(100, self.fit_to_window)
-    
-    def set_result_image(self, result_image: np.ndarray):
-        """设置检测结果图片"""
-        self.result_image = result_image.copy()
-        if not self.show_original:
-            self.display_image(self.result_image)
-    
-    def set_detection_regions(self, regions: List[Dict]):
-        """设置检测区域"""
-        self.detection_regions = regions
-        self.update_display()
-    
-    def display_image(self, image: np.ndarray):
-        """显示图片"""
-        if image is None:
-            return
-        
-        try:
-            # 创建QImage
-            h, w, ch = image.shape
-            bytes_per_line = ch * w
-            q_image = QImage(image.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            
-            # 转换为QPixmap
-            pixmap = QPixmap.fromImage(q_image)
-            
-            # 如果需要显示检测区域，在图片上绘制
-            if self.show_regions and self.detection_regions:
-                pixmap = self.draw_regions_on_pixmap(pixmap)
-            
-            self.current_pixmap = pixmap
-            
-            # 应用缩放
-            scaled_pixmap = pixmap.scaled(
-                pixmap.size() * self.zoom_factor,
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation
-            )
-            
-            self.image_label.setPixmap(scaled_pixmap)
-            
-        except Exception as e:
-            self.show_error(f"显示图片失败: {e}")
-    
-    def draw_regions_on_pixmap(self, pixmap: QPixmap) -> QPixmap:
-        """在pixmap上绘制检测区域"""
-        if not self.detection_regions:
-            return pixmap
-        
-        # 创建副本进行绘制
-        result_pixmap = pixmap.copy()
-        painter = QPainter(result_pixmap)
-        
-        try:
-            for i, region in enumerate(self.detection_regions):
-                x1, y1, x2, y2 = region['bbox']
-                
-                # 设置颜色
-                if i == self.selected_region:
-                    color = QColor(255, 0, 0)  # 选中区域红色
-                    line_width = 3
-                else:
-                    confidence = region.get('confidence', 1.0)
-                    green_value = int(255 * min(confidence, 1.0))
-                    color = QColor(0, green_value, 0)
-                    line_width = 2
-                
-                # 绘制边界框
-                pen = QPen(color, line_width)
-                painter.setPen(pen)
-                painter.drawRect(x1, y1, x2 - x1, y2 - y1)
-                
-                # 绘制标签
-                label = f"{i}_{region['language']}"
-                if region.get('vertical', False):
-                    label += "_V"
-                if 'confidence' in region:
-                    label += f"_{region['confidence']:.3f}"
-                
-                # 标签背景
-                font = QFont("Arial", 9)
-                painter.setFont(font)
-                fm = QFontMetrics(font)
-                text_rect = fm.boundingRect(label)
-                text_rect.moveTopLeft(QPoint(x1, y1 - text_rect.height() - 2))
-                
-                painter.fillRect(text_rect.adjusted(-2, -2, 2, 2), color)
-                painter.setPen(QPen(Qt.white))
-                painter.drawText(text_rect, Qt.AlignCenter, label)
-        
-        finally:
-            painter.end()
-        
-        return result_pixmap
-    
-    def update_display(self):
-        """更新显示"""
-        if self.show_original and self.original_image is not None:
-            self.display_image(self.original_image)
-        elif not self.show_original and self.result_image is not None:
-            self.display_image(self.result_image)
-    
-    def toggle_view(self):
-        """切换原图/结果图显示"""
-        if self.result_image is not None:
-            self.show_original = not self.show_original
-            self.update_display()
-    
-    def toggle_regions(self):
-        """切换区域显示"""
-        self.show_regions = not self.show_regions
-        self.update_display()
-    
-    def zoom_in(self):
-        """放大"""
-        self.zoom_factor = min(self.zoom_factor * 1.25, 5.0)
-        self.update_display()
-    
-    def zoom_out(self):
-        """缩小"""
-        self.zoom_factor = max(self.zoom_factor / 1.25, 0.1)
-        self.update_display()
-    
-    def fit_to_window(self):
-        """适应窗口"""
-        if self.current_pixmap is None:
-            return
-        
-        # 计算合适的缩放因子
-        label_size = self.image_label.size()
-        pixmap_size = self.current_pixmap.size()
-        
-        scale_x = label_size.width() / pixmap_size.width()
-        scale_y = label_size.height() / pixmap_size.height()
-        
-        self.zoom_factor = min(scale_x, scale_y, 1.0)
-        self.update_display()
-    
-    def actual_size(self):
-        """实际大小"""
-        self.zoom_factor = 1.0
-        self.update_display()
-    
-    def mouse_press_event(self, event):
-        """鼠标点击事件"""
-        if event.button() == Qt.LeftButton and self.current_pixmap:
-            # 转换坐标到原图坐标系
-            click_pos = event.pos()
-            
-            # 发射点击信号
-            self.image_clicked.emit(click_pos)
-            
-            # 检查是否点击了检测区域
-            self.check_region_click(click_pos)
-
-    def toggle_auto_fit(self):
-        """切换自动适应模式"""
-        self.auto_fit = not self.auto_fit
-        if self.auto_fit and self.current_pixmap is not None:
-            self.fit_to_window()
-    
-    def check_region_click(self, click_pos: QPoint):
-        """检查是否点击了检测区域"""
-        if not self.detection_regions or not self.current_pixmap:
-            return
-        
-        # 转换点击坐标
-        label_rect = self.image_label.rect()
-        pixmap_rect = self.current_pixmap.rect()
-        
-        # 计算图片在label中的实际位置
-        if self.current_pixmap.width() <= label_rect.width():
-            x_offset = (label_rect.width() - self.current_pixmap.width()) // 2
-        else:
-            x_offset = 0
-        
-        if self.current_pixmap.height() <= label_rect.height():
-            y_offset = (label_rect.height() - self.current_pixmap.height()) // 2
-        else:
-            y_offset = 0
-        
-        # 转换到原图坐标
-        img_x = (click_pos.x() - x_offset) / self.zoom_factor
-        img_y = (click_pos.y() - y_offset) / self.zoom_factor
-        
-        # 检查点击的区域
-        for i, region in enumerate(self.detection_regions):
-            x1, y1, x2, y2 = region['bbox']
-            if x1 <= img_x <= x2 and y1 <= img_y <= y2:
-                self.selected_region = i if self.selected_region != i else None
-                self.update_display()
-                self.region_selected.emit(i if self.selected_region is not None else -1)
-                break
-    
-    def show_context_menu(self, pos):
-        """显示右键菜单"""
-        menu = QMenu(self)
-        
-        if self.original_image is not None:
-            # 视图切换
-            if self.result_image is not None:
-                toggle_action = QAction("切换到结果图" if self.show_original else "切换到原图", self)
-                toggle_action.triggered.connect(self.toggle_view)
-                menu.addAction(toggle_action)
-            
-            # 区域显示切换
-            regions_action = QAction("隐藏区域" if self.show_regions else "显示区域", self)
-            regions_action.triggered.connect(self.toggle_regions)
-            menu.addAction(regions_action)
-
-            # 添加这个部分
-            auto_fit_action = QAction("禁用自动适应" if self.auto_fit else "启用自动适应", self)
-            auto_fit_action.triggered.connect(self.toggle_auto_fit)
-            menu.addAction(auto_fit_action)
-
-            menu.addSeparator()
-            
-            # 缩放选项
-            zoom_in_action = QAction("放大", self)
-            zoom_in_action.triggered.connect(self.zoom_in)
-            menu.addAction(zoom_in_action)
-            
-            zoom_out_action = QAction("缩小", self)
-            zoom_out_action.triggered.connect(self.zoom_out)
-            menu.addAction(zoom_out_action)
-            
-            fit_action = QAction("适应窗口", self)
-            fit_action.triggered.connect(self.fit_to_window)
-            menu.addAction(fit_action)
-            
-            actual_action = QAction("实际大小", self)
-            actual_action.triggered.connect(self.actual_size)
-            menu.addAction(actual_action)
-        
-        if menu.actions():
-            menu.exec_(self.mapToGlobal(pos))
-    
-    def show_error(self, message: str):
-        """显示错误信息"""
-        pixmap = QPixmap(400, 100)
-        pixmap.fill(Qt.white)
-        
-        painter = QPainter(pixmap)
-        painter.setPen(Qt.red)
-        painter.setFont(QFont("Arial", 12))
-        painter.drawText(pixmap.rect(), Qt.AlignCenter, message)
-        painter.end()
-        
-        self.image_label.setPixmap(pixmap)
-    
-    def get_selected_region(self) -> Optional[Dict]:
-        """获取选中的区域"""
-        if self.selected_region is not None and 0 <= self.selected_region < len(self.detection_regions):
-            return self.detection_regions[self.selected_region]
-        return None
-    
-    def clear(self):
-        """清空显示"""
-        self.original_image = None
-        self.result_image = None
-        self.current_pixmap = None
-        self.detection_regions.clear()
-        self.selected_region = None
-        self.show_placeholder()
-
-
-# 支持拖拽的图像查看器
-class DragDropImageViewer(ImageViewer):
-    """支持拖拽的图像查看器"""
-    
-    file_dropped = pyqtSignal(str)
-    
-    def __init__(self):
-        super().__init__()
-        self.setAcceptDrops(True)
-    
-    def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.accept()
-        else:
-            event.ignore()
-    
-    def dropEvent(self, event):
-        files = [u.toLocalFile() for u in event.mimeData().urls()]
-        if files:
-            # 检查是否为图片文件
-            image_extensions = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif'}
-            for file_path in files:
-                if Path(file_path).suffix.lower() in image_extensions:
-                    self.file_dropped.emit(file_path)
-                    break
-```
-
-#### `parameter_panel.py`
-
-```py
-"""
-参数控制面板组件
-"""
-
-from pathlib import Path
-from typing import Dict, Any
-
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-
-from config.config import Config
-
-
-class ParameterPanel(QWidget):
-    """参数控制面板"""
-    
-    parameters_changed = pyqtSignal()
-    
-    def __init__(self, config: Config):
-        super().__init__()
-        self.config = config
-        
-        # 控件引用
-        self.model_path_edit = None
-        self.input_size_combo = None
-        self.conf_thresh_slider = None
-        self.mask_thresh_slider = None
-        self.lang_checkboxes = {}
-        self.stats_labels = {}
-        
-        # 初始化UI
-        self.init_ui()
-        self.load_parameters()
-    
-    def init_ui(self):
-        """初始化UI"""
-        self.setFixedWidth(300)
-        layout = QVBoxLayout(self)
-        
-        # 标题
-        title_label = QLabel("检测参数")
-        title_label.setFont(QFont("Arial", 12, QFont.Bold))
-        layout.addWidget(title_label)
-        
-        # 模型选择组
-        model_group = self.create_model_group()
-        layout.addWidget(model_group)
-        
-        # 检测参数组
-        detection_group = self.create_detection_group()
-        layout.addWidget(detection_group)
-        
-        # 语言选择组
-        language_group = self.create_language_group()
-        layout.addWidget(language_group)
-        
-        # 统计信息组
-        stats_group = self.create_stats_group()
-        layout.addWidget(stats_group)
-        
-        # 弹簧，将控件推到顶部
-        layout.addStretch()
-        
-        # 按钮区域
-        button_layout = QVBoxLayout()
-        
-        # 重置参数按钮
-        reset_button = QPushButton("重置参数")
-        reset_button.clicked.connect(self.reset_parameters)
-        button_layout.addWidget(reset_button)
-        
-        # 更新配置按钮
-        self.update_config_button = QPushButton("更新默认配置")
-        self.update_config_button.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                font-weight: bold;
-                padding: 5px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        self.update_config_button.clicked.connect(self.update_default_config)
-        button_layout.addWidget(self.update_config_button)
-        
-        layout.addLayout(button_layout)
-
-    def update_default_config(self):
-        """更新默认配置"""
-        try:
-            # 获取当前参数
-            current_params = self.get_parameters()
-            model_path = self.get_model_path()
-            
-            # 更新配置对象
-            if model_path:
-                self.config.set('paths.default_model', str(Path(model_path).relative_to(self.config.project_root)))
-            
-            self.config.set('detector.input_size', current_params['input_size'])
-            self.config.set('detector.conf_thresh', current_params['conf_thresh'])
-            self.config.set('detector.mask_thresh', current_params['mask_thresh'])
-            self.config.set('detector.allowed_languages', current_params['allowed_languages'])
-            
-            # 保存为默认配置
-            if self.config.save_as_default():
-                QMessageBox.information(
-                    self, 
-                    "成功", 
-                    "默认配置已更新！\n下次启动应用时将使用当前参数作为默认值。"
-                )
-            else:
-                QMessageBox.warning(self, "警告", "默认配置更新失败！")
-                
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"更新默认配置时发生错误：{e}")
-    
-    def create_model_group(self) -> QGroupBox:
-        """创建模型选择组"""
-        group = QGroupBox("模型设置")
-        layout = QVBoxLayout(group)
-        
-        # 模型路径选择
-        model_layout = QHBoxLayout()
-        
-        self.model_path_edit = QLineEdit()
-        self.model_path_edit.setPlaceholderText("选择模型文件...")
-        self.model_path_edit.textChanged.connect(self.parameters_changed.emit)
-        
-        browse_button = QPushButton("浏览")
-        browse_button.clicked.connect(self.browse_model)
-        
-        model_layout.addWidget(QLabel("模型文件:"))
-        model_layout.addWidget(self.model_path_edit, 1)
-        model_layout.addWidget(browse_button)
-        
-        layout.addLayout(model_layout)
-        
-        # 输入尺寸选择
-        size_layout = QHBoxLayout()
-        size_layout.addWidget(QLabel("输入尺寸:"))
-        
-        self.input_size_combo = QComboBox()
-        self.input_size_combo.addItems(["1024", "1280", "1536"])
-        self.input_size_combo.setCurrentText("1280")
-        self.input_size_combo.currentTextChanged.connect(self.parameters_changed.emit)
-        
-        size_layout.addWidget(self.input_size_combo)
-        size_layout.addStretch()
-        
-        layout.addLayout(size_layout)
-        
-        return group
-    
-    def create_detection_group(self) -> QGroupBox:
-        """创建检测参数组"""
-        group = QGroupBox("检测参数")
-        layout = QVBoxLayout(group)
-        
-        # 置信度阈值
-        conf_layout = self.create_slider_layout(
-            "置信度阈值:", 0.1, 0.9, 0.4, 
-            lambda: self.parameters_changed.emit()
-        )
-        self.conf_thresh_slider = conf_layout[1]
-        layout.addLayout(conf_layout[0])
-        
-        # 掩码阈值
-        mask_layout = self.create_slider_layout(
-            "掩码阈值:", 0.1, 0.8, 0.3,
-            lambda: self.parameters_changed.emit()
-        )
-        self.mask_thresh_slider = mask_layout[1]
-        layout.addLayout(mask_layout[0])
-        
-        return group
-    
-    def create_slider_layout(self, label_text: str, min_val: float, max_val: float, 
-                            default_val: float, callback):
-        """创建滑块布局"""
-        layout = QVBoxLayout()
-        
-        # 标签和值显示
-        header_layout = QHBoxLayout()
-        label = QLabel(label_text)
-        value_label = QLabel(f"{default_val:.2f}")
-        header_layout.addWidget(label)
-        header_layout.addStretch()
-        header_layout.addWidget(value_label)
-        layout.addLayout(header_layout)
-        
-        # 滑块
-        slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(int(min_val * 100))
-        slider.setMaximum(int(max_val * 100))
-        slider.setValue(int(default_val * 100))
-        
-        # 连接信号
-        def on_value_changed():
-            val = slider.value() / 100.0
-            value_label.setText(f"{val:.2f}")
-            callback()
-        
-        slider.valueChanged.connect(on_value_changed)
-        layout.addWidget(slider)
-        
-        return layout, slider
-    
-    def create_language_group(self) -> QGroupBox:
-        """创建语言选择组"""
-        group = QGroupBox("支持语言")
-        layout = QVBoxLayout(group)
-        
-        languages = [
-            ("zh", "中文"),
-            ("ja", "日文"), 
-            ("eng", "英文"),
-            ("unknown", "未知")
-        ]
-        
-        for lang_code, lang_name in languages:
-            checkbox = QCheckBox(lang_name)
-            if lang_code in ["zh", "ja"]:  # 默认选中中文和日文
-                checkbox.setChecked(True)
-            checkbox.stateChanged.connect(self.parameters_changed.emit)
-            self.lang_checkboxes[lang_code] = checkbox
-            layout.addWidget(checkbox)
-        
-        return group
-    
-    def create_stats_group(self) -> QGroupBox:
-        """创建统计信息组"""
-        group = QGroupBox("统计信息")
-        layout = QVBoxLayout(group)
-        
-        stats_items = [
-            ("total_regions", "检测区域:"),
-            ("detection_time", "检测耗时:"),
-            ("avg_confidence", "平均置信度:"),
-            ("languages", "检测语言:")
-        ]
-        
-        for key, label_text in stats_items:
-            item_layout = QHBoxLayout()
-            
-            label = QLabel(label_text)
-            value_label = QLabel("-")
-            value_label.setAlignment(Qt.AlignRight)
-            
-            item_layout.addWidget(label)
-            item_layout.addWidget(value_label)
-            
-            self.stats_labels[key] = value_label
-            layout.addLayout(item_layout)
-        
-        return group
-    
-    def browse_model(self):
-        """浏览模型文件"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择模型文件",
-            str(self.config.models_dir),
-            "模型文件 (*.pt *.pth *.onnx)"
-        )
-        
-        if file_path:
-            self.model_path_edit.setText(file_path)
-    
-    def get_model_path(self) -> str:
-        """获取模型路径"""
-        return self.model_path_edit.text().strip()
-    
-    def get_parameters(self) -> Dict[str, Any]:
-        """获取当前参数"""
-        # 获取选中的语言
-        allowed_languages = []
-        for lang_code, checkbox in self.lang_checkboxes.items():
-            if checkbox.isChecked():
-                allowed_languages.append(lang_code)
-        
-        return {
-            "input_size": int(self.input_size_combo.currentText()),
-            "conf_thresh": self.conf_thresh_slider.value() / 100.0,
-            "mask_thresh": self.mask_thresh_slider.value() / 100.0,
-            "allowed_languages": allowed_languages
-        }
-    
-    def set_parameters(self, params: Dict[str, Any]):
-        """设置参数"""
-        # 阻止信号发射
-        self.blockSignals(True)
-        
-        try:
-            if "input_size" in params:
-                self.input_size_combo.setCurrentText(str(params["input_size"]))
-            
-            if "conf_thresh" in params:
-                self.conf_thresh_slider.setValue(int(params["conf_thresh"] * 100))
-            
-            if "mask_thresh" in params:
-                self.mask_thresh_slider.setValue(int(params["mask_thresh"] * 100))
-            
-            if "allowed_languages" in params:
-                # 先取消所有选择
-                for checkbox in self.lang_checkboxes.values():
-                    checkbox.setChecked(False)
-                
-                # 然后选中指定语言
-                for lang_code in params["allowed_languages"]:
-                    if lang_code in self.lang_checkboxes:
-                        self.lang_checkboxes[lang_code].setChecked(True)
-        
-        finally:
-            self.blockSignals(False)
-    
-    def load_parameters(self):
-        """从配置加载参数"""
-        # 设置默认模型路径
-        if self.config.model_path.exists():
-            self.model_path_edit.setText(str(self.config.model_path))
-        
-        # 设置检测参数
-        params = self.config.detector_params
-        self.set_parameters(params)
-        
-        print(f"已从配置加载参数: {params}")
-    
-    def reset_parameters(self):
-        """重置为默认参数"""
-        default_params = {
-            "input_size": 1280,
-            "conf_thresh": 0.4,
-            "mask_thresh": 0.3,
-            "allowed_languages": ["zh", "ja"]
-        }
-        self.set_parameters(default_params)
-        self.parameters_changed.emit()
-    
-    def update_stats(self, stats: Dict[str, Any]):
-        """更新统计信息"""
-        if "stats" in stats:
-            stats = stats["stats"]
-        
-        # 更新各项统计
-        if "total_regions" in stats:
-            self.stats_labels["total_regions"].setText(str(stats["total_regions"]))
-        
-        if "detection_time" in stats.get("parent", {}):
-            time_val = stats["parent"]["detection_time"]
-            self.stats_labels["detection_time"].setText(f"{time_val:.2f}s")
-        elif "detection_time" in stats:
-            time_val = stats["detection_time"]
-            self.stats_labels["detection_time"].setText(f"{time_val:.2f}s")
-        
-        if "avg_confidence" in stats:
-            conf_val = stats["avg_confidence"]
-            self.stats_labels["avg_confidence"].setText(f"{conf_val:.3f}")
-        
-        if "languages" in stats:
-            langs = stats["languages"]
-            lang_str = ", ".join(langs) if langs else "无"
-            self.stats_labels["languages"].setText(lang_str)
-    
-    def clear_stats(self):
-        """清空统计信息"""
-        for label in self.stats_labels.values():
-            label.setText("-")
-    
-    def validate_parameters(self) -> tuple[bool, str]:
-        """验证参数有效性"""
-        # 检查模型文件
-        model_path = self.get_model_path()
-        if not model_path:
-            return False, "请选择模型文件"
-        
-        if not Path(model_path).exists():
-            return False, f"模型文件不存在: {model_path}"
-        
-        # 检查语言选择
-        params = self.get_parameters()
-        if not params["allowed_languages"]:
-            return False, "请至少选择一种支持的语言"
-        
-        return True, ""
-    
-    def get_parameter_summary(self) -> str:
-        """获取参数摘要"""
-        params = self.get_parameters()
-        model_name = Path(self.get_model_path()).name if self.get_model_path() else "未选择"
-        
-        summary = f"""参数摘要:
-模型: {model_name}
-输入尺寸: {params['input_size']}
-置信度阈值: {params['conf_thresh']:.2f}
-掩码阈值: {params['mask_thresh']:.2f}
-支持语言: {', '.join(params['allowed_languages'])}"""
-        
-        return summary
-
-
-class AdvancedParameterDialog(QDialog):
-    """高级参数设置对话框"""
-    
-    def __init__(self, current_params: Dict[str, Any], parent=None):
-        super().__init__(parent)
-        self.current_params = current_params.copy()
-        self.result_params = current_params.copy()
-        
-        self.init_ui()
-        self.load_parameters()
-    
-    def init_ui(self):
-        """初始化UI"""
-        self.setWindowTitle("高级参数设置")
-        self.setModal(True)
-        self.resize(400, 500)
-        
-        layout = QVBoxLayout(self)
-        
-        # 参数组
-        scroll_area = QScrollArea()
-        scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout(scroll_widget)
-        
-        # NMS阈值
-        nms_group = QGroupBox("NMS参数")
-        nms_layout = QVBoxLayout(nms_group)
-        
-        self.nms_thresh_spin = QDoubleSpinBox()
-        self.nms_thresh_spin.setRange(0.1, 0.9)
-        self.nms_thresh_spin.setSingleStep(0.05)
-        self.nms_thresh_spin.setValue(0.35)
-        
-        nms_layout.addWidget(QLabel("NMS阈值:"))
-        nms_layout.addWidget(self.nms_thresh_spin)
-        scroll_layout.addWidget(nms_group)
-        
-        # 其他高级参数可以在这里添加
-        # ...
-        
-        scroll_area.setWidget(scroll_widget)
-        layout.addWidget(scroll_area)
-        
-        # 按钮
-        button_layout = QHBoxLayout()
-        
-        ok_button = QPushButton("确定")
-        ok_button.clicked.connect(self.accept)
-        cancel_button = QPushButton("取消") 
-        cancel_button.clicked.connect(self.reject)
-        
-        button_layout.addStretch()
-        button_layout.addWidget(ok_button)
-        button_layout.addWidget(cancel_button)
-        
-        layout.addLayout(button_layout)
-    
-    def load_parameters(self):
-        """加载参数"""
-        if "nms_thresh" in self.current_params:
-            self.nms_thresh_spin.setValue(self.current_params["nms_thresh"])
-    
-    def accept(self):
-        """确认对话框"""
-        self.result_params["nms_thresh"] = self.nms_thresh_spin.value()
-        super().accept()
-    
-    def get_parameters(self) -> Dict[str, Any]:
-        """获取参数"""
-        return self.result_params
-
-
-if __name__ == "__main__":
-    # 测试参数面板
-    import sys
-    
-    app = QApplication(sys.argv)
-    
-    config = Config()
-    panel = ParameterPanel(config)
-    
-    # 创建测试窗口
-    window = QWidget()
-    layout = QHBoxLayout(window)
-    layout.addWidget(panel)
-    
-    window.show()
-    
-    sys.exit(app.exec_())
-```
-
-#### `__init__.py`
-
-```py
-
 ```
 
 ### `__init__.py`
@@ -3355,6 +1971,1405 @@ def load_yolov5_ckpt(weights, map_location='cpu', fuse=True, inplace=True, out_i
             m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility
     model.out_indices = out_indices
     return model
+```
+
+#### `__init__.py`
+
+```py
+
+```
+
+### `__init__.py`
+
+```py
+
+```
+
+## `ui`
+
+### `main_window.py`
+
+```py
+"""
+GUI应用主类
+"""
+
+import sys
+import json
+from pathlib import Path
+from typing import Optional, List
+
+try:
+    from PyQt5.QtWidgets import *
+    from PyQt5.QtCore import *
+    from PyQt5.QtGui import *
+except ImportError:
+    raise ImportError("PyQt5未安装，请运行：pip install PyQt5")
+
+from src.core.detector import ComicTextDetector, DetectionResults
+from src.ui.widgets.image_viewer import ImageViewer
+from src.ui.widgets.parameter_panel import ParameterPanel
+from config.config import Config
+
+
+class DetectionWorker(QThread):
+    """检测工作线程"""
+    
+    finished = pyqtSignal(object)  # DetectionResults
+    error = pyqtSignal(str)
+    progress = pyqtSignal(str)
+    
+    def __init__(self, detector: ComicTextDetector, image_path: str):
+        super().__init__()
+        self.detector = detector
+        self.image_path = image_path
+    
+    def run(self):
+        try:
+            self.progress.emit("正在执行文字检测...")
+            results = self.detector.detect(self.image_path)
+            self.finished.emit(results)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class ComicTextDetectorGUI(QMainWindow):
+    """漫画文本检测器GUI主窗口"""
+
+    ASPECT_RATIO = 11 / 12  # 你想要的长宽比
+
+    def resizeEvent(self, event):
+        w = event.size().width()
+        h = int(w / self.ASPECT_RATIO)
+        self.resize(w, h)
+        super().resizeEvent(event)
+    
+    def __init__(self):
+        super().__init__()
+        
+        # 配置
+        self.config = Config()
+        
+        # 应用状态
+        self.detector: Optional[ComicTextDetector] = None
+        self.current_results: Optional[DetectionResults] = None
+        self.current_image_path: Optional[str] = None
+        self.recent_files: List[str] = []
+        
+        # 工作线程
+        self.detection_worker: Optional[DetectionWorker] = None
+        
+        # 初始化UI
+        self.init_ui()
+        self.init_detector()
+        self.load_settings()
+    
+    def init_ui(self):
+        """初始化用户界面"""
+        self.setWindowTitle("漫画文本检测器 v1.0")
+        self.setMinimumSize(1000, 700)
+        
+        # 设置窗口大小
+        gui_config = self.config.gui_params
+        if 'window_size' in gui_config:
+            self.resize(*gui_config['window_size'])
+        
+        # 创建中央部件
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        
+        # 主布局
+        main_layout = QHBoxLayout(central_widget)
+        
+        # 左侧面板 - 参数控制
+        self.parameter_panel = ParameterPanel(self.config)
+        self.parameter_panel.parameters_changed.connect(self.on_parameters_changed)
+        main_layout.addWidget(self.parameter_panel, stretch=0)
+        
+        # 右侧面板 - 图像显示
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        
+        # 图像查看器
+        self.image_viewer = ImageViewer()
+        right_layout.addWidget(self.image_viewer, stretch=1)
+        
+        # 状态和控制栏
+        status_widget = QWidget()
+        status_layout = QHBoxLayout(status_widget)
+        status_layout.setContentsMargins(0, 5, 0, 5)
+        
+        # 检测按钮
+        self.detect_button = QPushButton("开始检测")
+        self.detect_button.clicked.connect(self.start_detection)
+        self.detect_button.setEnabled(False)
+        status_layout.addWidget(self.detect_button)
+        
+        # 进度条
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        status_layout.addWidget(self.progress_bar)
+        
+        # 状态标签
+        self.status_label = QLabel("就绪")
+        status_layout.addWidget(self.status_label)
+        
+        status_layout.addStretch()
+        
+        # 保存按钮
+        self.save_button = QPushButton("保存结果")
+        self.save_button.clicked.connect(self.save_results)
+        self.save_button.setEnabled(False)
+        status_layout.addWidget(self.save_button)
+        
+        right_layout.addWidget(status_widget)
+        main_layout.addWidget(right_widget, stretch=1)
+        
+        # 创建菜单栏
+        self.create_menu_bar()
+        
+        # 创建工具栏
+        self.create_toolbar()
+        
+        # 创建状态栏
+        self.statusBar().showMessage("就绪")
+    
+    def create_menu_bar(self):
+        """创建菜单栏"""
+        menubar = self.menuBar()
+        
+        # 文件菜单
+        file_menu = menubar.addMenu('文件(&F)')
+        
+        # 打开文件
+        open_action = QAction('打开图片(&O)', self)
+        open_action.setShortcut('Ctrl+O')
+        open_action.triggered.connect(self.open_file)
+        file_menu.addAction(open_action)
+        
+        # 最近文件
+        self.recent_menu = file_menu.addMenu('最近文件(&R)')
+        self.update_recent_menu()
+        
+        file_menu.addSeparator()
+        
+        # 保存结果
+        save_action = QAction('保存结果(&S)', self)
+        save_action.setShortcut('Ctrl+S')
+        save_action.triggered.connect(self.save_results)
+        file_menu.addAction(save_action)
+        
+        # 移除导出配置选项
+        
+        file_menu.addSeparator()
+        
+        # 退出
+        exit_action = QAction('退出(&X)', self)
+        exit_action.setShortcut('Ctrl+Q')
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+        view_menu = menubar.addMenu('视图(&V)')
+
+        # 帮助菜单
+        help_menu = menubar.addMenu('帮助(&H)')
+        
+        about_action = QAction('关于(&A)', self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+    
+    def create_toolbar(self):
+        """创建工具栏"""
+        toolbar = self.addToolBar('主工具栏')
+        
+        # 打开文件
+        open_action = QAction(QIcon(), '打开', self)
+        open_action.triggered.connect(self.open_file)
+        toolbar.addAction(open_action)
+        
+        toolbar.addSeparator()
+        
+        # 检测
+        detect_action = QAction(QIcon(), '检测', self)
+        detect_action.triggered.connect(self.start_detection)
+        toolbar.addAction(detect_action)
+        
+        # 保存
+        save_action = QAction(QIcon(), '保存', self)
+        save_action.triggered.connect(self.save_results)
+        toolbar.addAction(save_action)
+    
+    def init_detector(self):
+        """初始化检测器"""
+        try:
+            model_path = self.parameter_panel.get_model_path()
+            if model_path and Path(model_path).exists():
+                params = self.parameter_panel.get_parameters()
+                self.detector = ComicTextDetector(
+                    model_path=model_path,
+                    config=self.config,
+                    **params  # 这样会包含device参数
+                )
+                device_info = f"({self.detector.device})" if hasattr(self.detector, 'device') else ""
+                self.status_label.setText(f"检测器已加载: {Path(model_path).name} {device_info}")
+            else:
+                self.status_label.setText("请选择模型文件")
+        except Exception as e:
+            QMessageBox.warning(self, "警告", f"检测器初始化失败: {e}")
+            self.status_label.setText("检测器初始化失败")
+    
+    def open_file(self):
+        """打开图片文件"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "选择图片文件", 
+            str(self.config.examples_dir),
+            "图片文件 (*.png *.jpg *.jpeg *.bmp *.tiff)"
+        )
+        
+        if file_path:
+            self.load_image(file_path)
+    
+    def load_image(self, file_path: str):
+        """加载图片"""
+        try:
+            # 显示图片
+            self.image_viewer.load_image(file_path)
+            self.current_image_path = file_path
+            
+            # 更新UI状态
+            self.detect_button.setEnabled(self.detector is not None)
+            self.save_button.setEnabled(False)
+            
+            # 更新最近文件
+            self.add_recent_file(file_path)
+            
+            # 更新状态
+            self.status_label.setText(f"已加载: {Path(file_path).name}")
+            self.statusBar().showMessage(f"图片已加载: {file_path}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"无法加载图片: {e}")
+    
+    def start_detection(self):
+        """开始检测"""
+        if not self.current_image_path or not self.detector:
+            return
+        
+        # 更新检测器参数
+        params = self.parameter_panel.get_parameters()
+        self.detector.update_parameters(**params)
+        
+        # 禁用按钮，显示进度
+        self.detect_button.setEnabled(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)  # 不确定进度
+        
+        # 启动检测线程
+        self.detection_worker = DetectionWorker(self.detector, self.current_image_path)
+        self.detection_worker.finished.connect(self.on_detection_finished)
+        self.detection_worker.error.connect(self.on_detection_error)
+        self.detection_worker.progress.connect(self.on_detection_progress)
+        self.detection_worker.start()
+    
+    def on_detection_finished(self, results: DetectionResults):
+        """检测完成回调"""
+        self.current_results = results
+        
+        # 显示结果图片
+        self.image_viewer.set_result_image(results.result_image)
+        self.image_viewer.set_detection_regions(results.text_regions)
+        
+        # 更新UI状态
+        self.detect_button.setEnabled(True)
+        self.save_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        
+        # 更新状态信息
+        region_count = len(results.text_regions)
+        detection_time = results.detection_time
+        self.status_label.setText(f"检测完成: {region_count} 个区域, {detection_time:.2f}s")
+        self.statusBar().showMessage(f"检测完成: 找到 {region_count} 个文字区域")
+        
+        # 更新参数面板统计信息
+        self.parameter_panel.update_stats(results.to_dict())
+    
+    def on_detection_error(self, error_msg: str):
+        """检测错误回调"""
+        self.detect_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        self.status_label.setText("检测失败")
+        
+        QMessageBox.critical(self, "检测失败", f"检测过程中发生错误: {error_msg}")
+    
+    def on_detection_progress(self, message: str):
+        """检测进度回调"""
+        self.statusBar().showMessage(message)
+    
+    def save_results(self):
+        """保存检测结果"""
+        if not self.current_results:
+            QMessageBox.information(self, "提示", "没有检测结果可保存")
+            return
+        
+        # 选择保存目录
+        output_dir = QFileDialog.getExistingDirectory(
+            self, "选择保存目录", str(self.config.results_dir)
+        )
+        
+        if output_dir:
+            try:
+                saved_dir = self.detector.save_results(self.current_results, output_dir)
+                QMessageBox.information(self, "成功", f"结果已保存到: {saved_dir}")
+                self.statusBar().showMessage(f"结果已保存: {saved_dir}")
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"保存失败: {e}")
+    
+    def on_parameters_changed(self):
+        """参数变化回调"""
+        if hasattr(self, 'detector') and self.detector:
+            try:
+                # 获取新参数
+                params = self.parameter_panel.get_parameters()
+                model_path = self.parameter_panel.get_model_path()
+                
+                # 如果模型路径或设备改变了，需要重新初始化检测器
+                need_reinit = (model_path != self.detector.model_path or 
+                            params.get('device') != self.detector.device)
+                
+                if need_reinit:
+                    self.init_detector()
+                else:
+                    # 仅更新其他参数
+                    self.detector.update_parameters(**params)
+            except Exception as e:
+                QMessageBox.warning(self, "警告", f"参数更新失败: {e}")
+    
+    def add_recent_file(self, file_path: str):
+        """添加到最近文件"""
+        if file_path in self.recent_files:
+            self.recent_files.remove(file_path)
+        
+        self.recent_files.insert(0, file_path)
+        
+        # 限制最近文件数量
+        max_recent = self.config.gui_params.get('recent_files_count', 10)
+        if len(self.recent_files) > max_recent:
+            self.recent_files = self.recent_files[:max_recent]
+        
+        self.update_recent_menu()
+    
+    def update_recent_menu(self):
+        """更新最近文件菜单"""
+        self.recent_menu.clear()
+        
+        for i, file_path in enumerate(self.recent_files):
+            if Path(file_path).exists():
+                action = QAction(f"{i+1}. {Path(file_path).name}", self)
+                action.triggered.connect(lambda checked, path=file_path: self.load_image(path))
+                self.recent_menu.addAction(action)
+        
+        if not self.recent_files:
+            action = QAction("(空)", self)
+            action.setEnabled(False)
+            self.recent_menu.addAction(action)
+    
+    def export_config(self):
+        """导出配置"""
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "导出配置", "config.yaml", "配置文件 (*.yaml *.json)"
+        )
+        
+        if file_path:
+            try:
+                self.config.save(file_path)
+                QMessageBox.information(self, "成功", f"配置已导出到: {file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"导出失败: {e}")
+    
+    def show_about(self):
+        """显示关于对话框"""
+        about_text = """
+        <h3>漫画文本检测器 v1.0</h3>
+        <p>基于深度学习的漫画文本检测工具</p>
+        <p><b>特性:</b></p>
+        <ul>
+        <li>支持中文和日文文本检测</li>
+        <li>高精度的文本区域定位</li>
+        <li>友好的图形用户界面</li>
+        <li>可配置的检测参数</li>
+        </ul>
+        <p><b>技术支持:</b> PyQt5, PyTorch, OpenCV</p>
+        """
+        QMessageBox.about(self, "关于", about_text)
+    
+    def load_settings(self):
+        """加载设置"""
+        settings = QSettings("ComicTextDetector", "MainWindow")
+        
+        # 恢复窗口几何
+        geometry = settings.value("geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
+        
+        # 恢复最近文件
+        recent_files = settings.value("recent_files", [])
+        if isinstance(recent_files, list):
+            self.recent_files = recent_files
+            self.update_recent_menu()
+    
+    def save_settings(self):
+        """保存设置"""
+        settings = QSettings("ComicTextDetector", "MainWindow")
+        
+        # 保存窗口几何
+        settings.setValue("geometry", self.saveGeometry())
+        
+        # 保存最近文件
+        settings.setValue("recent_files", self.recent_files)
+    
+    def closeEvent(self, event):
+        """关闭事件处理"""
+        # 停止检测线程
+        if self.detection_worker and self.detection_worker.isRunning():
+            reply = QMessageBox.question(
+                self, "确认退出", "检测正在进行中，确定要退出吗？",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                event.ignore()
+                return
+            
+            self.detection_worker.quit()
+            self.detection_worker.wait()
+        
+        # 保存设置
+        self.save_settings()
+        
+        # 清理资源
+        if self.detector:
+            del self.detector
+        
+        event.accept()
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    app.setApplicationName("漫画文本检测器")
+    app.setApplicationVersion("1.0")
+    
+    window = ComicTextDetectorGUI()
+    window.show()
+    
+    sys.exit(app.exec_())
+```
+
+### `widgets`
+
+#### `image_viewer.py`
+
+```py
+"""
+图像查看器组件
+"""
+
+import cv2
+import numpy as np
+from pathlib import Path
+from typing import List, Dict, Optional, Tuple
+
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+
+
+
+class ImageViewer(QScrollArea):
+    """图像查看器组件"""
+    
+    image_clicked = pyqtSignal(QPoint)
+    region_selected = pyqtSignal(int)
+    
+    def __init__(self):
+        super().__init__()
+        
+        # 图像标签
+        self.image_label = QLabel()
+        self.image_label.setAlignment(Qt.AlignCenter)
+        self.image_label.setStyleSheet("QLabel { background-color: #f0f0f0; }")
+        self.image_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.image_label.setScaledContents(False)
+        
+        # 设置滚动区域
+        self.setWidget(self.image_label)
+        self.setWidgetResizable(True)
+        self.setAlignment(Qt.AlignCenter)
+        
+        # 图像数据
+        self.original_image: Optional[np.ndarray] = None
+        self.result_image: Optional[np.ndarray] = None
+        self.current_pixmap: Optional[QPixmap] = None
+        
+        # 检测区域
+        self.detection_regions: List[Dict] = []
+        self.selected_region: Optional[int] = None
+        
+        # 显示状态
+        self.zoom_factor = 1.0
+        self.show_original = True
+        self.show_regions = True
+        self.auto_fit = True
+        
+        # 鼠标事件
+        self.image_label.mousePressEvent = self.mouse_press_event
+        
+        # 初始化UI
+        self.init_ui()
+    
+    def init_ui(self):
+        """初始化UI"""
+        # 右键菜单
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
+        
+        # 默认显示
+        self.show_placeholder()
+    
+    def show_placeholder(self):
+        """显示占位符"""
+        pixmap = QPixmap(400, 300)
+        pixmap.fill(Qt.lightGray)
+        
+        painter = QPainter(pixmap)
+        painter.setPen(Qt.darkGray)
+        painter.setFont(QFont("Arial", 14))
+        painter.drawText(pixmap.rect(), Qt.AlignCenter, "点击打开图片\n或拖拽图片到此处")
+        painter.end()
+        
+        self.image_label.setPixmap(pixmap)
+    
+    def load_image(self, image_path: str):
+        """加载图片"""
+        try:
+            # 使用OpenCV读取图片
+            img = cv2.imread(image_path)
+            if img is None:
+                raise ValueError("无法读取图片文件")
+            
+            # 转换为RGB格式
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            self.original_image = img_rgb.copy()
+            self.result_image = None
+            
+            # 清空检测结果
+            self.detection_regions.clear()
+            self.selected_region = None
+            
+            # 显示图片
+            self.display_image(self.original_image)
+            
+            # 重置缩放
+            self.zoom_factor = 1.0
+            self.fit_to_window()
+            
+        except Exception as e:
+            self.show_error(f"加载图片失败: {e}")
+    
+    def resizeEvent(self, event):
+        """窗口大小改变事件处理"""
+        super().resizeEvent(event)
+        if self.auto_fit and self.current_pixmap is not None:
+            # 延迟执行适应窗口，避免频繁调用
+            QTimer.singleShot(100, self.fit_to_window)
+    
+    def set_result_image(self, result_image: np.ndarray):
+        """设置检测结果图片"""
+        self.result_image = result_image.copy()
+        if not self.show_original:
+            self.display_image(self.result_image)
+    
+    def set_detection_regions(self, regions: List[Dict]):
+        """设置检测区域"""
+        self.detection_regions = regions
+        self.update_display()
+    
+    def display_image(self, image: np.ndarray):
+        """显示图片"""
+        if image is None:
+            return
+        
+        try:
+            # 创建QImage
+            h, w, ch = image.shape
+            bytes_per_line = ch * w
+            q_image = QImage(image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+            
+            # 转换为QPixmap
+            pixmap = QPixmap.fromImage(q_image)
+            
+            # 如果需要显示检测区域，在图片上绘制
+            if self.show_regions and self.detection_regions:
+                pixmap = self.draw_regions_on_pixmap(pixmap)
+            
+            self.current_pixmap = pixmap
+            
+            # 应用缩放
+            scaled_pixmap = pixmap.scaled(
+                pixmap.size() * self.zoom_factor,
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+            )
+            
+            self.image_label.setPixmap(scaled_pixmap)
+            
+        except Exception as e:
+            self.show_error(f"显示图片失败: {e}")
+    
+    def draw_regions_on_pixmap(self, pixmap: QPixmap) -> QPixmap:
+        """在pixmap上绘制检测区域"""
+        if not self.detection_regions:
+            return pixmap
+        
+        # 创建副本进行绘制
+        result_pixmap = pixmap.copy()
+        painter = QPainter(result_pixmap)
+        
+        try:
+            for i, region in enumerate(self.detection_regions):
+                x1, y1, x2, y2 = region['bbox']
+                
+                # 设置颜色
+                if i == self.selected_region:
+                    color = QColor(255, 0, 0)  # 选中区域红色
+                    line_width = 3
+                else:
+                    confidence = region.get('confidence', 1.0)
+                    green_value = int(255 * min(confidence, 1.0))
+                    color = QColor(0, green_value, 0)
+                    line_width = 2
+                
+                # 绘制边界框
+                pen = QPen(color, line_width)
+                painter.setPen(pen)
+                painter.drawRect(x1, y1, x2 - x1, y2 - y1)
+                
+                # 绘制标签
+                label = f"{i}_{region['language']}"
+                if region.get('vertical', False):
+                    label += "_V"
+                if 'confidence' in region:
+                    label += f"_{region['confidence']:.3f}"
+                
+                # 标签背景
+                font = QFont("Arial", 9)
+                painter.setFont(font)
+                fm = QFontMetrics(font)
+                text_rect = fm.boundingRect(label)
+                text_rect.moveTopLeft(QPoint(x1, y1 - text_rect.height() - 2))
+                
+                painter.fillRect(text_rect.adjusted(-2, -2, 2, 2), color)
+                painter.setPen(QPen(Qt.white))
+                painter.drawText(text_rect, Qt.AlignCenter, label)
+        
+        finally:
+            painter.end()
+        
+        return result_pixmap
+    
+    def update_display(self):
+        """更新显示"""
+        if self.show_original and self.original_image is not None:
+            self.display_image(self.original_image)
+        elif not self.show_original and self.result_image is not None:
+            self.display_image(self.result_image)
+    
+    def toggle_view(self):
+        """切换原图/结果图显示"""
+        if self.result_image is not None:
+            self.show_original = not self.show_original
+            self.update_display()
+    
+    def toggle_regions(self):
+        """切换区域显示"""
+        self.show_regions = not self.show_regions
+        self.update_display()
+    
+    def zoom_in(self):
+        """放大"""
+        self.zoom_factor = min(self.zoom_factor * 1.25, 5.0)
+        self.update_display()
+    
+    def zoom_out(self):
+        """缩小"""
+        self.zoom_factor = max(self.zoom_factor / 1.25, 0.1)
+        self.update_display()
+    
+    def fit_to_window(self):
+        """适应窗口"""
+        if self.current_pixmap is None:
+            return
+        
+        # 计算合适的缩放因子
+        label_size = self.image_label.size()
+        pixmap_size = self.current_pixmap.size()
+        
+        scale_x = label_size.width() / pixmap_size.width()
+        scale_y = label_size.height() / pixmap_size.height()
+        
+        self.zoom_factor = min(scale_x, scale_y, 1.0)
+        self.update_display()
+    
+    def actual_size(self):
+        """实际大小"""
+        self.zoom_factor = 1.0
+        self.update_display()
+    
+    def mouse_press_event(self, event):
+        """鼠标点击事件"""
+        if event.button() == Qt.LeftButton and self.current_pixmap:
+            # 转换坐标到原图坐标系
+            click_pos = event.pos()
+            
+            # 发射点击信号
+            self.image_clicked.emit(click_pos)
+            
+            # 检查是否点击了检测区域
+            self.check_region_click(click_pos)
+
+    def toggle_auto_fit(self):
+        """切换自动适应模式"""
+        self.auto_fit = not self.auto_fit
+        if self.auto_fit and self.current_pixmap is not None:
+            self.fit_to_window()
+    
+    def check_region_click(self, click_pos: QPoint):
+        """检查是否点击了检测区域"""
+        if not self.detection_regions or not self.current_pixmap:
+            return
+        
+        # 转换点击坐标
+        label_rect = self.image_label.rect()
+        pixmap_rect = self.current_pixmap.rect()
+        
+        # 计算图片在label中的实际位置
+        if self.current_pixmap.width() <= label_rect.width():
+            x_offset = (label_rect.width() - self.current_pixmap.width()) // 2
+        else:
+            x_offset = 0
+        
+        if self.current_pixmap.height() <= label_rect.height():
+            y_offset = (label_rect.height() - self.current_pixmap.height()) // 2
+        else:
+            y_offset = 0
+        
+        # 转换到原图坐标
+        img_x = (click_pos.x() - x_offset) / self.zoom_factor
+        img_y = (click_pos.y() - y_offset) / self.zoom_factor
+        
+        # 检查点击的区域
+        for i, region in enumerate(self.detection_regions):
+            x1, y1, x2, y2 = region['bbox']
+            if x1 <= img_x <= x2 and y1 <= img_y <= y2:
+                self.selected_region = i if self.selected_region != i else None
+                self.update_display()
+                self.region_selected.emit(i if self.selected_region is not None else -1)
+                break
+    
+    def show_context_menu(self, pos):
+        """显示右键菜单"""
+        menu = QMenu(self)
+        
+        if self.original_image is not None:
+            # 视图切换
+            if self.result_image is not None:
+                toggle_action = QAction("切换到结果图" if self.show_original else "切换到原图", self)
+                toggle_action.triggered.connect(self.toggle_view)
+                menu.addAction(toggle_action)
+            
+            # 区域显示切换
+            regions_action = QAction("隐藏区域" if self.show_regions else "显示区域", self)
+            regions_action.triggered.connect(self.toggle_regions)
+            menu.addAction(regions_action)
+        
+        if menu.actions():
+            menu.exec_(self.mapToGlobal(pos))
+    
+    def show_error(self, message: str):
+        """显示错误信息"""
+        pixmap = QPixmap(400, 100)
+        pixmap.fill(Qt.white)
+        
+        painter = QPainter(pixmap)
+        painter.setPen(Qt.red)
+        painter.setFont(QFont("Arial", 12))
+        painter.drawText(pixmap.rect(), Qt.AlignCenter, message)
+        painter.end()
+        
+        self.image_label.setPixmap(pixmap)
+    
+    def get_selected_region(self) -> Optional[Dict]:
+        """获取选中的区域"""
+        if self.selected_region is not None and 0 <= self.selected_region < len(self.detection_regions):
+            return self.detection_regions[self.selected_region]
+        return None
+    
+    def clear(self):
+        """清空显示"""
+        self.original_image = None
+        self.result_image = None
+        self.current_pixmap = None
+        self.detection_regions.clear()
+        self.selected_region = None
+        self.show_placeholder()
+
+
+# 支持拖拽的图像查看器
+class DragDropImageViewer(ImageViewer):
+    """支持拖拽的图像查看器"""
+    
+    file_dropped = pyqtSignal(str)
+    
+    def __init__(self):
+        super().__init__()
+        self.setAcceptDrops(True)
+    
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            event.ignore()
+    
+    def dropEvent(self, event):
+        files = [u.toLocalFile() for u in event.mimeData().urls()]
+        if files:
+            # 检查是否为图片文件
+            image_extensions = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif'}
+            for file_path in files:
+                if Path(file_path).suffix.lower() in image_extensions:
+                    self.file_dropped.emit(file_path)
+                    break
+```
+
+#### `parameter_panel.py`
+
+```py
+"""
+参数控制面板组件
+"""
+
+from pathlib import Path
+from typing import Dict, Any
+
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+
+from config.config import Config
+
+
+class ParameterPanel(QWidget):
+    """参数控制面板"""
+    
+    parameters_changed = pyqtSignal()
+    
+    def __init__(self, config: Config):
+        super().__init__()
+        self.config = config
+        
+        # 控件引用
+        self.model_path_edit = None
+        self.input_size_combo = None
+        self.conf_thresh_slider = None
+        self.mask_thresh_slider = None
+        self.lang_checkboxes = {}
+        self.stats_labels = {}
+        
+        # 初始化UI
+        self.init_ui()
+        self.load_parameters()
+    
+    def init_ui(self):
+        """初始化UI"""
+        self.setFixedWidth(300)
+        layout = QVBoxLayout(self)
+        
+        # 标题
+        title_label = QLabel("检测参数")
+        title_label.setFont(QFont("Arial", 12, QFont.Bold))
+        layout.addWidget(title_label)
+        
+        # 模型选择组
+        model_group = self.create_model_group()
+        layout.addWidget(model_group)
+        
+        # 检测参数组
+        detection_group = self.create_detection_group()
+        layout.addWidget(detection_group)
+        
+        # 语言选择组
+        language_group = self.create_language_group()
+        layout.addWidget(language_group)
+        
+        # 统计信息组
+        stats_group = self.create_stats_group()
+        layout.addWidget(stats_group)
+        
+        # 弹簧，将控件推到顶部
+        layout.addStretch()
+        
+        # 按钮区域
+        button_layout = QVBoxLayout()
+        
+        # 重置参数按钮
+        reset_button = QPushButton("重置参数")
+        reset_button.clicked.connect(self.reset_parameters)
+        button_layout.addWidget(reset_button)
+        
+        # 更新配置按钮
+        self.update_config_button = QPushButton("更新默认配置")
+        self.update_config_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
+                padding: 5px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        self.update_config_button.clicked.connect(self.update_default_config)
+        button_layout.addWidget(self.update_config_button)
+        
+        layout.addLayout(button_layout)
+
+    def update_default_config(self):
+        """更新默认配置"""
+        try:
+            # 获取当前参数
+            current_params = self.get_parameters()
+            model_path = self.get_model_path()
+            
+            # 更新配置对象
+            if model_path:
+                self.config.set('paths.default_model', str(Path(model_path).relative_to(self.config.project_root)))
+            
+            self.config.set('detector.input_size', current_params['input_size'])
+            self.config.set('detector.conf_thresh', current_params['conf_thresh'])
+            self.config.set('detector.mask_thresh', current_params['mask_thresh'])
+            self.config.set('detector.allowed_languages', current_params['allowed_languages'])
+            
+            # 保存为默认配置
+            if self.config.save_as_default():
+                QMessageBox.information(
+                    self, 
+                    "成功", 
+                    "默认配置已更新！\n下次启动应用时将使用当前参数作为默认值。"
+                )
+            else:
+                QMessageBox.warning(self, "警告", "默认配置更新失败！")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"更新默认配置时发生错误：{e}")
+    
+    def create_model_group(self) -> QGroupBox:
+        """创建模型选择组"""
+        group = QGroupBox("模型设置")
+        layout = QVBoxLayout(group)
+        
+        # 模型路径选择
+        model_layout = QHBoxLayout()
+        
+        self.model_path_edit = QLineEdit()
+        self.model_path_edit.setPlaceholderText("选择模型文件...")
+        self.model_path_edit.textChanged.connect(self.parameters_changed.emit)
+        
+        browse_button = QPushButton("浏览")
+        browse_button.clicked.connect(self.browse_model)
+        
+        model_layout.addWidget(QLabel("模型文件:"))
+        model_layout.addWidget(self.model_path_edit, 1)
+        model_layout.addWidget(browse_button)
+        
+        layout.addLayout(model_layout)
+        
+    # 设备选择 - 添加这部分
+        device_layout = QHBoxLayout()
+        device_layout.addWidget(QLabel("计算设备:"))
+        
+        self.device_combo = QComboBox()
+        
+        # 检测可用设备
+        devices = ["auto", "cpu"]
+        if torch.cuda.is_available():
+            devices.append("cuda")
+            # 添加多GPU支持
+            for i in range(torch.cuda.device_count()):
+                devices.append(f"cuda:{i}")
+        
+        self.device_combo.addItems(devices)
+        self.device_combo.setCurrentText("auto")
+        self.device_combo.currentTextChanged.connect(self.parameters_changed.emit)
+        
+        device_layout.addWidget(self.device_combo)
+        device_layout.addStretch()
+        
+        layout.addLayout(device_layout)
+
+        # 输入尺寸选择
+        size_layout = QHBoxLayout()
+        size_layout.addWidget(QLabel("输入尺寸:"))
+        
+        self.input_size_combo = QComboBox()
+        self.input_size_combo.addItems(["1024", "1280", "1536"])
+        self.input_size_combo.setCurrentText("1280")
+        self.input_size_combo.currentTextChanged.connect(self.parameters_changed.emit)
+        
+        size_layout.addWidget(self.input_size_combo)
+        size_layout.addStretch()
+        
+        layout.addLayout(size_layout)
+        
+        return group
+    
+    def create_detection_group(self) -> QGroupBox:
+        """创建检测参数组"""
+        group = QGroupBox("检测参数")
+        layout = QVBoxLayout(group)
+        
+        # 置信度阈值
+        conf_layout = self.create_slider_layout(
+            "置信度阈值:", 0.1, 0.9, 0.4, 
+            lambda: self.parameters_changed.emit()
+        )
+        self.conf_thresh_slider = conf_layout[1]
+        layout.addLayout(conf_layout[0])
+        
+        # 掩码阈值
+        mask_layout = self.create_slider_layout(
+            "掩码阈值:", 0.1, 0.8, 0.3,
+            lambda: self.parameters_changed.emit()
+        )
+        self.mask_thresh_slider = mask_layout[1]
+        layout.addLayout(mask_layout[0])
+        
+        return group
+    
+    def create_slider_layout(self, label_text: str, min_val: float, max_val: float, 
+                            default_val: float, callback):
+        """创建滑块布局"""
+        layout = QVBoxLayout()
+        
+        # 标签和值显示
+        header_layout = QHBoxLayout()
+        label = QLabel(label_text)
+        value_label = QLabel(f"{default_val:.2f}")
+        header_layout.addWidget(label)
+        header_layout.addStretch()
+        header_layout.addWidget(value_label)
+        layout.addLayout(header_layout)
+        
+        # 滑块
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(int(min_val * 100))
+        slider.setMaximum(int(max_val * 100))
+        slider.setValue(int(default_val * 100))
+        
+        # 连接信号
+        def on_value_changed():
+            val = slider.value() / 100.0
+            value_label.setText(f"{val:.2f}")
+            callback()
+        
+        slider.valueChanged.connect(on_value_changed)
+        layout.addWidget(slider)
+        
+        return layout, slider
+    
+    def create_language_group(self) -> QGroupBox:
+        """创建语言选择组"""
+        group = QGroupBox("支持语言")
+        layout = QVBoxLayout(group)
+        
+        languages = [
+            ("zh", "中文"),
+            ("ja", "日文"), 
+            ("eng", "英文"),
+            ("unknown", "未知")
+        ]
+        
+        for lang_code, lang_name in languages:
+            checkbox = QCheckBox(lang_name)
+            if lang_code in ["zh", "ja"]:  # 默认选中中文和日文
+                checkbox.setChecked(True)
+            checkbox.stateChanged.connect(self.parameters_changed.emit)
+            self.lang_checkboxes[lang_code] = checkbox
+            layout.addWidget(checkbox)
+        
+        return group
+    
+    def create_stats_group(self) -> QGroupBox:
+        """创建统计信息组"""
+        group = QGroupBox("统计信息")
+        layout = QVBoxLayout(group)
+        
+        stats_items = [
+            ("total_regions", "检测区域:"),
+            ("detection_time", "检测耗时:"),
+            ("avg_confidence", "平均置信度:"),
+            ("languages", "检测语言:")
+        ]
+        
+        for key, label_text in stats_items:
+            item_layout = QHBoxLayout()
+            
+            label = QLabel(label_text)
+            value_label = QLabel("-")
+            value_label.setAlignment(Qt.AlignRight)
+            
+            item_layout.addWidget(label)
+            item_layout.addWidget(value_label)
+            
+            self.stats_labels[key] = value_label
+            layout.addLayout(item_layout)
+        
+        return group
+    
+    def browse_model(self):
+        """浏览模型文件"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "选择模型文件",
+            str(self.config.models_dir),
+            "模型文件 (*.pt *.pth *.onnx)"
+        )
+        
+        if file_path:
+            self.model_path_edit.setText(file_path)
+    
+    def get_model_path(self) -> str:
+        """获取模型路径"""
+        return self.model_path_edit.text().strip()
+    
+    def get_parameters(self) -> Dict[str, Any]:
+        """获取当前参数"""
+        # 获取选中的语言
+        allowed_languages = []
+        for lang_code, checkbox in self.lang_checkboxes.items():
+            if checkbox.isChecked():
+                allowed_languages.append(lang_code)
+        
+        return {
+            "input_size": int(self.input_size_combo.currentText()),
+            "conf_thresh": self.conf_thresh_slider.value() / 100.0,
+            "mask_thresh": self.mask_thresh_slider.value() / 100.0,
+            "allowed_languages": allowed_languages,
+            "device": self.device_combo.currentText()
+        }
+    
+    def set_parameters(self, params: Dict[str, Any]):
+        """设置参数"""
+        # 阻止信号发射
+        self.blockSignals(True)
+        
+        try:
+            if "input_size" in params:
+                self.input_size_combo.setCurrentText(str(params["input_size"]))
+            
+            if "conf_thresh" in params:
+                self.conf_thresh_slider.setValue(int(params["conf_thresh"] * 100))
+            
+            if "mask_thresh" in params:
+                self.mask_thresh_slider.setValue(int(params["mask_thresh"] * 100))
+            
+            if "device" in params:
+                        self.device_combo.setCurrentText(params["device"])
+
+            if "allowed_languages" in params:
+                # 先取消所有选择
+                for checkbox in self.lang_checkboxes.values():
+                    checkbox.setChecked(False)
+                
+                # 然后选中指定语言
+                for lang_code in params["allowed_languages"]:
+                    if lang_code in self.lang_checkboxes:
+                        self.lang_checkboxes[lang_code].setChecked(True)
+        
+        finally:
+            self.blockSignals(False)
+    
+    def load_parameters(self):
+        """从配置加载参数"""
+        # 设置默认模型路径
+        if self.config.model_path.exists():
+            self.model_path_edit.setText(str(self.config.model_path))
+        
+        # 设置检测参数
+        params = self.config.detector_params
+        self.set_parameters(params)
+        
+        print(f"已从配置加载参数: {params}")
+    
+    def reset_parameters(self):
+        """重置为默认参数"""
+        default_params = {
+            "input_size": 1280,
+            "conf_thresh": 0.4,
+            "mask_thresh": 0.3,
+            "allowed_languages": ["zh", "ja"]
+        }
+        self.set_parameters(default_params)
+        self.parameters_changed.emit()
+    
+    def update_stats(self, stats: Dict[str, Any]):
+        """更新统计信息"""
+        if "stats" in stats:
+            stats = stats["stats"]
+        
+        # 更新各项统计
+        if "total_regions" in stats:
+            self.stats_labels["total_regions"].setText(str(stats["total_regions"]))
+        
+        if "detection_time" in stats.get("parent", {}):
+            time_val = stats["parent"]["detection_time"]
+            self.stats_labels["detection_time"].setText(f"{time_val:.2f}s")
+        elif "detection_time" in stats:
+            time_val = stats["detection_time"]
+            self.stats_labels["detection_time"].setText(f"{time_val:.2f}s")
+        
+        if "avg_confidence" in stats:
+            conf_val = stats["avg_confidence"]
+            self.stats_labels["avg_confidence"].setText(f"{conf_val:.3f}")
+        
+        if "languages" in stats:
+            langs = stats["languages"]
+            lang_str = ", ".join(langs) if langs else "无"
+            self.stats_labels["languages"].setText(lang_str)
+    
+    def clear_stats(self):
+        """清空统计信息"""
+        for label in self.stats_labels.values():
+            label.setText("-")
+    
+    def validate_parameters(self) -> tuple[bool, str]:
+        """验证参数有效性"""
+        # 检查模型文件
+        model_path = self.get_model_path()
+        if not model_path:
+            return False, "请选择模型文件"
+        
+        if not Path(model_path).exists():
+            return False, f"模型文件不存在: {model_path}"
+        
+        # 检查语言选择
+        params = self.get_parameters()
+        if not params["allowed_languages"]:
+            return False, "请至少选择一种支持的语言"
+        
+        return True, ""
+    
+    def get_parameter_summary(self) -> str:
+        """获取参数摘要"""
+        params = self.get_parameters()
+        model_name = Path(self.get_model_path()).name if self.get_model_path() else "未选择"
+        
+        summary = f"""参数摘要:
+模型: {model_name}
+输入尺寸: {params['input_size']}
+置信度阈值: {params['conf_thresh']:.2f}
+掩码阈值: {params['mask_thresh']:.2f}
+支持语言: {', '.join(params['allowed_languages'])}"""
+        
+        return summary
+
+
+class AdvancedParameterDialog(QDialog):
+    """高级参数设置对话框"""
+    
+    def __init__(self, current_params: Dict[str, Any], parent=None):
+        super().__init__(parent)
+        self.current_params = current_params.copy()
+        self.result_params = current_params.copy()
+        
+        self.init_ui()
+        self.load_parameters()
+    
+    def init_ui(self):
+        """初始化UI"""
+        self.setWindowTitle("高级参数设置")
+        self.setModal(True)
+        self.resize(400, 500)
+        
+        layout = QVBoxLayout(self)
+        
+        # 参数组
+        scroll_area = QScrollArea()
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        
+        # NMS阈值
+        nms_group = QGroupBox("NMS参数")
+        nms_layout = QVBoxLayout(nms_group)
+        
+        self.nms_thresh_spin = QDoubleSpinBox()
+        self.nms_thresh_spin.setRange(0.1, 0.9)
+        self.nms_thresh_spin.setSingleStep(0.05)
+        self.nms_thresh_spin.setValue(0.35)
+        
+        nms_layout.addWidget(QLabel("NMS阈值:"))
+        nms_layout.addWidget(self.nms_thresh_spin)
+        scroll_layout.addWidget(nms_group)
+        
+        # 其他高级参数可以在这里添加
+        # ...
+        
+        scroll_area.setWidget(scroll_widget)
+        layout.addWidget(scroll_area)
+        
+        # 按钮
+        button_layout = QHBoxLayout()
+        
+        ok_button = QPushButton("确定")
+        ok_button.clicked.connect(self.accept)
+        cancel_button = QPushButton("取消") 
+        cancel_button.clicked.connect(self.reject)
+        
+        button_layout.addStretch()
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+        
+        layout.addLayout(button_layout)
+    
+    def load_parameters(self):
+        """加载参数"""
+        if "nms_thresh" in self.current_params:
+            self.nms_thresh_spin.setValue(self.current_params["nms_thresh"])
+    
+    def accept(self):
+        """确认对话框"""
+        self.result_params["nms_thresh"] = self.nms_thresh_spin.value()
+        super().accept()
+    
+    def get_parameters(self) -> Dict[str, Any]:
+        """获取参数"""
+        return self.result_params
+
+
+if __name__ == "__main__":
+    # 测试参数面板
+    import sys
+    
+    app = QApplication(sys.argv)
+    
+    config = Config()
+    panel = ParameterPanel(config)
+    
+    # 创建测试窗口
+    window = QWidget()
+    layout = QHBoxLayout(window)
+    layout.addWidget(panel)
+    
+    window.show()
+    
+    sys.exit(app.exec_())
 ```
 
 #### `__init__.py`
@@ -4303,7 +4318,7 @@ def draw_connected_labels(num_labels, labels, stats, centroids, names="draw_conn
 import os
 import os.path as osp
 import glob
-from pathlib import Path
+from pathlib import Path  # 添加这行
 import cv2
 import numpy as np
 import json

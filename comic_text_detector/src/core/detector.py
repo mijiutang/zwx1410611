@@ -57,16 +57,16 @@ class ComicTextDetector:
     """漫画文本检测器主类"""
     
     def __init__(self, 
-                 model_path: Optional[str] = None,
-                 device: Optional[str] = None,
-                 config: Optional[Config] = None,
-                 **kwargs):
+             model_path: Optional[str] = None,
+             device: Optional[str] = None,
+             config: Optional[Config] = None,
+             **kwargs):
         """
         初始化检测器
         
         Args:
             model_path: 模型文件路径
-            device: 计算设备 ('cuda', 'cpu', 'auto')
+            device: 计算设备 ('cuda', 'cpu', 'auto', 'cuda:0', 'cuda:1', etc.)
             config: 配置对象
             **kwargs: 其他检测参数
         """
@@ -74,9 +74,10 @@ class ComicTextDetector:
         self.config = config or Config()
         
         # 设备设置
-        if device == 'auto' or device is None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.device = device
+        if device is None:
+            device = kwargs.get('device', self.config.get('detector.device', 'auto'))
+        
+        self.device = self._resolve_device(device)
         
         # 模型路径
         self.model_path = model_path or str(self.config.model_path)
@@ -99,6 +100,30 @@ class ComicTextDetector:
         # 统计信息
         self.detection_count = 0
         self.total_time = 0.0
+
+    def _resolve_device(self, device: str) -> str:
+        """解析设备字符串"""
+        if device == 'auto':
+            if torch.cuda.is_available():
+                return 'cuda'
+            else:
+                return 'cpu'
+        elif device.startswith('cuda'):
+            if torch.cuda.is_available():
+                # 检查指定的GPU是否存在
+                if ':' in device:
+                    gpu_id = int(device.split(':')[1])
+                    if gpu_id < torch.cuda.device_count():
+                        return device
+                    else:
+                        print(f"警告: GPU {gpu_id} 不存在，回退到 cuda:0")
+                        return 'cuda:0' if torch.cuda.device_count() > 0 else 'cpu'
+                return 'cuda'
+            else:
+                print("警告: CUDA不可用，回退到CPU")
+                return 'cpu'
+        else:
+            return 'cpu'
     
     def _init_detector(self):
         """初始化底层检测器"""

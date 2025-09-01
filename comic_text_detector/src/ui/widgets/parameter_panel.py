@@ -4,7 +4,7 @@
 
 from pathlib import Path
 from typing import Dict, Any
-
+import torch
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -138,6 +138,29 @@ class ParameterPanel(QWidget):
         
         layout.addLayout(model_layout)
         
+    # 设备选择 - 添加这部分
+        device_layout = QHBoxLayout()
+        device_layout.addWidget(QLabel("计算设备:"))
+        
+        self.device_combo = QComboBox()
+        
+        # 检测可用设备
+        devices = ["auto", "cpu"]
+        if torch.cuda.is_available():
+            devices.append("cuda")
+            # 添加多GPU支持
+            for i in range(torch.cuda.device_count()):
+                devices.append(f"cuda:{i}")
+        
+        self.device_combo.addItems(devices)
+        self.device_combo.setCurrentText("auto")
+        self.device_combo.currentTextChanged.connect(self.parameters_changed.emit)
+        
+        device_layout.addWidget(self.device_combo)
+        device_layout.addStretch()
+        
+        layout.addLayout(device_layout)
+
         # 输入尺寸选择
         size_layout = QHBoxLayout()
         size_layout.addWidget(QLabel("输入尺寸:"))
@@ -284,7 +307,8 @@ class ParameterPanel(QWidget):
             "input_size": int(self.input_size_combo.currentText()),
             "conf_thresh": self.conf_thresh_slider.value() / 100.0,
             "mask_thresh": self.mask_thresh_slider.value() / 100.0,
-            "allowed_languages": allowed_languages
+            "allowed_languages": allowed_languages,
+            "device": self.device_combo.currentText()
         }
     
     def set_parameters(self, params: Dict[str, Any]):
@@ -302,6 +326,9 @@ class ParameterPanel(QWidget):
             if "mask_thresh" in params:
                 self.mask_thresh_slider.setValue(int(params["mask_thresh"] * 100))
             
+            if "device" in params:
+                        self.device_combo.setCurrentText(params["device"])
+
             if "allowed_languages" in params:
                 # 先取消所有选择
                 for checkbox in self.lang_checkboxes.values():
