@@ -62,10 +62,60 @@ class ParameterPanel(QWidget):
         # 弹簧，将控件推到顶部
         layout.addStretch()
         
-        # 重置按钮
+        # 按钮区域
+        button_layout = QVBoxLayout()
+        
+        # 重置参数按钮
         reset_button = QPushButton("重置参数")
         reset_button.clicked.connect(self.reset_parameters)
-        layout.addWidget(reset_button)
+        button_layout.addWidget(reset_button)
+        
+        # 更新配置按钮
+        self.update_config_button = QPushButton("更新默认配置")
+        self.update_config_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
+                padding: 5px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        self.update_config_button.clicked.connect(self.update_default_config)
+        button_layout.addWidget(self.update_config_button)
+        
+        layout.addLayout(button_layout)
+
+    def update_default_config(self):
+        """更新默认配置"""
+        try:
+            # 获取当前参数
+            current_params = self.get_parameters()
+            model_path = self.get_model_path()
+            
+            # 更新配置对象
+            if model_path:
+                self.config.set('paths.default_model', str(Path(model_path).relative_to(self.config.project_root)))
+            
+            self.config.set('detector.input_size', current_params['input_size'])
+            self.config.set('detector.conf_thresh', current_params['conf_thresh'])
+            self.config.set('detector.mask_thresh', current_params['mask_thresh'])
+            self.config.set('detector.allowed_languages', current_params['allowed_languages'])
+            
+            # 保存为默认配置
+            if self.config.save_as_default():
+                QMessageBox.information(
+                    self, 
+                    "成功", 
+                    "默认配置已更新！\n下次启动应用时将使用当前参数作为默认值。"
+                )
+            else:
+                QMessageBox.warning(self, "警告", "默认配置更新失败！")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"更新默认配置时发生错误：{e}")
     
     def create_model_group(self) -> QGroupBox:
         """创建模型选择组"""
@@ -274,6 +324,8 @@ class ParameterPanel(QWidget):
         # 设置检测参数
         params = self.config.detector_params
         self.set_parameters(params)
+        
+        print(f"已从配置加载参数: {params}")
     
     def reset_parameters(self):
         """重置为默认参数"""

@@ -1341,6 +1341,14 @@ class DetectionWorker(QThread):
 
 class ComicTextDetectorGUI(QMainWindow):
     """漫画文本检测器GUI主窗口"""
+
+    ASPECT_RATIO = 11 / 12  # 你想要的长宽比
+
+    def resizeEvent(self, event):
+        w = event.size().width()
+        h = int(w / self.ASPECT_RATIO)
+        self.resize(w, h)
+        super().resizeEvent(event)
     
     def __init__(self):
         super().__init__()
@@ -1780,12 +1788,6 @@ if __name__ == "__main__":
     sys.exit(app.exec_())
 ```
 
-### `main_window.py`
-
-```py
-
-```
-
 ### `widgets`
 
 #### `image_viewer.py`
@@ -1803,6 +1805,7 @@ from typing import List, Dict, Optional, Tuple
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+
 
 
 class ImageViewer(QScrollArea):
@@ -1839,6 +1842,7 @@ class ImageViewer(QScrollArea):
         self.zoom_factor = 1.0
         self.show_original = True
         self.show_regions = True
+        self.auto_fit = True
         
         # 鼠标事件
         self.image_label.mousePressEvent = self.mouse_press_event
@@ -1894,6 +1898,13 @@ class ImageViewer(QScrollArea):
             
         except Exception as e:
             self.show_error(f"加载图片失败: {e}")
+    
+    def resizeEvent(self, event):
+        """窗口大小改变事件处理"""
+        super().resizeEvent(event)
+        if self.auto_fit and self.current_pixmap is not None:
+            # 延迟执行适应窗口，避免频繁调用
+            QTimer.singleShot(100, self.fit_to_window)
     
     def set_result_image(self, result_image: np.ndarray):
         """设置检测结果图片"""
@@ -2048,6 +2059,12 @@ class ImageViewer(QScrollArea):
             
             # 检查是否点击了检测区域
             self.check_region_click(click_pos)
+
+    def toggle_auto_fit(self):
+        """切换自动适应模式"""
+        self.auto_fit = not self.auto_fit
+        if self.auto_fit and self.current_pixmap is not None:
+            self.fit_to_window()
     
     def check_region_click(self, click_pos: QPoint):
         """检查是否点击了检测区域"""
@@ -2097,7 +2114,12 @@ class ImageViewer(QScrollArea):
             regions_action = QAction("隐藏区域" if self.show_regions else "显示区域", self)
             regions_action.triggered.connect(self.toggle_regions)
             menu.addAction(regions_action)
-            
+
+            # 添加这个部分
+            auto_fit_action = QAction("禁用自动适应" if self.auto_fit else "启用自动适应", self)
+            auto_fit_action.triggered.connect(self.toggle_auto_fit)
+            menu.addAction(auto_fit_action)
+
             menu.addSeparator()
             
             # 缩放选项

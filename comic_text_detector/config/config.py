@@ -14,7 +14,10 @@ class Config:
     
     def __init__(self, config_file: Optional[str] = None):
         self.project_root = Path(__file__).parent.parent
-        self.config_file = config_file
+        
+        # 默认配置文件路径
+        self.default_config_file = self.project_root / "config" / "default_settings.json"
+        self.config_file = config_file or str(self.default_config_file)
         
         # 默认配置
         self._default_config = {
@@ -73,7 +76,23 @@ class Config:
         """加载配置文件"""
         config = self._default_config.copy()
         
-        if self.config_file and Path(self.config_file).exists():
+        # 首先尝试加载默认配置文件
+        if self.default_config_file.exists():
+            try:
+                with open(self.default_config_file, 'r', encoding='utf-8') as f:
+                    user_config = json.load(f)
+                config = self._deep_update(config, user_config)
+                print(f"已加载默认配置: {self.default_config_file}")
+            except Exception as e:
+                print(f"警告：无法加载默认配置文件 {self.default_config_file}: {e}")
+                # 如果默认配置文件不存在或有问题，创建一个新的
+                self._create_default_config()
+        else:
+            # 创建默认配置文件
+            self._create_default_config()
+        
+        # 如果指定了其他配置文件，则覆盖加载
+        if self.config_file != str(self.default_config_file) and Path(self.config_file).exists():
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     if self.config_file.endswith('.yaml') or self.config_file.endswith('.yml'):
@@ -81,13 +100,38 @@ class Config:
                     else:
                         user_config = json.load(f)
                 
-                # 递归更新配置
                 config = self._deep_update(config, user_config)
                 
             except Exception as e:
                 print(f"警告：无法加载配置文件 {self.config_file}: {e}")
         
         return config
+    
+    def _create_default_config(self):
+        """创建默认配置文件"""
+        try:
+            # 确保config目录存在
+            self.default_config_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(self.default_config_file, 'w', encoding='utf-8') as f:
+                json.dump(self._default_config, f, indent=2, ensure_ascii=False)
+            print(f"已创建默认配置文件: {self.default_config_file}")
+        except Exception as e:
+            print(f"警告：无法创建默认配置文件: {e}")
+    
+    def save_as_default(self):
+        """将当前配置保存为默认配置"""
+        try:
+            # 确保config目录存在
+            self.default_config_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(self.default_config_file, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, indent=2, ensure_ascii=False)
+            print(f"配置已更新并保存为默认配置: {self.default_config_file}")
+            return True
+        except Exception as e:
+            print(f"错误：无法保存默认配置: {e}")
+            return False
     
     def _deep_update(self, base_dict: Dict, update_dict: Dict) -> Dict:
         """递归更新字典"""
@@ -137,7 +181,7 @@ class Config:
     def save(self, file_path: Optional[str] = None):
         """保存配置到文件"""
         if file_path is None:
-            file_path = self.config_file or "config.yaml"
+            file_path = self.config_file
         
         with open(file_path, 'w', encoding='utf-8') as f:
             if file_path.endswith('.yaml') or file_path.endswith('.yml'):
@@ -145,7 +189,7 @@ class Config:
             else:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
     
-    # 便捷属性
+    # 便捷属性保持不变...
     @property
     def project_root(self) -> Path:
         return self._project_root
@@ -187,7 +231,7 @@ class Config:
         return self.get('output', {})
 
 
-# 创建默认配置文件
+# 创建默认配置文件的函数保持不变...
 def create_default_config(file_path: str = "config.yaml"):
     """创建默认配置文件"""
     config = Config()
@@ -201,6 +245,3 @@ if __name__ == "__main__":
     print("设备:", config.device)
     print("模型路径:", config.model_path)
     print("检测器参数:", config.detector_params)
-    
-    # 创建默认配置文件
-    create_default_config()

@@ -43,6 +43,14 @@ class DetectionWorker(QThread):
 
 class ComicTextDetectorGUI(QMainWindow):
     """漫画文本检测器GUI主窗口"""
+
+    ASPECT_RATIO = 11 / 12  # 你想要的长宽比
+
+    def resizeEvent(self, event):
+        w = event.size().width()
+        h = int(w / self.ASPECT_RATIO)
+        self.resize(w, h)
+        super().resizeEvent(event)
     
     def __init__(self):
         super().__init__()
@@ -159,10 +167,7 @@ class ComicTextDetectorGUI(QMainWindow):
         save_action.triggered.connect(self.save_results)
         file_menu.addAction(save_action)
         
-        # 导出配置
-        export_config_action = QAction('导出配置(&E)', self)
-        export_config_action.triggered.connect(self.export_config)
-        file_menu.addAction(export_config_action)
+        # 移除导出配置选项
         
         file_menu.addSeparator()
         
