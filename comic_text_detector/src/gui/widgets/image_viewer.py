@@ -319,30 +319,6 @@ class ImageViewer(QScrollArea):
             regions_action = QAction("隐藏区域" if self.show_regions else "显示区域", self)
             regions_action.triggered.connect(self.toggle_regions)
             menu.addAction(regions_action)
-
-            # 添加这个部分
-            auto_fit_action = QAction("禁用自动适应" if self.auto_fit else "启用自动适应", self)
-            auto_fit_action.triggered.connect(self.toggle_auto_fit)
-            menu.addAction(auto_fit_action)
-
-            menu.addSeparator()
-            
-            # 缩放选项
-            zoom_in_action = QAction("放大", self)
-            zoom_in_action.triggered.connect(self.zoom_in)
-            menu.addAction(zoom_in_action)
-            
-            zoom_out_action = QAction("缩小", self)
-            zoom_out_action.triggered.connect(self.zoom_out)
-            menu.addAction(zoom_out_action)
-            
-            fit_action = QAction("适应窗口", self)
-            fit_action.triggered.connect(self.fit_to_window)
-            menu.addAction(fit_action)
-            
-            actual_action = QAction("实际大小", self)
-            actual_action.triggered.connect(self.actual_size)
-            menu.addAction(actual_action)
         
         if menu.actions():
             menu.exec_(self.mapToGlobal(pos))

@@ -177,30 +177,8 @@ class ComicTextDetectorGUI(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
         
-        # 视图菜单
         view_menu = menubar.addMenu('视图(&V)')
-        
-        # 缩放操作
-        zoom_in_action = QAction('放大(&I)', self)
-        zoom_in_action.setShortcut('Ctrl++')
-        zoom_in_action.triggered.connect(self.image_viewer.zoom_in)
-        view_menu.addAction(zoom_in_action)
-        
-        zoom_out_action = QAction('缩小(&O)', self)
-        zoom_out_action.setShortcut('Ctrl+-')
-        zoom_out_action.triggered.connect(self.image_viewer.zoom_out)
-        view_menu.addAction(zoom_out_action)
-        
-        fit_window_action = QAction('适应窗口(&F)', self)
-        fit_window_action.setShortcut('Ctrl+F')
-        fit_window_action.triggered.connect(self.image_viewer.fit_to_window)
-        view_menu.addAction(fit_window_action)
-        
-        actual_size_action = QAction('实际大小(&A)', self)
-        actual_size_action.setShortcut('Ctrl+1')
-        actual_size_action.triggered.connect(self.image_viewer.actual_size)
-        view_menu.addAction(actual_size_action)
-        
+
         # 帮助菜单
         help_menu = menubar.addMenu('帮助(&H)')
         

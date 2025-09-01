@@ -13,8 +13,7 @@
     "mask_thresh": 0.3,
     "allowed_languages": [
       "zh",
-      "ja",
-      "unknown"
+      "ja"
     ]
   },
   "gui": {

@@ -23,7 +23,10 @@ class Config:
     
     def __init__(self, config_file: Optional[str] = None):
         self.project_root = Path(__file__).parent.parent
-        self.config_file = config_file
+        
+        # 默认配置文件路径
+        self.default_config_file = self.project_root / "config" / "default_settings.json"
+        self.config_file = config_file or str(self.default_config_file)
         
         # 默认配置
         self._default_config = {
@@ -82,7 +85,23 @@ class Config:
         """加载配置文件"""
         config = self._default_config.copy()
         
-        if self.config_file and Path(self.config_file).exists():
+        # 首先尝试加载默认配置文件
+        if self.default_config_file.exists():
+            try:
+                with open(self.default_config_file, 'r', encoding='utf-8') as f:
+                    user_config = json.load(f)
+                config = self._deep_update(config, user_config)
+                print(f"已加载默认配置: {self.default_config_file}")
+            except Exception as e:
+                print(f"警告：无法加载默认配置文件 {self.default_config_file}: {e}")
+                # 如果默认配置文件不存在或有问题，创建一个新的
+                self._create_default_config()
+        else:
+            # 创建默认配置文件
+            self._create_default_config()
+        
+        # 如果指定了其他配置文件，则覆盖加载
+        if self.config_file != str(self.default_config_file) and Path(self.config_file).exists():
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     if self.config_file.endswith('.yaml') or self.config_file.endswith('.yml'):
@@ -90,13 +109,38 @@ class Config:
                     else:
                         user_config = json.load(f)
                 
-                # 递归更新配置
                 config = self._deep_update(config, user_config)
                 
             except Exception as e:
                 print(f"警告：无法加载配置文件 {self.config_file}: {e}")
         
         return config
+    
+    def _create_default_config(self):
+        """创建默认配置文件"""
+        try:
+            # 确保config目录存在
+            self.default_config_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(self.default_config_file, 'w', encoding='utf-8') as f:
+                json.dump(self._default_config, f, indent=2, ensure_ascii=False)
+            print(f"已创建默认配置文件: {self.default_config_file}")
+        except Exception as e:
+            print(f"警告：无法创建默认配置文件: {e}")
+    
+    def save_as_default(self):
+        """将当前配置保存为默认配置"""
+        try:
+            # 确保config目录存在
+            self.default_config_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(self.default_config_file, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, indent=2, ensure_ascii=False)
+            print(f"配置已更新并保存为默认配置: {self.default_config_file}")
+            return True
+        except Exception as e:
+            print(f"错误：无法保存默认配置: {e}")
+            return False
     
     def _deep_update(self, base_dict: Dict, update_dict: Dict) -> Dict:
         """递归更新字典"""
@@ -146,7 +190,7 @@ class Config:
     def save(self, file_path: Optional[str] = None):
         """保存配置到文件"""
         if file_path is None:
-            file_path = self.config_file or "config.yaml"
+            file_path = self.config_file
         
         with open(file_path, 'w', encoding='utf-8') as f:
             if file_path.endswith('.yaml') or file_path.endswith('.yml'):
@@ -154,7 +198,7 @@ class Config:
             else:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
     
-    # 便捷属性
+    # 便捷属性保持不变...
     @property
     def project_root(self) -> Path:
         return self._project_root
@@ -196,7 +240,7 @@ class Config:
         return self.get('output', {})
 
 
-# 创建默认配置文件
+# 创建默认配置文件的函数保持不变...
 def create_default_config(file_path: str = "config.yaml"):
     """创建默认配置文件"""
     config = Config()
@@ -210,9 +254,6 @@ if __name__ == "__main__":
     print("设备:", config.device)
     print("模型路径:", config.model_path)
     print("检测器参数:", config.detector_params)
-    
-    # 创建默认配置文件
-    create_default_config()
 ```
 
 ## `paths.py`
@@ -1465,10 +1506,7 @@ class ComicTextDetectorGUI(QMainWindow):
         save_action.triggered.connect(self.save_results)
         file_menu.addAction(save_action)
         
-        # 导出配置
-        export_config_action = QAction('导出配置(&E)', self)
-        export_config_action.triggered.connect(self.export_config)
-        file_menu.addAction(export_config_action)
+        # 移除导出配置选项
         
         file_menu.addSeparator()
         
@@ -2265,10 +2303,60 @@ class ParameterPanel(QWidget):
         # 弹簧，将控件推到顶部
         layout.addStretch()
         
-        # 重置按钮
+        # 按钮区域
+        button_layout = QVBoxLayout()
+        
+        # 重置参数按钮
         reset_button = QPushButton("重置参数")
         reset_button.clicked.connect(self.reset_parameters)
-        layout.addWidget(reset_button)
+        button_layout.addWidget(reset_button)
+        
+        # 更新配置按钮
+        self.update_config_button = QPushButton("更新默认配置")
+        self.update_config_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
+                padding: 5px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        self.update_config_button.clicked.connect(self.update_default_config)
+        button_layout.addWidget(self.update_config_button)
+        
+        layout.addLayout(button_layout)
+
+    def update_default_config(self):
+        """更新默认配置"""
+        try:
+            # 获取当前参数
+            current_params = self.get_parameters()
+            model_path = self.get_model_path()
+            
+            # 更新配置对象
+            if model_path:
+                self.config.set('paths.default_model', str(Path(model_path).relative_to(self.config.project_root)))
+            
+            self.config.set('detector.input_size', current_params['input_size'])
+            self.config.set('detector.conf_thresh', current_params['conf_thresh'])
+            self.config.set('detector.mask_thresh', current_params['mask_thresh'])
+            self.config.set('detector.allowed_languages', current_params['allowed_languages'])
+            
+            # 保存为默认配置
+            if self.config.save_as_default():
+                QMessageBox.information(
+                    self, 
+                    "成功", 
+                    "默认配置已更新！\n下次启动应用时将使用当前参数作为默认值。"
+                )
+            else:
+                QMessageBox.warning(self, "警告", "默认配置更新失败！")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"更新默认配置时发生错误：{e}")
     
     def create_model_group(self) -> QGroupBox:
         """创建模型选择组"""
@@ -2477,6 +2565,8 @@ class ParameterPanel(QWidget):
         # 设置检测参数
         params = self.config.detector_params
         self.set_parameters(params)
+        
+        print(f"已从配置加载参数: {params}")
     
     def reset_parameters(self):
         """重置为默认参数"""
