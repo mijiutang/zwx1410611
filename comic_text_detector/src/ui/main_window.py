@@ -180,12 +180,30 @@ class ComicTextDetectorGUI(QMainWindow):
         self.toggle_regions_action.triggered.connect(self.toggle_detection_regions)
         view_menu.addAction(self.toggle_regions_action)
 
+        # 在现有的 toggle_regions_action 后面添加
+        self.toggle_lines_action = QAction('显示文本行(&L)', self)
+        self.toggle_lines_action.setShortcut('Ctrl+L')
+        self.toggle_lines_action.setCheckable(True)
+        self.toggle_lines_action.setChecked(True)  # 默认显示
+        self.toggle_lines_action.triggered.connect(self.toggle_text_lines)
+        view_menu.addAction(self.toggle_lines_action)
+        
+
         # 帮助菜单
         help_menu = menubar.addMenu('帮助(&H)')
         
         about_action = QAction('关于(&A)', self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
+
+    def toggle_text_lines(self):
+        """切换文本行显示"""
+        self.image_viewer.toggle_lines()
+        # 更新动作文本
+        if self.image_viewer.show_lines:
+            self.toggle_lines_action.setText('隐藏文本行(&L)')
+        else:
+            self.toggle_lines_action.setText('显示文本行(&L)')
     
     def create_toolbar(self):
         """创建工具栏"""
