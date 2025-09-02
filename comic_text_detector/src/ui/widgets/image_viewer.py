@@ -240,7 +240,7 @@ class ImageViewer(QScrollArea):
             painter.end()
         
         return result_pixmap
-    
+        
     def toggle_lines(self):
         """切换文本行显示"""
         self.show_lines = not self.show_lines

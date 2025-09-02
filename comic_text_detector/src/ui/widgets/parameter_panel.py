@@ -336,6 +336,7 @@ class ParameterPanel(QWidget):
         return self.model_path_edit.text().strip()
     
     def get_parameters(self) -> Dict[str, Any]:
+        """获取参数"""
         # 获取选中的语言
         allowed_languages = []
         for lang_code, checkbox in self.lang_checkboxes.items():
@@ -348,10 +349,10 @@ class ParameterPanel(QWidget):
             "mask_thresh": self.mask_thresh_slider.value() / 100.0,
             "allowed_languages": allowed_languages,
             "device": self.device_combo.currentText(),
-            # 删除这行：
-            # "iou_merge_thresh": self.iou_merge_slider.value() / 100.0,
             "containment_thresh": self.containment_slider.value() / 100.0,
-            "enable_box_filter": self.enable_filter_checkbox.isChecked()
+            "enable_box_filter": self.enable_filter_checkbox.isChecked(),
+            "min_box_width": self.min_box_width_spin.value(),
+            "min_box_height": self.min_box_height_spin.value()
         }
         
         return params
@@ -362,20 +363,46 @@ class ParameterPanel(QWidget):
         self.blockSignals(True)
         
         try:
-            # ... 其他参数设置 ...
+            # 设置输入尺寸
+            if "input_size" in params:
+                self.input_size_combo.setCurrentText(str(params["input_size"]))
             
-            # 更新最小框尺寸设置
+            # 设置设备
+            if "device" in params:
+                self.device_combo.setCurrentText(params["device"])
+            
+            # 设置置信度阈值
+            if "conf_thresh" in params:
+                self.conf_thresh_slider.setValue(int(params["conf_thresh"] * 100))
+            
+            # 设置掩码阈值
+            if "mask_thresh" in params:
+                self.mask_thresh_slider.setValue(int(params["mask_thresh"] * 100))
+            
+            # 设置包含关系阈值
+            if "containment_thresh" in params:
+                self.containment_slider.setValue(int(params["containment_thresh"] * 100))
+            
+            # 设置语言选择
+            if "allowed_languages" in params:
+                allowed_langs = params["allowed_languages"]
+                for lang_code, checkbox in self.lang_checkboxes.items():
+                    checkbox.setChecked(lang_code in allowed_langs)
+            
+            # 设置最小框尺寸
             if "min_box_width" in params:
                 self.min_box_width_spin.setValue(params["min_box_width"])
             
             if "min_box_height" in params:
                 self.min_box_height_spin.setValue(params["min_box_height"])
             
-            # 移除旧的min_box_size相关代码
-            
+            # 设置启用框过滤
+            if "enable_box_filter" in params:
+                self.enable_filter_checkbox.setChecked(params["enable_box_filter"])
+                
         finally:
             self.blockSignals(False)
-    
+
     def load_parameters(self):
         """从配置加载参数"""
         # 设置默认模型路径
