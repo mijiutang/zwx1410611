@@ -277,45 +277,90 @@ if __name__ == "__main__":
 # `fix_imports.py`
 
 ```py
+import cv2
+import numpy as np
+import json
 import os
-import re
 from pathlib import Path
 
-def fix_imports_in_file(file_path):
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+def extract_text_regions_from_json(json_file_path, output_dir="output_text_blocks"):
+    """
+    根据JSON文件中的文本行坐标提取文本区域：
+    1. 原图文字行以外部分涂白
+    2. 按 bbox 裁剪每个文本块，保存到指定文件夹
+    """
+    
+    # 读取JSON文件
+    with open(json_file_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    # 获取原图路径和图片名
+    image_path = data['image_path']
+    image_name = data['image_name']
+    
+    # 检查原图是否存在
+    if not os.path.exists(image_path):
+        print(f"原图不存在: {image_path}")
+        return
+    
+    # 读取原图
+    original_img = cv2.imread(image_path)
+    if original_img is None:
+        print(f"无法读取图像: {image_path}")
+        return
+    
+    height, width = original_img.shape[:2]
+    
+    # 创建白色背景图像
+    result_img = np.full((height, width, 3), 255, dtype=np.uint8)
+    
+    # 创建掩码
+    mask = np.zeros((height, width), dtype=np.uint8)
+    
+    # 创建输出文件夹
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # 处理每个文本区域
+    for idx, region in enumerate(data['text_regions']):
+        lines = region['lines']
         
-        replacements = [
-            (r'from utils\.', 'from src.utils.'),
-            (r'from models\.', 'from src.models.'),
-            (r'from src.core.basemodel import', 'from src.core.basemodel import'),
-            (r'from src.core.inference import', 'from src.core.inference import'),
-        ]
+        # 处理每条文本行
+        for line in lines:
+            points = np.array(line, dtype=np.int32)
+            cv2.fillPoly(mask, [points], 255)
         
-        original_content = content
-        for pattern, replacement in replacements:
-            content = re.sub(pattern, replacement, content)
+        # 按 bbox 裁剪文本块
+        x1, y1, x2, y2 = region['bbox']
+        cropped = original_img[y1:y2, x1:x2]
         
-        if content != original_content:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            return True
-        return False
-    except Exception as e:
-        print(f"处理 {file_path} 出错: {e}")
-        return False
+        crop_filename = f"{image_name}_{idx}.jpg"
+        crop_path = os.path.join(output_dir, crop_filename)
+        cv2.imwrite(crop_path, cropped)
+    
+    # 将原图中的文本区域复制到白底图像
+    result_img[mask == 255] = original_img[mask == 255]
+    
+    # 保存涂白结果
+    output_full_path = os.path.join(os.getcwd(), f"{image_name}_text_only.jpg")
+    cv2.imwrite(output_full_path, result_img)
+    
+    print(f"文本区域涂白结果已保存到: {output_full_path}")
+    print(f"按 bbox 裁剪的文本块已保存到: {output_dir}")
+    
+    # 打印统计信息
+    total_regions = data['stats']['total_regions']
+    avg_confidence = data['stats']['avg_confidence']
+    print(f"处理了 {total_regions} 个文本区域，平均置信度: {avg_confidence:.3f}")
 
-# 执行修复
-for root, dirs, files in os.walk('.'):
-    dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__']]
-    for file in files:
-        if file.endswith('.py'):
-            file_path = Path(root) / file
-            if fix_imports_in_file(file_path):
-                print(f"修复: {file_path}")
 
-print("导入路径修复完成")
+if __name__ == "__main__":
+    json_file = r"comic_text_detector\data\results\132_result.json"  # 请修改为实际的JSON文件路径
+    
+    if os.path.exists(json_file):
+        extract_text_regions_from_json(json_file)
+    else:
+        print(f"JSON文件不存在: {json_file}")
+
 ```
 
 # `main.py`
@@ -1413,6 +1458,623 @@ if __name__ == '__main__':
 
 ## `models`
 
+### `yolov5`
+
+#### `common.py`
+
+```py
+# YOLOv5 🚀 by Ultralytics, GPL-3.0 license
+"""
+Common modules
+"""
+
+import json
+import math
+import platform
+import warnings
+from collections import OrderedDict, namedtuple
+from copy import copy
+from pathlib import Path
+
+import cv2
+import numpy as np
+import requests
+import torch
+import torch.nn as nn
+from PIL import Image
+from torch.cuda import amp
+
+# 修复导入路径
+from src.utils.yolov5_utils import make_divisible, initialize_weights, check_anchor_order, check_version, fuse_conv_and_bn
+
+def autopad(k, p=None):  # kernel, padding
+    # Pad to 'same'
+    if p is None:
+        p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
+    return p
+
+class Conv(nn.Module):
+    # Standard convolution
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
+        super().__init__()
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        if isinstance(act, bool):
+            self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Module) else nn.Identity())
+        elif isinstance(act, str):
+            if act == 'leaky':
+                self.act = nn.LeakyReLU(0.1, inplace=True)
+            elif act == 'relu':
+                self.act = nn.ReLU(inplace=True)
+            else:
+                self.act = None
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))
+
+    def forward_fuse(self, x):
+        return self.act(self.conv(x))
+
+
+class DWConv(Conv):
+    # Depth-wise convolution class
+    def __init__(self, c1, c2, k=1, s=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
+        super().__init__(c1, c2, k, s, g=math.gcd(c1, c2), act=act)
+
+
+class TransformerLayer(nn.Module):
+    # Transformer layer https://arxiv.org/abs/2010.11929 (LayerNorm layers removed for better performance)
+    def __init__(self, c, num_heads):
+        super().__init__()
+        self.q = nn.Linear(c, c, bias=False)
+        self.k = nn.Linear(c, c, bias=False)
+        self.v = nn.Linear(c, c, bias=False)
+        self.ma = nn.MultiheadAttention(embed_dim=c, num_heads=num_heads)
+        self.fc1 = nn.Linear(c, c, bias=False)
+        self.fc2 = nn.Linear(c, c, bias=False)
+
+    def forward(self, x):
+        x = self.ma(self.q(x), self.k(x), self.v(x))[0] + x
+        x = self.fc2(self.fc1(x)) + x
+        return x
+
+
+class TransformerBlock(nn.Module):
+    # Vision Transformer https://arxiv.org/abs/2010.11929
+    def __init__(self, c1, c2, num_heads, num_layers):
+        super().__init__()
+        self.conv = None
+        if c1 != c2:
+            self.conv = Conv(c1, c2)
+        self.linear = nn.Linear(c2, c2)  # learnable position embedding
+        self.tr = nn.Sequential(*(TransformerLayer(c2, num_heads) for _ in range(num_layers)))
+        self.c2 = c2
+
+    def forward(self, x):
+        if self.conv is not None:
+            x = self.conv(x)
+        b, _, w, h = x.shape
+        p = x.flatten(2).permute(2, 0, 1)
+        return self.tr(p + self.linear(p)).permute(1, 2, 0).reshape(b, self.c2, w, h)
+
+
+class Bottleneck(nn.Module):
+    # Standard bottleneck
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5, act=True):  # ch_in, ch_out, shortcut, groups, expansion
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+        self.cv1 = Conv(c1, c_, 1, 1, act=act)
+        self.cv2 = Conv(c_, c2, 3, 1, g=g, act=act)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
+
+
+class BottleneckCSP(nn.Module):
+    # CSP Bottleneck https://github.com/WongKinYiu/CrossStagePartialNetworks
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = nn.Conv2d(c1, c_, 1, 1, bias=False)
+        self.cv3 = nn.Conv2d(c_, c_, 1, 1, bias=False)
+        self.cv4 = Conv(2 * c_, c2, 1, 1)
+        self.bn = nn.BatchNorm2d(2 * c_)  # applied to cat(cv2, cv3)
+        self.act = nn.SiLU()
+        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
+
+    def forward(self, x):
+        y1 = self.cv3(self.m(self.cv1(x)))
+        y2 = self.cv2(x)
+        return self.cv4(self.act(self.bn(torch.cat((y1, y2), dim=1))))
+
+
+class C3(nn.Module):
+    # CSP Bottleneck with 3 convolutions
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5, act=True):  # ch_in, ch_out, number, shortcut, groups, expansion
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+        self.cv1 = Conv(c1, c_, 1, 1, act=act)
+        self.cv2 = Conv(c1, c_, 1, 1, act=act)
+        self.cv3 = Conv(2 * c_, c2, 1, act=act)  # act=FReLU(c2)
+        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, e=1.0, act=act) for _ in range(n)))
+        # self.m = nn.Sequential(*[CrossConv(c_, c_, 3, 1, g, 1.0, shortcut) for _ in range(n)])
+
+    def forward(self, x):
+        return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
+
+
+class C3TR(C3):
+    # C3 module with TransformerBlock()
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)
+        self.m = TransformerBlock(c_, c_, 4, n)
+
+
+class C3SPP(C3):
+    # C3 module with SPP()
+    def __init__(self, c1, c2, k=(5, 9, 13), n=1, shortcut=True, g=1, e=0.5):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)
+        self.m = SPP(c_, c_, k)
+
+
+class C3Ghost(C3):
+    # C3 module with GhostBottleneck()
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)  # hidden channels
+        self.m = nn.Sequential(*(GhostBottleneck(c_, c_) for _ in range(n)))
+
+
+class SPP(nn.Module):
+    # Spatial Pyramid Pooling (SPP) layer https://arxiv.org/abs/1406.4729
+    def __init__(self, c1, c2, k=(5, 9, 13)):
+        super().__init__()
+        c_ = c1 // 2  # hidden channels
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c_ * (len(k) + 1), c2, 1, 1)
+        self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in k])
+
+    def forward(self, x):
+        x = self.cv1(x)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')  # suppress torch 1.9.0 max_pool2d() warning
+            return self.cv2(torch.cat([x] + [m(x) for m in self.m], 1))
+
+
+class SPPF(nn.Module):
+    # Spatial Pyramid Pooling - Fast (SPPF) layer for YOLOv5 by Glenn Jocher
+    def __init__(self, c1, c2, k=5):  # equivalent to SPP(k=(5, 9, 13))
+        super().__init__()
+        c_ = c1 // 2  # hidden channels
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c_ * 4, c2, 1, 1)
+        self.m = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
+
+    def forward(self, x):
+        x = self.cv1(x)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')  # suppress torch 1.9.0 max_pool2d() warning
+            y1 = self.m(x)
+            y2 = self.m(y1)
+            return self.cv2(torch.cat([x, y1, y2, self.m(y2)], 1))
+
+
+class Focus(nn.Module):
+    # Focus wh information into c-space
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
+        super().__init__()
+        self.conv = Conv(c1 * 4, c2, k, s, p, g, act)
+        # self.contract = Contract(gain=2)
+
+    def forward(self, x):  # x(b,c,w,h) -> y(b,4c,w/2,h/2)
+        return self.conv(torch.cat([x[..., ::2, ::2], x[..., 1::2, ::2], x[..., ::2, 1::2], x[..., 1::2, 1::2]], 1))
+        # return self.conv(self.contract(x))
+
+
+class GhostConv(nn.Module):
+    # Ghost Convolution https://github.com/huawei-noah/ghostnet
+    def __init__(self, c1, c2, k=1, s=1, g=1, act=True):  # ch_in, ch_out, kernel, stride, groups
+        super().__init__()
+        c_ = c2 // 2  # hidden channels
+        self.cv1 = Conv(c1, c_, k, s, None, g, act)
+        self.cv2 = Conv(c_, c_, 5, 1, None, c_, act)
+
+    def forward(self, x):
+        y = self.cv1(x)
+        return torch.cat([y, self.cv2(y)], 1)
+
+
+class GhostBottleneck(nn.Module):
+    # Ghost Bottleneck https://github.com/huawei-noah/ghostnet
+    def __init__(self, c1, c2, k=3, s=1):  # ch_in, ch_out, kernel, stride
+        super().__init__()
+        c_ = c2 // 2
+        self.conv = nn.Sequential(GhostConv(c1, c_, 1, 1),  # pw
+                                  DWConv(c_, c_, k, s, act=False) if s == 2 else nn.Identity(),  # dw
+                                  GhostConv(c_, c2, 1, 1, act=False))  # pw-linear
+        self.shortcut = nn.Sequential(DWConv(c1, c1, k, s, act=False),
+                                      Conv(c1, c2, 1, 1, act=False)) if s == 2 else nn.Identity()
+
+    def forward(self, x):
+        return self.conv(x) + self.shortcut(x)
+
+
+class Contract(nn.Module):
+    # Contract width-height into channels, i.e. x(1,64,80,80) to x(1,256,40,40)
+    def __init__(self, gain=2):
+        super().__init__()
+        self.gain = gain
+
+    def forward(self, x):
+        b, c, h, w = x.size()  # assert (h / s == 0) and (W / s == 0), 'Indivisible gain'
+        s = self.gain
+        x = x.view(b, c, h // s, s, w // s, s)  # x(1,64,40,2,40,2)
+        x = x.permute(0, 3, 5, 1, 2, 4).contiguous()  # x(1,2,2,64,40,40)
+        return x.view(b, c * s * s, h // s, w // s)  # x(1,256,40,40)
+
+
+class Expand(nn.Module):
+    # Expand channels into width-height, i.e. x(1,64,80,80) to x(1,16,160,160)
+    def __init__(self, gain=2):
+        super().__init__()
+        self.gain = gain
+
+    def forward(self, x):
+        b, c, h, w = x.size()  # assert C / s ** 2 == 0, 'Indivisible gain'
+        s = self.gain
+        x = x.view(b, s, s, c // s ** 2, h, w)  # x(1,2,2,16,80,80)
+        x = x.permute(0, 3, 4, 1, 5, 2).contiguous()  # x(1,16,80,2,80,2)
+        return x.view(b, c // s ** 2, h * s, w * s)  # x(1,16,160,160)
+
+
+class Concat(nn.Module):
+    # Concatenate a list of tensors along dimension
+    def __init__(self, dimension=1):
+        super().__init__()
+        self.d = dimension
+
+    def forward(self, x):
+        return torch.cat(x, self.d)
+
+
+class Classify(nn.Module):
+    # Classification head, i.e. x(b,c1,20,20) to x(b,c2)
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1):  # ch_in, ch_out, kernel, stride, padding, groups
+        super().__init__()
+        self.aap = nn.AdaptiveAvgPool2d(1)  # to x(b,c1,1,1)
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g)  # to x(b,c2,1,1)
+        self.flat = nn.Flatten()
+
+    def forward(self, x):
+        z = torch.cat([self.aap(y) for y in (x if isinstance(x, list) else [x])], 1)  # cat if list
+        return self.flat(self.conv(z))  # flatten to x(b,c2)
+```
+
+#### `yolo.py`
+
+```py
+from operator import mod
+from cv2 import imshow
+from src.utils.yolov5_utils import scale_img  # 修复导入路径
+from copy import deepcopy
+from .common import *
+
+class Detect(nn.Module):
+    stride = None  # strides computed during build
+    onnx_dynamic = False  # ONNX export parameter
+
+    def __init__(self, nc=80, anchors=(), ch=(), inplace=True):  # detection layer
+        super().__init__()
+        self.nc = nc  # number of classes
+        self.no = nc + 5  # number of outputs per anchor
+        self.nl = len(anchors)  # number of detection layers
+        self.na = len(anchors[0]) // 2  # number of anchors
+        self.grid = [torch.zeros(1)] * self.nl  # init grid
+        self.anchor_grid = [torch.zeros(1)] * self.nl  # init anchor grid
+        self.register_buffer('anchors', torch.tensor(anchors).float().view(self.nl, -1, 2))  # shape(nl,na,2)
+        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
+        self.inplace = inplace  # use in-place ops (e.g. slice assignment)
+
+    def forward(self, x):
+        z = []  # inference output
+        for i in range(self.nl):
+            x[i] = self.m[i](x[i])  # conv
+            bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
+            x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
+
+            if not self.training:  # inference
+                if self.onnx_dynamic or self.grid[i].shape[2:4] != x[i].shape[2:4]:
+                    self.grid[i], self.anchor_grid[i] = self._make_grid(nx, ny, i)
+
+                y = x[i].sigmoid()
+                if self.inplace:
+                    y[..., 0:2] = (y[..., 0:2] * 2 - 0.5 + self.grid[i]) * self.stride[i]  # xy
+                    y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+                else:  # for YOLOv5 on AWS Inferentia https://github.com/ultralytics/yolov5/pull/2953
+                    xy = (y[..., 0:2] * 2 - 0.5 + self.grid[i]) * self.stride[i]  # xy
+                    wh = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+                    y = torch.cat((xy, wh, y[..., 4:]), -1)
+                z.append(y.view(bs, -1, self.no))
+
+        return x if self.training else (torch.cat(z, 1), x)
+
+    def _make_grid(self, nx=20, ny=20, i=0):
+        d = self.anchors[i].device
+        if check_version(torch.__version__, '1.10.0'):  # torch>=1.10.0 meshgrid workaround for torch>=0.7 compatibility
+            yv, xv = torch.meshgrid([torch.arange(ny, device=d), torch.arange(nx, device=d)], indexing='ij')
+        else:
+            yv, xv = torch.meshgrid([torch.arange(ny, device=d), torch.arange(nx, device=d)])
+        grid = torch.stack((xv, yv), 2).expand((1, self.na, ny, nx, 2)).float()
+        anchor_grid = (self.anchors[i].clone() * self.stride[i]) \
+            .view((1, self.na, 1, 1, 2)).expand((1, self.na, ny, nx, 2)).float()
+        return grid, anchor_grid
+
+class Model(nn.Module):
+    def __init__(self, cfg='yolov5s.yaml', ch=3, nc=None, anchors=None):  # model, input channels, number of classes
+        super().__init__()
+        self.out_indices = None
+        if isinstance(cfg, dict):
+            self.yaml = cfg  # model dict
+        else:  # is *.yaml
+            import yaml  # for torch hub
+            self.yaml_file = Path(cfg).name
+            with open(cfg, encoding='ascii', errors='ignore') as f:
+                self.yaml = yaml.safe_load(f)  # model dict
+
+        # Define model
+        ch = self.yaml['ch'] = self.yaml.get('ch', ch)  # input channels
+        if nc and nc != self.yaml['nc']:
+            # LOGGER.info(f"Overriding model.yaml nc={self.yaml['nc']} with nc={nc}")
+            self.yaml['nc'] = nc  # override yaml value
+        if anchors:
+            # LOGGER.info(f'Overriding model.yaml anchors with anchors={anchors}')
+            self.yaml['anchors'] = round(anchors)  # override yaml value
+        self.model, self.save = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
+        self.names = [str(i) for i in range(self.yaml['nc'])]  # default names
+        self.inplace = self.yaml.get('inplace', True)
+
+        # Build strides, anchors
+        m = self.model[-1]  # Detect()
+        # with torch.no_grad():
+        if isinstance(m, Detect):
+            s = 256  # 2x min stride
+            m.inplace = self.inplace
+            m.stride = torch.tensor([s / x.shape[-2] for x in self.forward(torch.zeros(1, ch, s, s))])  # forward
+            m.anchors /= m.stride.view(-1, 1, 1)
+            check_anchor_order(m)
+            self.stride = m.stride
+            self._initialize_biases()  # only run once
+
+        # Init weights, biases
+        initialize_weights(self)
+
+    def forward(self, x, augment=False, profile=False, visualize=False, detect=False):
+        if augment:
+            return self._forward_augment(x)  # augmented inference, None
+        return self._forward_once(x, profile, visualize, detect=detect)  # single-scale inference, train
+
+    def _forward_augment(self, x):
+        img_size = x.shape[-2:]  # height, width
+        s = [1, 0.83, 0.67]  # scales
+        f = [None, 3, None]  # flips (2-ud, 3-lr)
+        y = []  # outputs
+        for si, fi in zip(s, f):
+            xi = scale_img(x.flip(fi) if fi else x, si, gs=int(self.stride.max()))
+            yi = self._forward_once(xi)[0]  # forward
+            # cv2.imwrite(f'img_{si}.jpg', 255 * xi[0].cpu().numpy().transpose((1, 2, 0))[:, :, ::-1])  # save
+            yi = self._descale_pred(yi, fi, si, img_size)
+            y.append(yi)
+        y = self._clip_augmented(y)  # clip augmented tails
+        return torch.cat(y, 1), None  # augmented inference, train
+
+    def _forward_once(self, x, profile=False, visualize=False, detect=False):
+        y, dt = [], []  # outputs
+        z = []
+        for ii, m in enumerate(self.model):
+            if m.f != -1:  # if not from previous layer
+                x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+            if profile:
+                self._profile_one_layer(m, x, dt)
+            x = m(x)  # run
+            y.append(x if m.i in self.save else None)  # save output
+            if self.out_indices is not None:
+                if m.i in self.out_indices:
+                    z.append(x)
+        if self.out_indices is not None:
+            if detect:
+                return x, z
+            else:
+                return z
+        else:
+            return x
+
+    def _descale_pred(self, p, flips, scale, img_size):
+        # de-scale predictions following augmented inference (inverse operation)
+        if self.inplace:
+            p[..., :4] /= scale  # de-scale
+            if flips == 2:
+                p[..., 1] = img_size[0] - p[..., 1]  # de-flip ud
+            elif flips == 3:
+                p[..., 0] = img_size[1] - p[..., 0]  # de-flip lr
+        else:
+            x, y, wh = p[..., 0:1] / scale, p[..., 1:2] / scale, p[..., 2:4] / scale  # de-scale
+            if flips == 2:
+                y = img_size[0] - y  # de-flip ud
+            elif flips == 3:
+                x = img_size[1] - x  # de-flip lr
+            p = torch.cat((x, y, wh, p[..., 4:]), -1)
+        return p
+
+    def _clip_augmented(self, y):
+        # Clip YOLOv5 augmented inference tails
+        nl = self.model[-1].nl  # number of detection layers (P3-P5)
+        g = sum(4 ** x for x in range(nl))  # grid points
+        e = 1  # exclude layer count
+        i = (y[0].shape[1] // g) * sum(4 ** x for x in range(e))  # indices
+        y[0] = y[0][:, :-i]  # large
+        i = (y[-1].shape[1] // g) * sum(4 ** (nl - 1 - x) for x in range(e))  # indices
+        y[-1] = y[-1][:, i:]  # small
+        return y
+
+    def _profile_one_layer(self, m, x, dt):
+        c = isinstance(m, Detect)  # is final layer, copy input as inplace fix
+        for _ in range(10):
+            m(x.copy() if c else x)
+
+
+    def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
+        # https://arxiv.org/abs/1708.02002 section 3.3
+        # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
+        m = self.model[-1]  # Detect() module
+        for mi, s in zip(m.m, m.stride):  # from
+            b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
+            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+            b.data[:, 5:] += math.log(0.6 / (m.nc - 0.999999)) if cf is None else torch.log(cf / cf.sum())  # cls
+            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+
+    def _print_biases(self):
+        m = self.model[-1]  # Detect() module
+        for mi in m.m:  # from
+            b = mi.bias.detach().view(m.na, -1).T  # conv.bias(255) to (3,85)
+
+    def fuse(self):  # fuse model Conv2d() + BatchNorm2d() layers
+        for m in self.model.modules():
+            if isinstance(m, (Conv, DWConv)) and hasattr(m, 'bn'):
+                m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
+                delattr(m, 'bn')  # remove batchnorm
+                m.forward = m.forward_fuse  # update forward
+        # self.info()
+        return self
+
+    # def info(self, verbose=False, img_size=640):  # print model information
+    #     model_info(self, verbose, img_size)
+
+    def _apply(self, fn):
+        # Apply to(), cpu(), cuda(), half() to model tensors that are not parameters or registered buffers
+        self = super()._apply(fn)
+        m = self.model[-1]  # Detect()
+        if isinstance(m, Detect):
+            m.stride = fn(m.stride)
+            m.grid = list(map(fn, m.grid))
+            if isinstance(m.anchor_grid, list):
+                m.anchor_grid = list(map(fn, m.anchor_grid))
+        return self
+
+def parse_model(d, ch):  # model_dict, input_channels(3)
+    # LOGGER.info(f"\n{'':>3}{'from':>18}{'n':>3}{'params':>10}  {'module':<40}{'arguments':<30}")
+    anchors, nc, gd, gw = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
+    na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
+    no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
+
+    layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
+    for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):  # from, number, module, args
+        m = eval(m) if isinstance(m, str) else m  # eval strings
+        for j, a in enumerate(args):
+            try:
+                args[j] = eval(a) if isinstance(a, str) else a  # eval strings
+            except NameError:
+                pass
+
+        n = n_ = max(round(n * gd), 1) if n > 1 else n  # depth gain
+        if m in [Conv, GhostConv, Bottleneck, GhostBottleneck, SPP, SPPF, DWConv, Focus,
+                 BottleneckCSP, C3, C3TR, C3SPP, C3Ghost]:
+            c1, c2 = ch[f], args[0]
+            if c2 != no:  # if not output
+                c2 = make_divisible(c2 * gw, 8)
+
+            args = [c1, c2, *args[1:]]
+            if m in [BottleneckCSP, C3, C3TR, C3Ghost]:
+                args.insert(2, n)  # number of repeats
+                n = 1
+        elif m is nn.BatchNorm2d:
+            args = [ch[f]]
+        elif m is Concat:
+            c2 = sum(ch[x] for x in f)
+        elif m is Detect:
+            args.append([ch[x] for x in f])
+            if isinstance(args[1], int):  # number of anchors
+                args[1] = [list(range(args[1] * 2))] * len(f)
+        elif m is Contract:
+            c2 = ch[f] * args[0] ** 2
+        elif m is Expand:
+            c2 = ch[f] // args[0] ** 2
+        else:
+            c2 = ch[f]
+
+        m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
+        t = str(m)[8:-2].replace('__main__.', '')  # module type
+        np = sum(x.numel() for x in m_.parameters())  # number params
+        m_.i, m_.f, m_.type, m_.np = i, f, t, np  # attach index, 'from' index, type, number params
+        # LOGGER.info(f'{i:>3}{str(f):>18}{n_:>3}{np:10.0f}  {t:<40}{str(args):<30}')  # print
+        save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
+        layers.append(m_)
+        if i == 0:
+            ch = []
+        ch.append(c2)
+    return nn.Sequential(*layers), sorted(save)
+
+def load_yolov5(weights, map_location='cuda', fuse=True, inplace=True, out_indices=[1, 3, 5, 7, 9]):
+    if isinstance(weights, str):
+        ckpt = torch.load(weights, map_location=map_location)  # load
+    else:
+        ckpt = weights
+    
+    if fuse:
+        model = ckpt['model'].float().fuse().eval()  # FP32 model
+    else:
+        model = ckpt['model'].float().eval()  # without layer fuse
+
+    # Compatibility updates
+    for m in model.modules():
+        if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Model]:
+            m.inplace = inplace  # pytorch 1.7.0 compatibility
+            if type(m) is Detect:
+                if not isinstance(m.anchor_grid, list):  # new Detect Layer compatibility
+                    delattr(m, 'anchor_grid')
+                    setattr(m, 'anchor_grid', [torch.zeros(1)] * m.nl)
+        elif type(m) is Conv:
+            m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility
+    model.out_indices = out_indices
+    return model
+
+@torch.no_grad()
+def load_yolov5_ckpt(weights, map_location='cpu', fuse=True, inplace=True, out_indices=[1, 3, 5, 7, 9]):
+    if isinstance(weights, str):
+        ckpt = torch.load(weights, map_location=map_location)  # load
+    else:
+        ckpt = weights
+    
+    model = Model(ckpt['cfg'])
+    model.load_state_dict(ckpt['weights'], strict=True)
+    
+    if fuse:
+        model = model.float().fuse().eval()  # FP32 model
+    else:
+        model = model.float().eval()  # without layer fuse
+
+    # Compatibility updates
+    for m in model.modules():
+        if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Model]:
+            m.inplace = inplace  # pytorch 1.7.0 compatibility
+            if type(m) is Detect:
+                if not isinstance(m.anchor_grid, list):  # new Detect Layer compatibility
+                    delattr(m, 'anchor_grid')
+                    setattr(m, 'anchor_grid', [torch.zeros(1)] * m.nl)
+        elif type(m) is Conv:
+            m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility
+    model.out_indices = out_indices
+    return model
+```
+
+#### `__init__.py`
+
+```py
+
+```
+
 ### `__init__.py`
 
 ```py
@@ -1613,6 +2275,13 @@ class ComicTextDetectorGUI(QMainWindow):
         self.toggle_lines_action.setChecked(True)  # 默认显示
         self.toggle_lines_action.triggered.connect(self.toggle_text_lines)
         view_menu.addAction(self.toggle_lines_action)
+
+        self.toggle_blocks_action = QAction('显示文本块(&B)', self)
+        self.toggle_blocks_action.setShortcut('Ctrl+B')
+        self.toggle_blocks_action.setCheckable(True)
+        self.toggle_blocks_action.setChecked(True)  # 默认显示
+        self.toggle_blocks_action.triggered.connect(self.toggle_text_blocks)
+        view_menu.addAction(self.toggle_blocks_action)
         
 
         # 帮助菜单
@@ -1630,6 +2299,15 @@ class ComicTextDetectorGUI(QMainWindow):
             self.toggle_lines_action.setText('隐藏文本行(&L)')
         else:
             self.toggle_lines_action.setText('显示文本行(&L)')
+
+    def toggle_text_blocks(self):
+        """切换文本块显示"""
+        self.image_viewer.toggle_blocks()
+        # 更新动作文本
+        if self.image_viewer.show_blocks:
+            self.toggle_blocks_action.setText('隐藏文本块(&B)')
+        else:
+            self.toggle_blocks_action.setText('显示文本块(&B)')
     
     def create_toolbar(self):
         """创建工具栏"""
@@ -1980,6 +2658,7 @@ class ImageViewer(QScrollArea):
         self.show_original = True
         self.show_regions = True
         self.show_lines = True
+        self.show_blocks = True
         self.auto_fit = True
         
         # 鼠标事件
@@ -2036,6 +2715,11 @@ class ImageViewer(QScrollArea):
             
         except Exception as e:
             self.show_error(f"加载图片失败: {e}")
+
+    def toggle_blocks(self):
+        """切换文本块显示"""
+        self.show_blocks = not self.show_blocks
+        self.update_display()
     
     def resizeEvent(self, event):
         """窗口大小改变事件处理"""
@@ -2097,8 +2781,8 @@ class ImageViewer(QScrollArea):
         painter = QPainter(result_pixmap)
         
         try:
-            # 原有的文本块绘制代码保持不变
-            if self.show_regions:
+            # 绘制文本块（检测区域）
+            if self.show_regions and self.show_blocks:  # 添加 show_blocks 条件
                 for i, region in enumerate(self.detection_regions):
                     x1, y1, x2, y2 = region['bbox']
                     
@@ -2109,7 +2793,7 @@ class ImageViewer(QScrollArea):
                     else:
                         confidence = region.get('confidence', 1.0)
                         blue_value = int(255 * min(confidence, 1.0))
-                        color = QColor(50, 100, blue_value)  # 蓝色方框，根据置信度调整蓝色强度
+                        color = QColor(50, 100, blue_value)
                         line_width = 2
                     
                     # 绘制边界框
@@ -2135,7 +2819,7 @@ class ImageViewer(QScrollArea):
                     painter.setPen(QPen(Qt.white))
                     painter.drawText(text_rect, Qt.AlignCenter, label)
             
-            # 新增：绘制文本行
+            # 绘制文本行
             if self.show_lines:
                 cyan_color = QColor(0, 255, 255)  # 青色
                 pen = QPen(cyan_color, 1)
@@ -2152,22 +2836,21 @@ class ImageViewer(QScrollArea):
                     
                     # 绘制每个文本行
                     for line_idx, line_coords in enumerate(lines):
-                        if len(line_coords) >= 4:  # 确保有足够的坐标点
-                            # line_coords 应该是 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]] 格式
+                        if len(line_coords) >= 4:
                             points = []
                             for coord in line_coords:
                                 if len(coord) >= 2:
                                     points.append(QPoint(int(coord[0]), int(coord[1])))
                             
-                            if len(points) >= 3:  # 至少需要3个点来绘制多边形
+                            if len(points) >= 3:
                                 polygon = QPolygon(points)
                                 painter.drawPolygon(polygon)
         
         finally:
             painter.end()
         
-        return result_pixmap    
-    
+        return result_pixmap
+        
     def toggle_lines(self):
         """切换文本行显示"""
         self.show_lines = not self.show_lines
@@ -2684,6 +3367,7 @@ class ParameterPanel(QWidget):
         return self.model_path_edit.text().strip()
     
     def get_parameters(self) -> Dict[str, Any]:
+        """获取参数"""
         # 获取选中的语言
         allowed_languages = []
         for lang_code, checkbox in self.lang_checkboxes.items():
@@ -2696,10 +3380,10 @@ class ParameterPanel(QWidget):
             "mask_thresh": self.mask_thresh_slider.value() / 100.0,
             "allowed_languages": allowed_languages,
             "device": self.device_combo.currentText(),
-            # 删除这行：
-            # "iou_merge_thresh": self.iou_merge_slider.value() / 100.0,
             "containment_thresh": self.containment_slider.value() / 100.0,
-            "enable_box_filter": self.enable_filter_checkbox.isChecked()
+            "enable_box_filter": self.enable_filter_checkbox.isChecked(),
+            "min_box_width": self.min_box_width_spin.value(),
+            "min_box_height": self.min_box_height_spin.value()
         }
         
         return params
@@ -2710,20 +3394,46 @@ class ParameterPanel(QWidget):
         self.blockSignals(True)
         
         try:
-            # ... 其他参数设置 ...
+            # 设置输入尺寸
+            if "input_size" in params:
+                self.input_size_combo.setCurrentText(str(params["input_size"]))
             
-            # 更新最小框尺寸设置
+            # 设置设备
+            if "device" in params:
+                self.device_combo.setCurrentText(params["device"])
+            
+            # 设置置信度阈值
+            if "conf_thresh" in params:
+                self.conf_thresh_slider.setValue(int(params["conf_thresh"] * 100))
+            
+            # 设置掩码阈值
+            if "mask_thresh" in params:
+                self.mask_thresh_slider.setValue(int(params["mask_thresh"] * 100))
+            
+            # 设置包含关系阈值
+            if "containment_thresh" in params:
+                self.containment_slider.setValue(int(params["containment_thresh"] * 100))
+            
+            # 设置语言选择
+            if "allowed_languages" in params:
+                allowed_langs = params["allowed_languages"]
+                for lang_code, checkbox in self.lang_checkboxes.items():
+                    checkbox.setChecked(lang_code in allowed_langs)
+            
+            # 设置最小框尺寸
             if "min_box_width" in params:
                 self.min_box_width_spin.setValue(params["min_box_width"])
             
             if "min_box_height" in params:
                 self.min_box_height_spin.setValue(params["min_box_height"])
             
-            # 移除旧的min_box_size相关代码
-            
+            # 设置启用框过滤
+            if "enable_box_filter" in params:
+                self.enable_filter_checkbox.setChecked(params["enable_box_filter"])
+                
         finally:
             self.blockSignals(False)
-    
+
     def load_parameters(self):
         """从配置加载参数"""
         # 设置默认模型路径
