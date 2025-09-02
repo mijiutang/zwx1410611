@@ -223,14 +223,6 @@ class ParameterPanel(QWidget):
         min_size_layout.addStretch()
         layout.addLayout(min_size_layout)
         
-        # 新增：IoU合并阈值
-        iou_layout = self.create_slider_layout(
-            "IoU合并阈值:", 0.1, 0.8, 0.3,
-            lambda: self.parameters_changed.emit()
-        )
-        self.iou_merge_slider = iou_layout[1]
-        layout.addLayout(iou_layout[0])
-        
         # 新增：包含关系阈值
         contain_layout = self.create_slider_layout(
             "包含关系阈值:", 0.5, 1.0, 0.8,
@@ -344,7 +336,6 @@ class ParameterPanel(QWidget):
         return self.model_path_edit.text().strip()
     
     def get_parameters(self) -> Dict[str, Any]:
-        """获取当前参数"""
         # 获取选中的语言
         allowed_languages = []
         for lang_code, checkbox in self.lang_checkboxes.items():
@@ -357,8 +348,8 @@ class ParameterPanel(QWidget):
             "mask_thresh": self.mask_thresh_slider.value() / 100.0,
             "allowed_languages": allowed_languages,
             "device": self.device_combo.currentText(),
-            # 新增参数
-            "iou_merge_thresh": self.iou_merge_slider.value() / 100.0,
+            # 删除这行：
+            # "iou_merge_thresh": self.iou_merge_slider.value() / 100.0,
             "containment_thresh": self.containment_slider.value() / 100.0,
             "enable_box_filter": self.enable_filter_checkbox.isChecked()
         }

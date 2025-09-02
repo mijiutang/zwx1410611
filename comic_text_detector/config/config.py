@@ -42,7 +42,7 @@ class Config:
                 "device": "auto",
                 "min_box_width": 10,          # 最小框宽度
                 "min_box_height": 10,         # 最小框高度  
-                "iou_merge_thresh": 0.01,     # 降低到0.01，任何重叠都合并
+                
                 "containment_thresh": 0.8,    # 包含关系阈值
                 "enable_box_filter": True     # 是否启用框过滤功能
             },

@@ -2346,12 +2346,30 @@ class ComicTextDetectorGUI(QMainWindow):
         self.toggle_regions_action.triggered.connect(self.toggle_detection_regions)
         view_menu.addAction(self.toggle_regions_action)
 
+        # 在现有的 toggle_regions_action 后面添加
+        self.toggle_lines_action = QAction('显示文本行(&L)', self)
+        self.toggle_lines_action.setShortcut('Ctrl+L')
+        self.toggle_lines_action.setCheckable(True)
+        self.toggle_lines_action.setChecked(True)  # 默认显示
+        self.toggle_lines_action.triggered.connect(self.toggle_text_lines)
+        view_menu.addAction(self.toggle_lines_action)
+        
+
         # 帮助菜单
         help_menu = menubar.addMenu('帮助(&H)')
         
         about_action = QAction('关于(&A)', self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
+
+    def toggle_text_lines(self):
+        """切换文本行显示"""
+        self.image_viewer.toggle_lines()
+        # 更新动作文本
+        if self.image_viewer.show_lines:
+            self.toggle_lines_action.setText('隐藏文本行(&L)')
+        else:
+            self.toggle_lines_action.setText('显示文本行(&L)')
     
     def create_toolbar(self):
         """创建工具栏"""
@@ -2701,6 +2719,7 @@ class ImageViewer(QScrollArea):
         self.zoom_factor = 1.0
         self.show_original = True
         self.show_regions = True
+        self.show_lines = True
         self.auto_fit = True
         
         # 鼠标事件
@@ -2818,47 +2837,82 @@ class ImageViewer(QScrollArea):
         painter = QPainter(result_pixmap)
         
         try:
-            for i, region in enumerate(self.detection_regions):
-                x1, y1, x2, y2 = region['bbox']
-                
-                # 设置颜色
-                if i == self.selected_region:
-                    color = QColor(255, 0, 0)  # 选中区域红色
-                    line_width = 3
-                else:
-                    confidence = region.get('confidence', 1.0)
-                    blue_value = int(255 * min(confidence, 1.0))
-                    color = QColor(50, 100, blue_value)  # 蓝色方框，根据置信度调整蓝色强度
-                    line_width = 2
-                
-                # 绘制边界框
-                pen = QPen(color, line_width)
+            # 原有的文本块绘制代码保持不变
+            if self.show_regions:
+                for i, region in enumerate(self.detection_regions):
+                    x1, y1, x2, y2 = region['bbox']
+                    
+                    # 设置颜色
+                    if i == self.selected_region:
+                        color = QColor(255, 0, 0)  # 选中区域红色
+                        line_width = 3
+                    else:
+                        confidence = region.get('confidence', 1.0)
+                        blue_value = int(255 * min(confidence, 1.0))
+                        color = QColor(50, 100, blue_value)  # 蓝色方框，根据置信度调整蓝色强度
+                        line_width = 2
+                    
+                    # 绘制边界框
+                    pen = QPen(color, line_width)
+                    painter.setPen(pen)
+                    painter.drawRect(x1, y1, x2 - x1, y2 - y1)
+                    
+                    # 绘制标签
+                    label = f"{i}_{region['language']}"
+                    if region.get('vertical', False):
+                        label += "_V"
+                    if 'confidence' in region:
+                        label += f"_{region['confidence']:.3f}"
+                    
+                    # 标签背景
+                    font = QFont("Arial", 16)
+                    painter.setFont(font)
+                    fm = QFontMetrics(font)
+                    text_rect = fm.boundingRect(label)
+                    text_rect.moveTopLeft(QPoint(x1, y1 - text_rect.height() - 2))
+                    
+                    painter.fillRect(text_rect.adjusted(-2, -2, 2, 2), color)
+                    painter.setPen(QPen(Qt.white))
+                    painter.drawText(text_rect, Qt.AlignCenter, label)
+            
+            # 新增：绘制文本行
+            if self.show_lines:
+                cyan_color = QColor(0, 255, 255)  # 青色
+                pen = QPen(cyan_color, 1)
                 painter.setPen(pen)
-                painter.drawRect(x1, y1, x2 - x1, y2 - y1)
                 
-                # 绘制标签
-                label = f"{i}_{region['language']}"
-                if region.get('vertical', False):
-                    label += "_V"
-                if 'confidence' in region:
-                    label += f"_{region['confidence']:.3f}"
-                
-                # 标签背景
-                font = QFont("Arial", 16)
-                painter.setFont(font)
-                fm = QFontMetrics(font)
-                text_rect = fm.boundingRect(label)
-                text_rect.moveTopLeft(QPoint(x1, y1 - text_rect.height() - 2))
-                
-                painter.fillRect(text_rect.adjusted(-2, -2, 2, 2), color)
-                painter.setPen(QPen(Qt.white))
-                painter.drawText(text_rect, Qt.AlignCenter, label)
+                for i, region in enumerate(self.detection_regions):
+                    # 从TextBlock对象获取文本行数据
+                    if hasattr(region, 'lines') and region.lines:
+                        lines = region.lines
+                    elif 'lines' in region and region['lines']:
+                        lines = region['lines']
+                    else:
+                        continue
+                    
+                    # 绘制每个文本行
+                    for line_idx, line_coords in enumerate(lines):
+                        if len(line_coords) >= 4:  # 确保有足够的坐标点
+                            # line_coords 应该是 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]] 格式
+                            points = []
+                            for coord in line_coords:
+                                if len(coord) >= 2:
+                                    points.append(QPoint(int(coord[0]), int(coord[1])))
+                            
+                            if len(points) >= 3:  # 至少需要3个点来绘制多边形
+                                polygon = QPolygon(points)
+                                painter.drawPolygon(polygon)
         
         finally:
             painter.end()
         
-        return result_pixmap
+        return result_pixmap    
     
+    def toggle_lines(self):
+        """切换文本行显示"""
+        self.show_lines = not self.show_lines
+        self.update_display()
+
     def update_display(self):
         """更新显示"""
         if self.show_original and self.original_image is not None:
