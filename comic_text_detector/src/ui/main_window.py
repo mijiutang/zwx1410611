@@ -187,6 +187,13 @@ class ComicTextDetectorGUI(QMainWindow):
         self.toggle_lines_action.setChecked(True)  # 默认显示
         self.toggle_lines_action.triggered.connect(self.toggle_text_lines)
         view_menu.addAction(self.toggle_lines_action)
+
+        self.toggle_blocks_action = QAction('显示文本块(&B)', self)
+        self.toggle_blocks_action.setShortcut('Ctrl+B')
+        self.toggle_blocks_action.setCheckable(True)
+        self.toggle_blocks_action.setChecked(True)  # 默认显示
+        self.toggle_blocks_action.triggered.connect(self.toggle_text_blocks)
+        view_menu.addAction(self.toggle_blocks_action)
         
 
         # 帮助菜单
@@ -204,6 +211,15 @@ class ComicTextDetectorGUI(QMainWindow):
             self.toggle_lines_action.setText('隐藏文本行(&L)')
         else:
             self.toggle_lines_action.setText('显示文本行(&L)')
+
+    def toggle_text_blocks(self):
+        """切换文本块显示"""
+        self.image_viewer.toggle_blocks()
+        # 更新动作文本
+        if self.image_viewer.show_blocks:
+            self.toggle_blocks_action.setText('隐藏文本块(&B)')
+        else:
+            self.toggle_blocks_action.setText('显示文本块(&B)')
     
     def create_toolbar(self):
         """创建工具栏"""

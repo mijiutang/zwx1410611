@@ -48,6 +48,7 @@ class ImageViewer(QScrollArea):
         self.show_original = True
         self.show_regions = True
         self.show_lines = True
+        self.show_blocks = True
         self.auto_fit = True
         
         # 鼠标事件
@@ -104,6 +105,11 @@ class ImageViewer(QScrollArea):
             
         except Exception as e:
             self.show_error(f"加载图片失败: {e}")
+
+    def toggle_blocks(self):
+        """切换文本块显示"""
+        self.show_blocks = not self.show_blocks
+        self.update_display()
     
     def resizeEvent(self, event):
         """窗口大小改变事件处理"""
@@ -165,8 +171,8 @@ class ImageViewer(QScrollArea):
         painter = QPainter(result_pixmap)
         
         try:
-            # 原有的文本块绘制代码保持不变
-            if self.show_regions:
+            # 绘制文本块（检测区域）
+            if self.show_regions and self.show_blocks:  # 添加 show_blocks 条件
                 for i, region in enumerate(self.detection_regions):
                     x1, y1, x2, y2 = region['bbox']
                     
@@ -177,7 +183,7 @@ class ImageViewer(QScrollArea):
                     else:
                         confidence = region.get('confidence', 1.0)
                         blue_value = int(255 * min(confidence, 1.0))
-                        color = QColor(50, 100, blue_value)  # 蓝色方框，根据置信度调整蓝色强度
+                        color = QColor(50, 100, blue_value)
                         line_width = 2
                     
                     # 绘制边界框
@@ -203,7 +209,7 @@ class ImageViewer(QScrollArea):
                     painter.setPen(QPen(Qt.white))
                     painter.drawText(text_rect, Qt.AlignCenter, label)
             
-            # 新增：绘制文本行
+            # 绘制文本行
             if self.show_lines:
                 cyan_color = QColor(0, 255, 255)  # 青色
                 pen = QPen(cyan_color, 1)
@@ -220,21 +226,20 @@ class ImageViewer(QScrollArea):
                     
                     # 绘制每个文本行
                     for line_idx, line_coords in enumerate(lines):
-                        if len(line_coords) >= 4:  # 确保有足够的坐标点
-                            # line_coords 应该是 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]] 格式
+                        if len(line_coords) >= 4:
                             points = []
                             for coord in line_coords:
                                 if len(coord) >= 2:
                                     points.append(QPoint(int(coord[0]), int(coord[1])))
                             
-                            if len(points) >= 3:  # 至少需要3个点来绘制多边形
+                            if len(points) >= 3:
                                 polygon = QPolygon(points)
                                 painter.drawPolygon(polygon)
         
         finally:
             painter.end()
         
-        return result_pixmap    
+        return result_pixmap
     
     def toggle_lines(self):
         """切换文本行显示"""
