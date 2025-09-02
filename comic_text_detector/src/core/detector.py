@@ -15,6 +15,160 @@ from src.utils.io_utils import imread, imwrite, NumpyEncoder
 from src.utils.textblock import TextBlock, visualize_textblocks
 from config.config import Config
 
+# 在 import 部分后添加以下函数
+
+def calculate_iou(box1, box2):
+    """计算两个框的IoU"""
+    x1, y1, x2, y2 = box1
+    x1_2, y1_2, x2_2, y2_2 = box2
+    
+    # 计算交集
+    inter_x1 = max(x1, x1_2)
+    inter_y1 = max(y1, y1_2)
+    inter_x2 = min(x2, x2_2)
+    inter_y2 = min(y2, y2_2)
+    
+    if inter_x1 >= inter_x2 or inter_y1 >= inter_y2:
+        return 0.0
+    
+    inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+    
+    # 计算并集
+    area1 = (x2 - x1) * (y2 - y1)
+    area2 = (x2_2 - x1_2) * (y2_2 - y1_2)
+    union_area = area1 + area2 - inter_area
+    
+    return inter_area / union_area if union_area > 0 else 0.0
+
+def calculate_containment_ratio(box_small, box_large):
+    """计算小框在大框中的包含比例"""
+    x1, y1, x2, y2 = box_small
+    x1_2, y1_2, x2_2, y2_2 = box_large
+    
+    # 计算交集
+    inter_x1 = max(x1, x1_2)
+    inter_y1 = max(y1, y1_2)
+    inter_x2 = min(x2, x2_2)
+    inter_y2 = min(y2, y2_2)
+    
+    if inter_x1 >= inter_x2 or inter_y1 >= inter_y2:
+        return 0.0
+    
+    inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+    small_area = (x2 - x1) * (y2 - y1)
+    
+    return inter_area / small_area if small_area > 0 else 0.0
+
+def merge_boxes(box1, box2):
+    """合并两个框，返回包含它们的最小框"""
+    x1, y1, x2, y2 = box1
+    x1_2, y1_2, x2_2, y2_2 = box2
+    
+    return [
+        min(x1, x1_2),
+        min(y1, y1_2),
+        max(x2, x2_2),
+        max(y2, y2_2)
+    ]
+
+def filter_and_merge_boxes(text_regions, config_params):
+    """过滤和合并检测框"""
+    if not config_params.get('enable_box_filter', True):
+        return text_regions
+    
+    min_box_size = config_params.get('min_box_size', 10)
+    iou_merge_thresh = config_params.get('iou_merge_thresh', 0.3)
+    containment_thresh = config_params.get('containment_thresh', 0.8)
+    
+    # 1. 过滤小框
+    filtered_regions = []
+    for region in text_regions:
+        x1, y1, x2, y2 = region['bbox']
+        width = x2 - x1
+        height = y2 - y1
+        if width >= min_box_size and height >= min_box_size:
+            filtered_regions.append(region)
+    
+    if len(filtered_regions) <= 1:
+        return filtered_regions
+    
+    # 2. 处理包含关系 - 移除被完全包含的框
+    to_remove = set()
+    for i in range(len(filtered_regions)):
+        if i in to_remove:
+            continue
+        for j in range(len(filtered_regions)):
+            if i == j or j in to_remove:
+                continue
+            
+            box_i = filtered_regions[i]['bbox']
+            box_j = filtered_regions[j]['bbox']
+            
+            # 检查i是否完全包含在j中
+            containment_i_in_j = calculate_containment_ratio(box_i, box_j)
+            if containment_i_in_j > containment_thresh:
+                to_remove.add(i)
+                print(f"移除被包含的框 {i}: 包含比例 {containment_i_in_j:.3f}")
+                break
+    
+    # 移除被包含的框
+    filtered_regions = [region for i, region in enumerate(filtered_regions) if i not in to_remove]
+    
+    # 3. 处理部分重叠 - 合并重叠的框
+    merged = True
+    while merged and len(filtered_regions) > 1:
+        merged = False
+        new_regions = []
+        used = set()
+        
+        for i in range(len(filtered_regions)):
+            if i in used:
+                continue
+            
+            current_region = filtered_regions[i]
+            merged_with = []
+            
+            for j in range(i + 1, len(filtered_regions)):
+                if j in used:
+                    continue
+                
+                iou = calculate_iou(current_region['bbox'], filtered_regions[j]['bbox'])
+                if iou > iou_merge_thresh:
+                    merged_with.append(j)
+                    used.add(j)
+                    merged = True
+            
+            if merged_with:
+                # 合并框
+                merged_bbox = current_region['bbox']
+                merged_confidence = current_region['confidence']
+                merged_languages = [current_region['language']]
+                
+                for idx in merged_with:
+                    merged_bbox = merge_boxes(merged_bbox, filtered_regions[idx]['bbox'])
+                    merged_confidence = max(merged_confidence, filtered_regions[idx]['confidence'])
+                    if filtered_regions[idx]['language'] not in merged_languages:
+                        merged_languages.append(filtered_regions[idx]['language'])
+                
+                # 创建合并后的区域
+                merged_region = current_region.copy()
+                merged_region['bbox'] = merged_bbox
+                merged_region['confidence'] = merged_confidence
+                merged_region['language'] = merged_languages[0] if len(merged_languages) == 1 else 'mixed'
+                merged_region['id'] = len(new_regions)
+                
+                new_regions.append(merged_region)
+                print(f"合并框: {[i] + merged_with} -> 新框 {len(new_regions)-1}")
+            else:
+                current_region['id'] = len(new_regions)
+                new_regions.append(current_region)
+            
+            used.add(i)
+        
+        filtered_regions = new_regions
+    
+    return filtered_regions
+
 
 class DetectionResults:
     """检测结果类"""
@@ -230,6 +384,10 @@ class ComicTextDetector:
             }
             
             text_regions.append(region_info)
+        
+        # 应用框过滤和合并逻辑
+        current_params = self._get_current_parameters()
+        text_regions = filter_and_merge_boxes(text_regions, current_params)
         
         return text_regions
     

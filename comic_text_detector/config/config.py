@@ -39,7 +39,11 @@ class Config:
                 "nms_thresh": 0.35,
                 "mask_thresh": 0.3,
                 "allowed_languages": ["zh", "ja"],
-                "device": "auto"
+                "device": "auto",
+                 "min_box_size": 10,          # 最小框尺寸（宽或高）
+                "iou_merge_thresh": 0.3,     # 部分重叠时的IoU阈值，超过此值进行合并
+                "containment_thresh": 0.8,   # 包含关系阈值，超过此值认为完全包含
+                "enable_box_filter": True    # 是否启用框过滤功能
             },
             
             # GUI配置

@@ -2651,8 +2651,8 @@ class ImageViewer(QScrollArea):
                     line_width = 3
                 else:
                     confidence = region.get('confidence', 1.0)
-                    green_value = int(255 * min(confidence, 1.0))
-                    color = QColor(0, green_value, 0)
+                    blue_value = int(255 * min(confidence, 1.0))
+                    color = QColor(50, 100, blue_value)  # 蓝色方框，根据置信度调整蓝色强度
                     line_width = 2
                 
                 # 绘制边界框
@@ -2668,7 +2668,7 @@ class ImageViewer(QScrollArea):
                     label += f"_{region['confidence']:.3f}"
                 
                 # 标签背景
-                font = QFont("Arial", 9)
+                font = QFont("Arial", 16)
                 painter.setFont(font)
                 fm = QFontMetrics(font)
                 text_rect = fm.boundingRect(label)
@@ -5546,5 +5546,17 @@ def draw_bbox(pred, img, lang_list=None):
 
 ```py
 
+```
+
+# `ver.py`
+
+```py
+# 在当前环境检查
+python -c "try: import torch; print(f'Torch version: {torch.__version__}'); except ImportError: print('Torch not installed')"
+
+# 在其他环境检查
+conda activate paddleocr
+python -c "try: import torch; print(f'Torch version: {torch.__version__}'); except ImportError: print('Torch not installed')"
+conda deactivate
 ```
 

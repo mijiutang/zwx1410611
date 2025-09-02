@@ -198,7 +198,43 @@ class ParameterPanel(QWidget):
         self.mask_thresh_slider = mask_layout[1]
         layout.addLayout(mask_layout[0])
         
+        min_size_layout = QHBoxLayout()
+        min_size_layout.addWidget(QLabel("最小框尺寸:"))
+        
+        self.min_box_size_spin = QSpinBox()
+        self.min_box_size_spin.setRange(1, 100)
+        self.min_box_size_spin.setValue(10)
+        self.min_box_size_spin.setSuffix(" px")
+        self.min_box_size_spin.valueChanged.connect(self.parameters_changed.emit)
+        
+        min_size_layout.addWidget(self.min_box_size_spin)
+        min_size_layout.addStretch()
+        layout.addLayout(min_size_layout)
+        
+        # 新增：IoU合并阈值
+        iou_layout = self.create_slider_layout(
+            "IoU合并阈值:", 0.1, 0.8, 0.3,
+            lambda: self.parameters_changed.emit()
+        )
+        self.iou_merge_slider = iou_layout[1]
+        layout.addLayout(iou_layout[0])
+        
+        # 新增：包含关系阈值
+        contain_layout = self.create_slider_layout(
+            "包含关系阈值:", 0.5, 1.0, 0.8,
+            lambda: self.parameters_changed.emit()
+        )
+        self.containment_slider = contain_layout[1]
+        layout.addLayout(contain_layout[0])
+        
+        # 新增：启用框过滤
+        self.enable_filter_checkbox = QCheckBox("启用框过滤")
+        self.enable_filter_checkbox.setChecked(True)
+        self.enable_filter_checkbox.stateChanged.connect(self.parameters_changed.emit)
+        layout.addWidget(self.enable_filter_checkbox)
+
         return group
+        
     
     def create_slider_layout(self, label_text: str, min_val: float, max_val: float, 
                             default_val: float, callback):
@@ -303,13 +339,20 @@ class ParameterPanel(QWidget):
             if checkbox.isChecked():
                 allowed_languages.append(lang_code)
         
-        return {
+        params = {
             "input_size": int(self.input_size_combo.currentText()),
             "conf_thresh": self.conf_thresh_slider.value() / 100.0,
             "mask_thresh": self.mask_thresh_slider.value() / 100.0,
             "allowed_languages": allowed_languages,
-            "device": self.device_combo.currentText()
+            "device": self.device_combo.currentText(),
+            # 新增参数
+            "min_box_size": self.min_box_size_spin.value(),
+            "iou_merge_thresh": self.iou_merge_slider.value() / 100.0,
+            "containment_thresh": self.containment_slider.value() / 100.0,
+            "enable_box_filter": self.enable_filter_checkbox.isChecked()
         }
+        
+        return params
     
     def set_parameters(self, params: Dict[str, Any]):
         """设置参数"""
@@ -338,7 +381,19 @@ class ParameterPanel(QWidget):
                 for lang_code in params["allowed_languages"]:
                     if lang_code in self.lang_checkboxes:
                         self.lang_checkboxes[lang_code].setChecked(True)
-        
+
+            if "min_box_size" in params:
+                self.min_box_size_spin.setValue(params["min_box_size"])
+
+            if "iou_merge_thresh" in params:
+                self.iou_merge_slider.setValue(int(params["iou_merge_thresh"] * 100))
+            
+            if "containment_thresh" in params:
+                self.containment_slider.setValue(int(params["containment_thresh"] * 100))
+            
+            if "enable_box_filter" in params:
+                self.enable_filter_checkbox.setChecked(params["enable_box_filter"])
+
         finally:
             self.blockSignals(False)
     
