@@ -41,14 +41,19 @@ class Config:
             # 设备配置
             "device": "auto",  # 改为 "auto" 而不是直接判断
             
-            # 检测器参数
+            # 在 _default_config 中修改检测器参数部分
             "detector": {
                 "input_size": 1280,
                 "conf_thresh": 0.4,
                 "nms_thresh": 0.35,
                 "mask_thresh": 0.3,
                 "allowed_languages": ["zh", "ja"],
-                "device": "auto"
+                "device": "auto",
+                "min_box_width": 10,          # 最小框宽度
+                "min_box_height": 10,         # 最小框高度  
+                "iou_merge_thresh": 0.01,     # 降低到0.01，任何重叠都合并
+                "containment_thresh": 0.8,    # 包含关系阈值
+                "enable_box_filter": True     # 是否启用框过滤功能
             },
             
             # GUI配置
@@ -439,12 +444,6 @@ if __name__ == "__main__":
 
 ```
 
-# `setup.py`
-
-```py
-
-```
-
 # `src`
 
 ## `core`
@@ -746,6 +745,179 @@ from src.utils.io_utils import imread, imwrite, NumpyEncoder
 from src.utils.textblock import TextBlock, visualize_textblocks
 from config.config import Config
 
+# 在 import 部分后添加以下函数
+
+def calculate_iou(box1, box2):
+    """计算两个框的IoU"""
+    x1, y1, x2, y2 = box1
+    x1_2, y1_2, x2_2, y2_2 = box2
+    
+    # 计算交集
+    inter_x1 = max(x1, x1_2)
+    inter_y1 = max(y1, y1_2)
+    inter_x2 = min(x2, x2_2)
+    inter_y2 = min(y2, y2_2)
+    
+    if inter_x1 >= inter_x2 or inter_y1 >= inter_y2:
+        return 0.0
+    
+    inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+    
+    # 计算并集
+    area1 = (x2 - x1) * (y2 - y1)
+    area2 = (x2_2 - x1_2) * (y2_2 - y1_2)
+    union_area = area1 + area2 - inter_area
+    
+    return inter_area / union_area if union_area > 0 else 0.0
+
+def calculate_containment_ratio(box_small, box_large):
+    """计算小框在大框中的包含比例"""
+    x1, y1, x2, y2 = box_small
+    x1_2, y1_2, x2_2, y2_2 = box_large
+    
+    # 计算交集
+    inter_x1 = max(x1, x1_2)
+    inter_y1 = max(y1, y1_2)
+    inter_x2 = min(x2, x2_2)
+    inter_y2 = min(y2, y2_2)
+    
+    if inter_x1 >= inter_x2 or inter_y1 >= inter_y2:
+        return 0.0
+    
+    inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+    small_area = (x2 - x1) * (y2 - y1)
+    
+    return inter_area / small_area if small_area > 0 else 0.0
+
+def merge_boxes(box1, box2):
+    """合并两个框，返回包含它们的最小框"""
+    x1, y1, x2, y2 = box1
+    x1_2, y1_2, x2_2, y2_2 = box2
+    
+    return [
+        min(x1, x1_2),
+        min(y1, y1_2),
+        max(x2, x2_2),
+        max(y2, y2_2)
+    ]
+
+def filter_and_merge_boxes(text_regions, config_params):
+    """过滤和合并检测框 - 修正版本"""
+    if not config_params.get('enable_box_filter', True):
+        return text_regions
+    
+    min_box_width = config_params.get('min_box_width', 10)
+    min_box_height = config_params.get('min_box_height', 10)
+    iou_merge_thresh = max(config_params.get('iou_merge_thresh', 0.1), 0.01)
+    containment_thresh = config_params.get('containment_thresh', 0.8)
+    
+    print(f"开始框处理，共有{len(text_regions)}个框")
+    print(f"IoU合并阈值: {iou_merge_thresh}")
+    
+    # 1. 过滤小框
+    filtered_regions = []
+    for i, region in enumerate(text_regions):
+        x1, y1, x2, y2 = region['bbox']
+        width = x2 - x1
+        height = y2 - y1
+        print(f"框{i}: 位置[{x1},{y1},{x2},{y2}], 尺寸{width}x{height}")
+        
+        if width >= min_box_width or height >= min_box_height:
+            filtered_regions.append(region)
+        else:
+            print(f"过滤掉小框{i}")
+    
+    if len(filtered_regions) <= 1:
+        print("框数量<=1，无需合并")
+        return filtered_regions
+    
+    # 2. 处理包含关系
+    to_remove = set()
+    for i in range(len(filtered_regions)):
+        if i in to_remove:
+            continue
+        for j in range(len(filtered_regions)):
+            if i == j or j in to_remove:
+                continue
+            
+            box_i = filtered_regions[i]['bbox']
+            box_j = filtered_regions[j]['bbox']
+            
+            containment_i_in_j = calculate_containment_ratio(box_i, box_j)
+            if containment_i_in_j > containment_thresh:
+                to_remove.add(i)
+                print(f"移除被包含的框{i}: 包含比例{containment_i_in_j:.3f}")
+                break
+    
+    # 移除被包含的框
+    filtered_regions = [region for i, region in enumerate(filtered_regions) if i not in to_remove]
+    print(f"包含关系处理后，剩余{len(filtered_regions)}个框")
+    
+    # 3. 处理重叠 - 修正版本
+    merged = True
+    merge_count = 0  # 在这里初始化
+    iteration = 0
+    
+    while merged and len(filtered_regions) > 1:
+        iteration += 1
+        print(f"第{iteration}轮合并")
+        merged = False
+        new_regions = []
+        used = set()
+        
+        for i in range(len(filtered_regions)):
+            if i in used:
+                continue
+            
+            current_region = filtered_regions[i]
+            merged_with = []
+            
+            for j in range(i + 1, len(filtered_regions)):
+                if j in used:
+                    continue
+                
+                iou = calculate_iou(current_region['bbox'], filtered_regions[j]['bbox'])
+                print(f"  框{i}[{current_region['bbox']}]和框{j}[{filtered_regions[j]['bbox']}]的IoU: {iou:.6f}")
+                
+                if iou > iou_merge_thresh:
+                    merged_with.append(j)
+                    used.add(j)
+                    merged = True
+                    merge_count += 1
+                    print(f"  ✓ 合并框{i}和框{j}, IoU={iou:.6f}")
+            
+            if merged_with:
+                # 合并框
+                merged_bbox = current_region['bbox']
+                merged_confidence = current_region['confidence']
+                merged_languages = [current_region['language']]
+                
+                for idx in merged_with:
+                    merged_bbox = merge_boxes(merged_bbox, filtered_regions[idx]['bbox'])
+                    merged_confidence = max(merged_confidence, filtered_regions[idx]['confidence'])
+                    if filtered_regions[idx]['language'] not in merged_languages:
+                        merged_languages.append(filtered_regions[idx]['language'])
+                
+                # 创建合并后的区域
+                merged_region = current_region.copy()
+                merged_region['bbox'] = merged_bbox
+                merged_region['confidence'] = merged_confidence
+                merged_region['language'] = merged_languages[0] if len(merged_languages) == 1 else 'mixed'
+                merged_region['id'] = len(new_regions)
+                
+                new_regions.append(merged_region)
+                print(f"  创建合并框: {merged_bbox}")
+            else:
+                current_region['id'] = len(new_regions)
+                new_regions.append(current_region)
+            
+            used.add(i)
+        
+        filtered_regions = new_regions
+        print(f"第{iteration}轮结束，剩余{len(filtered_regions)}个框")
+    
+    print(f"合并完成，总共执行了{merge_count}次合并")
+    return filtered_regions
 
 class DetectionResults:
     """检测结果类"""
@@ -961,6 +1133,10 @@ class ComicTextDetector:
             }
             
             text_regions.append(region_info)
+        
+        # 应用框过滤和合并逻辑
+        current_params = self._get_current_parameters()
+        text_regions = filter_and_merge_boxes(text_regions, current_params)
         
         return text_regions
     
@@ -3056,7 +3232,55 @@ class ParameterPanel(QWidget):
         self.mask_thresh_slider = mask_layout[1]
         layout.addLayout(mask_layout[0])
         
+        # 在 create_detection_group 方法中，替换现有的最小框尺寸部分
+        min_size_layout = QHBoxLayout()
+        min_size_layout.addWidget(QLabel("最小框尺寸:"))
+
+        # 宽度设置
+        self.min_box_width_spin = QSpinBox()
+        self.min_box_width_spin.setRange(1, 500)
+        self.min_box_width_spin.setValue(10)
+        self.min_box_width_spin.setSuffix(" px")
+        self.min_box_width_spin.valueChanged.connect(self.parameters_changed.emit)
+
+        # 高度设置
+        self.min_box_height_spin = QSpinBox()
+        self.min_box_height_spin.setRange(1, 500)
+        self.min_box_height_spin.setValue(10)
+        self.min_box_height_spin.setSuffix(" px")
+        self.min_box_height_spin.valueChanged.connect(self.parameters_changed.emit)
+
+        min_size_layout.addWidget(QLabel("宽:"))
+        min_size_layout.addWidget(self.min_box_width_spin)
+        min_size_layout.addWidget(QLabel("高:"))
+        min_size_layout.addWidget(self.min_box_height_spin)
+        min_size_layout.addStretch()
+        layout.addLayout(min_size_layout)
+        
+        # 新增：IoU合并阈值
+        iou_layout = self.create_slider_layout(
+            "IoU合并阈值:", 0.1, 0.8, 0.3,
+            lambda: self.parameters_changed.emit()
+        )
+        self.iou_merge_slider = iou_layout[1]
+        layout.addLayout(iou_layout[0])
+        
+        # 新增：包含关系阈值
+        contain_layout = self.create_slider_layout(
+            "包含关系阈值:", 0.5, 1.0, 0.8,
+            lambda: self.parameters_changed.emit()
+        )
+        self.containment_slider = contain_layout[1]
+        layout.addLayout(contain_layout[0])
+        
+        # 新增：启用框过滤
+        self.enable_filter_checkbox = QCheckBox("启用框过滤")
+        self.enable_filter_checkbox.setChecked(True)
+        self.enable_filter_checkbox.stateChanged.connect(self.parameters_changed.emit)
+        layout.addWidget(self.enable_filter_checkbox)
+
         return group
+        
     
     def create_slider_layout(self, label_text: str, min_val: float, max_val: float, 
                             default_val: float, callback):
@@ -3161,13 +3385,19 @@ class ParameterPanel(QWidget):
             if checkbox.isChecked():
                 allowed_languages.append(lang_code)
         
-        return {
+        params = {
             "input_size": int(self.input_size_combo.currentText()),
             "conf_thresh": self.conf_thresh_slider.value() / 100.0,
             "mask_thresh": self.mask_thresh_slider.value() / 100.0,
             "allowed_languages": allowed_languages,
-            "device": self.device_combo.currentText()
+            "device": self.device_combo.currentText(),
+            # 新增参数
+            "iou_merge_thresh": self.iou_merge_slider.value() / 100.0,
+            "containment_thresh": self.containment_slider.value() / 100.0,
+            "enable_box_filter": self.enable_filter_checkbox.isChecked()
         }
+        
+        return params
     
     def set_parameters(self, params: Dict[str, Any]):
         """设置参数"""
@@ -3175,28 +3405,17 @@ class ParameterPanel(QWidget):
         self.blockSignals(True)
         
         try:
-            if "input_size" in params:
-                self.input_size_combo.setCurrentText(str(params["input_size"]))
+            # ... 其他参数设置 ...
             
-            if "conf_thresh" in params:
-                self.conf_thresh_slider.setValue(int(params["conf_thresh"] * 100))
+            # 更新最小框尺寸设置
+            if "min_box_width" in params:
+                self.min_box_width_spin.setValue(params["min_box_width"])
             
-            if "mask_thresh" in params:
-                self.mask_thresh_slider.setValue(int(params["mask_thresh"] * 100))
+            if "min_box_height" in params:
+                self.min_box_height_spin.setValue(params["min_box_height"])
             
-            if "device" in params:
-                        self.device_combo.setCurrentText(params["device"])
-
-            if "allowed_languages" in params:
-                # 先取消所有选择
-                for checkbox in self.lang_checkboxes.values():
-                    checkbox.setChecked(False)
-                
-                # 然后选中指定语言
-                for lang_code in params["allowed_languages"]:
-                    if lang_code in self.lang_checkboxes:
-                        self.lang_checkboxes[lang_code].setChecked(True)
-        
+            # 移除旧的min_box_size相关代码
+            
         finally:
             self.blockSignals(False)
     
@@ -5546,17 +5765,5 @@ def draw_bbox(pred, img, lang_list=None):
 
 ```py
 
-```
-
-# `ver.py`
-
-```py
-# 在当前环境检查
-python -c "try: import torch; print(f'Torch version: {torch.__version__}'); except ImportError: print('Torch not installed')"
-
-# 在其他环境检查
-conda activate paddleocr
-python -c "try: import torch; print(f'Torch version: {torch.__version__}'); except ImportError: print('Torch not installed')"
-conda deactivate
 ```
 

@@ -72,27 +72,36 @@ def merge_boxes(box1, box2):
     ]
 
 def filter_and_merge_boxes(text_regions, config_params):
-    """过滤和合并检测框"""
+    """过滤和合并检测框 - 修正版本"""
     if not config_params.get('enable_box_filter', True):
         return text_regions
     
-    min_box_size = config_params.get('min_box_size', 10)
-    iou_merge_thresh = config_params.get('iou_merge_thresh', 0.3)
+    min_box_width = config_params.get('min_box_width', 10)
+    min_box_height = config_params.get('min_box_height', 10)
+    iou_merge_thresh = max(config_params.get('iou_merge_thresh', 0.1), 0.01)
     containment_thresh = config_params.get('containment_thresh', 0.8)
+    
+    print(f"开始框处理，共有{len(text_regions)}个框")
+    print(f"IoU合并阈值: {iou_merge_thresh}")
     
     # 1. 过滤小框
     filtered_regions = []
-    for region in text_regions:
+    for i, region in enumerate(text_regions):
         x1, y1, x2, y2 = region['bbox']
         width = x2 - x1
         height = y2 - y1
-        if width >= min_box_size and height >= min_box_size:
+        print(f"框{i}: 位置[{x1},{y1},{x2},{y2}], 尺寸{width}x{height}")
+        
+        if width >= min_box_width or height >= min_box_height:
             filtered_regions.append(region)
+        else:
+            print(f"过滤掉小框{i}")
     
     if len(filtered_regions) <= 1:
+        print("框数量<=1，无需合并")
         return filtered_regions
     
-    # 2. 处理包含关系 - 移除被完全包含的框
+    # 2. 处理包含关系
     to_remove = set()
     for i in range(len(filtered_regions)):
         if i in to_remove:
@@ -104,19 +113,24 @@ def filter_and_merge_boxes(text_regions, config_params):
             box_i = filtered_regions[i]['bbox']
             box_j = filtered_regions[j]['bbox']
             
-            # 检查i是否完全包含在j中
             containment_i_in_j = calculate_containment_ratio(box_i, box_j)
             if containment_i_in_j > containment_thresh:
                 to_remove.add(i)
-                print(f"移除被包含的框 {i}: 包含比例 {containment_i_in_j:.3f}")
+                print(f"移除被包含的框{i}: 包含比例{containment_i_in_j:.3f}")
                 break
     
     # 移除被包含的框
     filtered_regions = [region for i, region in enumerate(filtered_regions) if i not in to_remove]
+    print(f"包含关系处理后，剩余{len(filtered_regions)}个框")
     
-    # 3. 处理部分重叠 - 合并重叠的框
+    # 3. 处理重叠 - 修正版本
     merged = True
+    merge_count = 0  # 在这里初始化
+    iteration = 0
+    
     while merged and len(filtered_regions) > 1:
+        iteration += 1
+        print(f"第{iteration}轮合并")
         merged = False
         new_regions = []
         used = set()
@@ -133,10 +147,14 @@ def filter_and_merge_boxes(text_regions, config_params):
                     continue
                 
                 iou = calculate_iou(current_region['bbox'], filtered_regions[j]['bbox'])
+                print(f"  框{i}[{current_region['bbox']}]和框{j}[{filtered_regions[j]['bbox']}]的IoU: {iou:.6f}")
+                
                 if iou > iou_merge_thresh:
                     merged_with.append(j)
                     used.add(j)
                     merged = True
+                    merge_count += 1
+                    print(f"  ✓ 合并框{i}和框{j}, IoU={iou:.6f}")
             
             if merged_with:
                 # 合并框
@@ -158,7 +176,7 @@ def filter_and_merge_boxes(text_regions, config_params):
                 merged_region['id'] = len(new_regions)
                 
                 new_regions.append(merged_region)
-                print(f"合并框: {[i] + merged_with} -> 新框 {len(new_regions)-1}")
+                print(f"  创建合并框: {merged_bbox}")
             else:
                 current_region['id'] = len(new_regions)
                 new_regions.append(current_region)
@@ -166,9 +184,10 @@ def filter_and_merge_boxes(text_regions, config_params):
             used.add(i)
         
         filtered_regions = new_regions
+        print(f"第{iteration}轮结束，剩余{len(filtered_regions)}个框")
     
+    print(f"合并完成，总共执行了{merge_count}次合并")
     return filtered_regions
-
 
 class DetectionResults:
     """检测结果类"""

@@ -198,16 +198,28 @@ class ParameterPanel(QWidget):
         self.mask_thresh_slider = mask_layout[1]
         layout.addLayout(mask_layout[0])
         
+        # 在 create_detection_group 方法中，替换现有的最小框尺寸部分
         min_size_layout = QHBoxLayout()
         min_size_layout.addWidget(QLabel("最小框尺寸:"))
-        
-        self.min_box_size_spin = QSpinBox()
-        self.min_box_size_spin.setRange(1, 100)
-        self.min_box_size_spin.setValue(10)
-        self.min_box_size_spin.setSuffix(" px")
-        self.min_box_size_spin.valueChanged.connect(self.parameters_changed.emit)
-        
-        min_size_layout.addWidget(self.min_box_size_spin)
+
+        # 宽度设置
+        self.min_box_width_spin = QSpinBox()
+        self.min_box_width_spin.setRange(1, 500)
+        self.min_box_width_spin.setValue(10)
+        self.min_box_width_spin.setSuffix(" px")
+        self.min_box_width_spin.valueChanged.connect(self.parameters_changed.emit)
+
+        # 高度设置
+        self.min_box_height_spin = QSpinBox()
+        self.min_box_height_spin.setRange(1, 500)
+        self.min_box_height_spin.setValue(10)
+        self.min_box_height_spin.setSuffix(" px")
+        self.min_box_height_spin.valueChanged.connect(self.parameters_changed.emit)
+
+        min_size_layout.addWidget(QLabel("宽:"))
+        min_size_layout.addWidget(self.min_box_width_spin)
+        min_size_layout.addWidget(QLabel("高:"))
+        min_size_layout.addWidget(self.min_box_height_spin)
         min_size_layout.addStretch()
         layout.addLayout(min_size_layout)
         
@@ -346,7 +358,6 @@ class ParameterPanel(QWidget):
             "allowed_languages": allowed_languages,
             "device": self.device_combo.currentText(),
             # 新增参数
-            "min_box_size": self.min_box_size_spin.value(),
             "iou_merge_thresh": self.iou_merge_slider.value() / 100.0,
             "containment_thresh": self.containment_slider.value() / 100.0,
             "enable_box_filter": self.enable_filter_checkbox.isChecked()
@@ -360,40 +371,17 @@ class ParameterPanel(QWidget):
         self.blockSignals(True)
         
         try:
-            if "input_size" in params:
-                self.input_size_combo.setCurrentText(str(params["input_size"]))
+            # ... 其他参数设置 ...
             
-            if "conf_thresh" in params:
-                self.conf_thresh_slider.setValue(int(params["conf_thresh"] * 100))
+            # 更新最小框尺寸设置
+            if "min_box_width" in params:
+                self.min_box_width_spin.setValue(params["min_box_width"])
             
-            if "mask_thresh" in params:
-                self.mask_thresh_slider.setValue(int(params["mask_thresh"] * 100))
+            if "min_box_height" in params:
+                self.min_box_height_spin.setValue(params["min_box_height"])
             
-            if "device" in params:
-                        self.device_combo.setCurrentText(params["device"])
-
-            if "allowed_languages" in params:
-                # 先取消所有选择
-                for checkbox in self.lang_checkboxes.values():
-                    checkbox.setChecked(False)
-                
-                # 然后选中指定语言
-                for lang_code in params["allowed_languages"]:
-                    if lang_code in self.lang_checkboxes:
-                        self.lang_checkboxes[lang_code].setChecked(True)
-
-            if "min_box_size" in params:
-                self.min_box_size_spin.setValue(params["min_box_size"])
-
-            if "iou_merge_thresh" in params:
-                self.iou_merge_slider.setValue(int(params["iou_merge_thresh"] * 100))
+            # 移除旧的min_box_size相关代码
             
-            if "containment_thresh" in params:
-                self.containment_slider.setValue(int(params["containment_thresh"] * 100))
-            
-            if "enable_box_filter" in params:
-                self.enable_filter_checkbox.setChecked(params["enable_box_filter"])
-
         finally:
             self.blockSignals(False)
     

@@ -32,7 +32,7 @@ class Config:
             # 设备配置
             "device": "auto",  # 改为 "auto" 而不是直接判断
             
-            # 检测器参数
+            # 在 _default_config 中修改检测器参数部分
             "detector": {
                 "input_size": 1280,
                 "conf_thresh": 0.4,
@@ -40,10 +40,11 @@ class Config:
                 "mask_thresh": 0.3,
                 "allowed_languages": ["zh", "ja"],
                 "device": "auto",
-                 "min_box_size": 10,          # 最小框尺寸（宽或高）
-                "iou_merge_thresh": 0.3,     # 部分重叠时的IoU阈值，超过此值进行合并
-                "containment_thresh": 0.8,   # 包含关系阈值，超过此值认为完全包含
-                "enable_box_filter": True    # 是否启用框过滤功能
+                "min_box_width": 10,          # 最小框宽度
+                "min_box_height": 10,         # 最小框高度  
+                "iou_merge_thresh": 0.01,     # 降低到0.01，任何重叠都合并
+                "containment_thresh": 0.8,    # 包含关系阈值
+                "enable_box_filter": True     # 是否启用框过滤功能
             },
             
             # GUI配置

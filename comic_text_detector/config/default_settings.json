@@ -8,14 +8,19 @@
   "device": "cpu",
   "detector": {
     "input_size": 1536,
-    "conf_thresh": 0.45,
+    "conf_thresh": 0.4,
     "nms_thresh": 0.35,
     "mask_thresh": 0.3,
     "allowed_languages": [
       "zh",
       "ja"
     ],
-    "device": "auto"
+    "device": "auto",
+    "min_box_width": 10,
+    "min_box_height": 10,
+    "iou_merge_thresh": 0.01,
+    "containment_thresh": 0.8,
+    "enable_box_filter": true
   },
   "gui": {
     "window_size": [
