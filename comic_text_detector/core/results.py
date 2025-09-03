@@ -1,5 +1,5 @@
 """
-检测结果管理模块
+检测结果管理模块 - 优化版，支持加载已有结果
 """
 
 import time
@@ -59,17 +59,133 @@ class DetectionResults:
 
 
 class ProjectResults:
-    """项目结果管理器"""
+    """项目结果管理器 - 优化版"""
     
     def __init__(self, project_name: str):
         self.project_name = project_name
         self.detection_results: List[DetectionResults] = []
         self.processing_start_time = time.time()
         self.total_processing_time = 0.0
+        self.is_loaded_from_existing = False  # 【新增】标记是否从已有结果加载
+        self.loaded_image_names = set()      # 【新增】已加载的图片名集合
     
     def add_result(self, result: DetectionResults):
         """添加单个检测结果"""
         self.detection_results.append(result)
+    
+    @classmethod
+    def load_from_existing_json(cls, project_dir: Union[str, Path], image_files: List[str]) -> 'ProjectResults':
+        """【新增】从已有的results.json加载项目结果"""
+        project_dir = Path(project_dir)
+        results_dir = project_dir / "results"
+        json_file = results_dir / "results.json"
+        
+        if not json_file.exists():
+            # 如果不存在results.json，返回空的项目结果
+            return cls("results")
+        
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # 创建项目结果对象
+            project_results = cls(data.get("project_name", "results"))
+            project_results.is_loaded_from_existing = True
+            project_results.total_processing_time = data.get("processing_time", 0.0)
+            
+            # 将图片文件路径映射为名称，便于查找
+            image_name_to_path = {Path(img_path).stem: img_path for img_path in image_files}
+            
+            # 重建DetectionResults对象
+            for img_data in data.get("images", []):
+                image_name = img_data["image_name"]
+                
+                # 查找对应的图片路径
+                if image_name not in image_name_to_path:
+                    print(f"警告：JSON中的图片 {image_name} 在当前项目文件夹中未找到")
+                    continue
+                
+                image_path = image_name_to_path[image_name]
+                
+                # 创建DetectionResults对象（使用虚拟图片数据）
+                fake_image = np.zeros((100, 100, 3), dtype=np.uint8)
+                result = DetectionResults(image_path, fake_image)
+                
+                # 填充检测数据
+                detection_data = img_data.get("detection_results")
+                if detection_data:
+                    result.text_regions = detection_data.get("text_regions", [])
+                    result.detection_time = detection_data.get("detection_time", 0.0)
+                
+                # 填充OCR数据
+                ocr_data = img_data.get("ocr_results")
+                if ocr_data and ocr_data.get("has_ocr", False):
+                    result.has_ocr_results = True
+                    result.ocr_time = ocr_data.get("ocr_time", 0.0)
+                    
+                    # 转换OCR结果格式：从 "区域1" -> "region_0"
+                    result.ocr_results = {}
+                    for region_key, text in ocr_data.get("regions", {}).items():
+                        if region_key.startswith("区域"):
+                            region_num = region_key.replace("区域", "")
+                            try:
+                                region_idx = int(region_num) - 1  # 转换为0开始的索引
+                                result.ocr_results[f"region_{region_idx}"] = text
+                            except ValueError:
+                                result.ocr_results[region_key] = text
+                        else:
+                            result.ocr_results[region_key] = text
+                    
+                    # 同时在text_regions中添加OCR文本
+                    for i, region in enumerate(result.text_regions):
+                        region_key = f"region_{i}"
+                        if region_key in result.ocr_results:
+                            region['ocr_text'] = result.ocr_results[region_key]
+                
+                project_results.add_result(result)
+                project_results.loaded_image_names.add(image_name)
+            
+            print(f"成功从JSON加载了 {len(project_results.detection_results)} 个图片的结果")
+            return project_results
+            
+        except Exception as e:
+            print(f"加载已有results.json失败: {e}")
+            return cls("results")
+    
+    def get_processing_status(self, image_files: List[str]) -> Dict[str, Any]:
+        """【新增】获取项目处理状态"""
+        total_images = len(image_files)
+        processed_images = len(self.loaded_image_names) if self.is_loaded_from_existing else len(self.detection_results)
+        
+        # 统计OCR处理状态
+        images_with_ocr = sum(1 for result in self.detection_results if result.has_ocr_results)
+        
+        # 找出未处理的图片
+        all_image_names = {Path(img_path).stem for img_path in image_files}
+        unprocessed_images = all_image_names - self.loaded_image_names
+        
+        return {
+            'total_images': total_images,
+            'processed_images': processed_images,
+            'images_with_ocr': images_with_ocr,
+            'unprocessed_images': list(unprocessed_images),
+            'is_fully_processed': len(unprocessed_images) == 0,
+            'is_loaded_from_existing': self.is_loaded_from_existing,
+            'completion_rate': processed_images / total_images if total_images > 0 else 0
+        }
+    
+    def get_unprocessed_image_files(self, image_files: List[str]) -> List[str]:
+        """【新增】获取未处理的图片文件列表"""
+        if not self.is_loaded_from_existing:
+            return image_files
+        
+        unprocessed_files = []
+        for img_path in image_files:
+            img_name = Path(img_path).stem
+            if img_name not in self.loaded_image_names:
+                unprocessed_files.append(img_path)
+        
+        return unprocessed_files
     
     def get_project_ocr_results(self) -> Dict[str, Dict[str, str]]:
         """获取整个项目的OCR结果 - 按区域分组格式"""
@@ -80,10 +196,13 @@ class ProjectResults:
                 image_ocr = {}
                 for region_key, text in result.ocr_results.items():
                     if text.strip():  # 只保存非空文本
-                        # 将 region_0 格式转换为 区域0 格式
+                        # 将 region_0 格式转换为 区域1 格式
                         if region_key.startswith("region_"):
                             region_num = region_key.split("_")[1]
-                            display_key = f"区域{region_num}"
+                            try:
+                                display_key = f"区域{int(region_num) + 1}"
+                            except ValueError:
+                                display_key = region_key
                         else:
                             display_key = region_key
                         
@@ -103,6 +222,7 @@ class ProjectResults:
             'total_images': len(self.detection_results),
             'processing_time': self.total_processing_time,
             'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'is_loaded_from_existing': self.is_loaded_from_existing,  # 【新增】
             'images': []
         }
         
@@ -165,25 +285,31 @@ class ProjectResults:
         # 创建初始的合并json文件
         if output_params.get('save_json', True):
             self.json_file_path = self.project_dir / "results.json"
-            initial_data = {
-                "project_name": self.project_name,
-                "total_images": len(self.detection_results) if self.detection_results else 0,
-                "processing_time": 0.0,
-                "created_at": time.strftime('%Y-%m-%d %H:%M:%S'),
-                "status": "processing",
-                "images": [],
-                "stats": {
-                    "total_regions": 0,
-                    "images_with_ocr": 0,
-                    "avg_regions_per_image": 0,
-                    "total_detection_time": 0,
-                    "total_ocr_time": 0,
-                    "languages_detected": []
-                }
-            }
             
-            with open(self.json_file_path, 'w', encoding='utf-8') as f:
-                json.dump(initial_data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
+            # 【优化】如果从已有结果加载且文件已存在，保留原有数据
+            if self.is_loaded_from_existing and self.json_file_path.exists():
+                print(f"保留已有的results.json文件: {self.json_file_path}")
+            else:
+                initial_data = {
+                    "project_name": self.project_name,
+                    "total_images": len(self.detection_results) if self.detection_results else 0,
+                    "processing_time": self.total_processing_time,
+                    "created_at": time.strftime('%Y-%m-%d %H:%M:%S'),
+                    "status": "processing",
+                    "is_loaded_from_existing": self.is_loaded_from_existing,
+                    "images": [],
+                    "stats": {
+                        "total_regions": 0,
+                        "images_with_ocr": 0,
+                        "avg_regions_per_image": 0,
+                        "total_detection_time": 0,
+                        "total_ocr_time": 0,
+                        "languages_detected": []
+                    }
+                }
+                
+                with open(self.json_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(initial_data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
         
         print(f"项目结构已创建: {self.project_dir}")
         return self.project_dir
@@ -264,7 +390,10 @@ class ProjectResults:
                     if text.strip():
                         if region_key.startswith("region_"):
                             region_num = region_key.split("_")[1]
-                            display_key = f"区域{region_num}"
+                            try:
+                                display_key = f"区域{int(region_num) + 1}"
+                            except ValueError:
+                                display_key = region_key
                         else:
                             display_key = region_key
                         ocr_regions[display_key] = text.strip()
@@ -314,7 +443,8 @@ class ProjectResults:
             data = json.load(f)
         
         data["status"] = "completed"
-        data["processing_time"] = time.time() - self.processing_start_time
+        if not self.is_loaded_from_existing:
+            data["processing_time"] = time.time() - self.processing_start_time
         
         with open(self.json_file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
