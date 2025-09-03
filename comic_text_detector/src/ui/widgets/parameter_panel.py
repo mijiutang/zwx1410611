@@ -417,8 +417,8 @@ class ParameterPanel(QWidget):
         # 滚动区域用于显示多个OCR结果
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
-        scroll_area.setMinimumHeight(200)
-        scroll_area.setMaximumHeight(300)
+        scroll_area.setMinimumHeight(300)  # 从200改为300
+        scroll_area.setMaximumHeight(400)  # 从300改为400
         
         # 创建OCR结果容器
         self.ocr_container = QWidget()
@@ -455,17 +455,17 @@ class ParameterPanel(QWidget):
         # 根据text_regions创建OCR结果编辑控件
         for i, region in enumerate(detection_results.text_regions):
             ocr_text = region.get('ocr_text', '')
-            confidence = region.get('ocr_confidence', 0.0)
             
             # 创建每个OCR结果的控件组
             result_widget = QWidget()
             result_layout = QVBoxLayout(result_widget)
             result_layout.setContentsMargins(5, 5, 5, 5)
             
-            # 标题（序号 + 置信度）
-            title_label = QLabel(f"区域{i} (置信度: {confidence:.3f})")
-            title_label.setFont(QFont("Arial", 9, QFont.Bold))
-            result_layout.addWidget(title_label)
+            # 次序标签（从1开始，不显示置信度）
+            sequence_label = QLabel(f"{i+1}")  # 从区域0改为1，区域1改为2
+            sequence_label.setFont(QFont("Arial", 10, QFont.Bold))
+            sequence_label.setStyleSheet("color: #333333; padding: 2px 0px;")
+            result_layout.addWidget(sequence_label)
             
             # 文本编辑框
             text_edit = QTextEdit()
@@ -485,6 +485,7 @@ class ParameterPanel(QWidget):
                 line = QFrame()
                 line.setFrameShape(QFrame.HLine)
                 line.setFrameShadow(QFrame.Sunken)
+                line.setStyleSheet("color: #cccccc;")
                 result_layout.addWidget(line)
             
             # 保存控件引用
