@@ -58,7 +58,7 @@ class EventHandlers(QObject):
             # 清空之前的结果
             self.main_window.current_results = None
             self.main_window.ocr_button.setEnabled(False)
-            self.main_window.save_button.setEnabled(False)
+            
             
             # 更新最近文件夹
             self.add_recent_folder(folder_path)
@@ -96,7 +96,7 @@ class EventHandlers(QObject):
         # 清空之前的结果
         self.main_window.current_results = None
         self.main_window.ocr_button.setEnabled(False)
-        self.main_window.save_button.setEnabled(False)
+        
         
         # 更新按钮状态
         self.main_window.prev_button.setEnabled(self.main_window.current_image_index > 0)
@@ -124,7 +124,7 @@ class EventHandlers(QObject):
         # 禁用按钮
         self.main_window.detect_button.setEnabled(False)
         self.main_window.ocr_button.setEnabled(False)
-        self.main_window.save_button.setEnabled(False)
+        
         
         # 显示进度
         self.main_window.progress_bar.setVisible(True)
@@ -157,7 +157,7 @@ class EventHandlers(QObject):
         # 禁用按钮
         self.main_window.detect_button.setEnabled(False)
         self.main_window.ocr_button.setEnabled(False)
-        self.main_window.save_button.setEnabled(False)
+        
         
         # 显示进度
         self.main_window.progress_bar.setVisible(True)
@@ -172,36 +172,6 @@ class EventHandlers(QObject):
         self.main_window.ocr_worker.error.connect(self.on_ocr_error)
         self.main_window.ocr_worker.progress.connect(self.on_ocr_progress)
         self.main_window.ocr_worker.start()
-
-    def handle_save_results(self):
-        """保存检测结果"""
-        if not self.main_window.current_results:
-            QMessageBox.information(self.main_window, "提示", "没有检测结果可保存")
-            return
-        
-        # 选择保存目录
-        output_dir = QFileDialog.getExistingDirectory(
-            self.main_window, "选择保存目录", str(self.main_window.config.results_dir)
-        )
-        
-        if output_dir:
-            try:
-                saved_dir = self.main_window.detector.save_results(
-                    self.main_window.current_results, output_dir)
-                
-                # 构建保存信息
-                save_info = f"结果已保存到: {saved_dir}\n\n包含内容:\n"
-                save_info += f"- 检测结果图片\n"
-                save_info += f"- 文字掩码\n" 
-                save_info += f"- JSON格式结果\n"
-                if self.main_window.current_results.has_ocr_results:
-                    save_info += f"- OCR识别结果"
-                
-                QMessageBox.information(self.main_window, "成功", save_info)
-                self.main_window.statusBar().showMessage(f"结果已保存: {saved_dir}")
-                
-            except Exception as e:
-                QMessageBox.critical(self.main_window, "错误", f"保存失败: {e}")
 
     def handle_batch_detection(self):
         """开始批量检测（不含OCR）"""
@@ -245,7 +215,7 @@ class EventHandlers(QObject):
         # 禁用控件
         self.main_window.detect_button.setEnabled(False)
         self.main_window.ocr_button.setEnabled(False)
-        self.main_window.save_button.setEnabled(False)
+        
         
         operation_name = "批量处理（含OCR）" if include_ocr else "批量检测"
         self.main_window.status_label.setText(f"正在{operation_name}...")
@@ -293,7 +263,6 @@ class EventHandlers(QObject):
         # 恢复按钮状态
         self.main_window.detect_button.setEnabled(True)
         self.main_window.ocr_button.setEnabled(True)
-        self.main_window.save_button.setEnabled(True)
         self.main_window.progress_bar.setVisible(False)
 
     def on_detection_error(self, error_msg: str):
@@ -331,7 +300,6 @@ class EventHandlers(QObject):
         # 恢复按钮状态
         self.main_window.detect_button.setEnabled(True)
         self.main_window.ocr_button.setEnabled(True)
-        self.main_window.save_button.setEnabled(True)
         self.main_window.progress_bar.setVisible(False)
 
     def on_ocr_error(self, error_msg: str):
@@ -344,8 +312,32 @@ class EventHandlers(QObject):
         # 恢复按钮状态
         self.main_window.detect_button.setEnabled(True)
         self.main_window.ocr_button.setEnabled(True)
-        self.main_window.save_button.setEnabled(True)
+        
         self.main_window.progress_bar.setVisible(False)
+
+    def _auto_save_results(self, results: DetectionResults, operation_type: str):
+        """自动保存结果"""
+        try:
+            # 确定保存路径
+            if self.main_window.current_project_folder:
+                # 如果有项目文件夹，保存到项目文件夹同级的输出目录
+                input_folder = Path(self.main_window.current_project_folder)
+                project_name = f"{input_folder.name}_{operation_type}"
+                output_dir = str(input_folder.parent)
+            else:
+                # 如果是单个文件，保存到图片同级目录
+                image_path = Path(results.image_path)
+                project_name = f"{image_path.stem}_{operation_type}"
+                output_dir = str(image_path.parent)
+            
+            # 使用检测器的保存方法
+            saved_dir = self.main_window.detector.save_results(results, output_dir)
+            
+            print(f"结果已自动保存到: {saved_dir}")
+            
+        except Exception as e:
+            print(f"自动保存失败: {e}")
+            # 可以选择显示错误提示，但不阻断流程
 
     def on_batch_progress(self, current, total, message):
         """批量处理进度回调"""
@@ -391,7 +383,6 @@ class EventHandlers(QObject):
         # 恢复控件状态
         self.main_window.detect_button.setEnabled(True)
         self.main_window.ocr_button.setEnabled(self.main_window.current_results is not None)
-        self.main_window.save_button.setEnabled(self.main_window.current_results is not None)
         self.main_window.progress_bar.setVisible(False)
 
     def on_batch_error(self, error_msg: str):
@@ -404,7 +395,6 @@ class EventHandlers(QObject):
         # 恢复控件状态
         self.main_window.detect_button.setEnabled(True)
         self.main_window.ocr_button.setEnabled(self.main_window.current_results is not None)
-        self.main_window.save_button.setEnabled(self.main_window.current_results is not None)
         self.main_window.progress_bar.setVisible(False)
 
     # 视图切换处理

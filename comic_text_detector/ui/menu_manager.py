@@ -15,7 +15,6 @@ class MenuManager(QObject):
     open_folder_requested = pyqtSignal()
     batch_detection_requested = pyqtSignal()
     batch_ocr_requested = pyqtSignal()
-    save_results_requested = pyqtSignal()
     exit_requested = pyqtSignal()
     
     toggle_regions_requested = pyqtSignal()
@@ -77,12 +76,6 @@ class MenuManager(QObject):
         batch_ocr_action = QAction('批量处理（含OCR）- 自动输出(&M)', self.main_window)
         batch_ocr_action.triggered.connect(self.batch_ocr_requested.emit)
         file_menu.addAction(batch_ocr_action)
-        
-        # 保存结果
-        save_action = QAction('保存结果(&S)', self.main_window)
-        save_action.setShortcut('Ctrl+S')
-        save_action.triggered.connect(self.save_results_requested.emit)
-        file_menu.addAction(save_action)
         
         file_menu.addSeparator()
         

@@ -126,12 +126,6 @@ class ComicTextDetectorGUI(QMainWindow):
         self.ocr_button.setEnabled(False)
         control_layout.addWidget(self.ocr_button)
         
-        # 保存按钮
-        self.save_button = QPushButton("💾 保存结果")
-        self.save_button.setStyleSheet(self.get_button_style("#FF9800", "#F57C00"))
-        self.save_button.setEnabled(False)
-        control_layout.addWidget(self.save_button)
-        
         control_layout.addStretch()
         return control_widget
     
@@ -201,8 +195,6 @@ class ComicTextDetectorGUI(QMainWindow):
             self.event_handlers.handle_batch_detection)
         self.menu_manager.batch_ocr_requested.connect(
             self.event_handlers.handle_batch_ocr)
-        self.menu_manager.save_results_requested.connect(
-            self.event_handlers.handle_save_results)
         self.menu_manager.exit_requested.connect(self.close)
         
         self.menu_manager.toggle_regions_requested.connect(
@@ -225,8 +217,6 @@ class ComicTextDetectorGUI(QMainWindow):
             self.event_handlers.handle_start_detection)
         self.ocr_button.clicked.connect(
             self.event_handlers.handle_start_ocr)
-        self.save_button.clicked.connect(
-            self.event_handlers.handle_save_results)
         
         # 导航按钮信号
         self.prev_button.clicked.connect(
