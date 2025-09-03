@@ -49,15 +49,6 @@ def model2annotations(model_path, img_dir_list, save_dir, save_json=False):
         with open(osp.join(save_dir, imname+'.txt'), 'w', encoding='utf8') as f:
             f.write(yolo_label)
 
-        # num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask)
-        # _, mask = cv2.threshold(mask, 50, 255, cv2.THRESH_BINARY)
-        # draw_connected_labels(num_labels, labels, stats, centroids)
-        # visualize_textblocks(img, blk_list)
-        # cv2.imshow('rst', img)
-        # cv2.imshow('mask', mask)
-        # cv2.imshow('mask_refined', mask_refined)
-        # cv2.waitKey(0)
-
         if len(polys) != 0:
             if isinstance(polys, list):
                 polys = np.array(polys)

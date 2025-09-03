@@ -1,7 +1,7 @@
 # 修复后的 basemodel.py - 更新所有导入路径
 
-from src.utils.general import CUDA, DEVICE  # 修复导入路径
-from src.models.yolov5.yolo import Model  # 修复导入路径
+from ..utils.general import CUDA, DEVICE
+from ..models.yolov5.yolo import Model
 import torch
 import cv2
 import numpy as np

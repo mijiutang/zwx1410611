@@ -91,6 +91,7 @@ class BatchProcessWorker(QThread):
 class ComicTextDetectorGUI(QMainWindow):
     """漫画文本检测器GUI主窗口"""
     
+    # 在 __init__ 方法中（约第30行）添加新的属性：
     def __init__(self):
         super().__init__()
         
@@ -99,13 +100,17 @@ class ComicTextDetectorGUI(QMainWindow):
         
         # 应用状态
         self.detector: Optional[ComicTextDetector] = None
-        self.current_project_path: Optional[str] = None
+        self.current_results: Optional[DetectionResults] = None
+        self.current_image_path: Optional[str] = None
+        self.recent_files: List[str] = []
+        
+        # 添加这些新属性
+        self.current_project_folder: Optional[str] = None
         self.current_image_files: List[str] = []
-        self.batch_results: Optional[dict] = None
-        self.recent_files: List[str] = []  # 现在存储的是项目文件夹路径
+        self.current_image_index: int = 0
         
         # 工作线程
-        self.batch_worker: Optional[BatchProcessWorker] = None
+        self.detection_worker: Optional[DetectionWorker] = None
         
         # 初始化UI
         self.init_ui()
@@ -146,6 +151,16 @@ class ComicTextDetectorGUI(QMainWindow):
         status_widget = QWidget()
         status_layout = QHBoxLayout(status_widget)
         status_layout.setContentsMargins(0, 5, 0, 5)
+
+        self.prev_button = QPushButton("上一张")
+        self.prev_button.clicked.connect(self.prev_image)
+        self.prev_button.setEnabled(False)
+        status_layout.addWidget(self.prev_button)
+        
+        self.next_button = QPushButton("下一张")
+        self.next_button.clicked.connect(self.next_image)
+        self.next_button.setEnabled(False)
+        status_layout.addWidget(self.next_button)
         
         # 批量处理按钮
         self.batch_button = QPushButton("开始批量处理")
@@ -314,36 +329,35 @@ class ComicTextDetectorGUI(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"无法加载项目文件夹: {e}")
 
-    def start_batch_processing(self):
-        """开始批量处理"""
-        if not hasattr(self, 'current_image_files') or not self.current_image_files or not self.detector:
-            QMessageBox.information(self, "提示", "请先选择项目文件夹")
-            return
-        
-        # 选择输出目录
-        output_dir = QFileDialog.getExistingDirectory(
-            self, "选择输出目录", str(self.config.results_dir)
-        )
-        
-        if not output_dir:
-            return
-        
-        # 更新检测器参数
-        params = self.parameter_panel.get_parameters()
-        self.detector.update_parameters(**params)
-        
-        # 禁用按钮，显示进度
-        self.batch_button.setEnabled(False)
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setMaximum(len(self.current_image_files))
-        self.progress_bar.setValue(0)
-        
-        # 启动批量处理线程
-        self.batch_worker = BatchProcessWorker(self.detector, self.current_image_files, output_dir)
-        self.batch_worker.finished.connect(self.on_batch_finished)
-        self.batch_worker.error.connect(self.on_batch_error)
-        self.batch_worker.progress.connect(self.on_batch_progress)
-        self.batch_worker.start()
+    def prev_image(self):
+        """切换到上一张图片"""
+        if hasattr(self, 'current_image_files') and self.current_image_files:
+            if self.current_image_index > 0:
+                self.current_image_index -= 1
+                self.load_current_image()
+
+    def next_image(self):
+        """切换到下一张图片"""
+        if hasattr(self, 'current_image_files') and self.current_image_files:
+            if self.current_image_index < len(self.current_image_files) - 1:
+                self.current_image_index += 1
+                self.load_current_image()
+
+    def load_current_image(self):
+        """加载当前索引的图片"""
+        if hasattr(self, 'current_image_files') and self.current_image_files:
+            current_image = self.current_image_files[self.current_image_index]
+            self.image_viewer.load_image(current_image)
+            self.current_image_path = current_image
+            
+            # 更新按钮状态
+            self.prev_button.setEnabled(self.current_image_index > 0)
+            self.next_button.setEnabled(self.current_image_index < len(self.current_image_files) - 1)
+            
+            # 更新状态显示
+            image_name = Path(current_image).name
+            total_count = len(self.current_image_files)
+            self.status_label.setText(f"图片: {image_name} ({self.current_image_index + 1}/{total_count})")
 
     def on_batch_progress(self, current, total, message):
         """批量处理进度回调"""
@@ -450,36 +464,58 @@ class ComicTextDetectorGUI(QMainWindow):
             self.status_label.setText("检测器初始化失败")
     
     def open_file(self):
-        """打开图片文件"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择图片文件", 
-            str(self.config.examples_dir),
-            "图片文件 (*.png *.jpg *.jpeg *.bmp *.tiff)"
+        """打开项目文件夹"""
+        folder_path = QFileDialog.getExistingDirectory(
+            self, "选择项目文件夹", 
+            str(self.config.examples_dir)
         )
         
-        if file_path:
-            self.load_image(file_path)
+        if folder_path:
+            self.load_project_folder(folder_path)
     
-    def load_image(self, file_path: str):
-        """加载图片"""
+    def load_project_folder(self, folder_path: str):
+        """加载项目文件夹"""
         try:
-            # 显示图片
-            self.image_viewer.load_image(file_path)
-            self.current_image_path = file_path
+            # 检查文件夹是否包含图片
+            from src.utils.io_utils import find_all_imgs
+            image_files = find_all_imgs(folder_path, abs_path=True)
+            
+            if not image_files:
+                QMessageBox.information(self, "提示", "所选文件夹中没有找到支持的图片文件")
+                return
+            
+            # 显示文件夹信息和第一张图片
+            self.current_project_folder = folder_path
+            self.current_image_files = image_files
+            self.current_image_index = 0
+            
+            # 加载第一张图片
+            first_image = image_files[0]
+            self.image_viewer.load_image(first_image)
+            self.current_image_path = first_image
             
             # 更新UI状态
             self.detect_button.setEnabled(self.detector is not None)
             self.save_button.setEnabled(False)
             
-            # 更新最近文件
-            self.add_recent_file(file_path)
+            # 更新最近文件（改为最近项目文件夹）
+            self.add_recent_folder(folder_path)
             
             # 更新状态
-            self.status_label.setText(f"已加载: {Path(file_path).name}")
-            self.statusBar().showMessage(f"图片已加载: {file_path}")
+            folder_name = Path(folder_path).name
+            image_count = len(image_files)
+            self.status_label.setText(f"已加载项目: {folder_name} ({image_count}张图片)")
+            self.statusBar().showMessage(f"项目文件夹已加载: {folder_path}")
             
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"无法加载图片: {e}")
+            QMessageBox.critical(self, "错误", f"无法加载项目文件夹: {e}")
+
+    # 添加处理单个图片文件的检测方法
+    def check_if_image_file(self, file_path: str) -> bool:
+        """检查是否为图片文件"""
+        from pathlib import Path
+        image_extensions = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif'}
+        return Path(file_path).suffix.lower() in image_extensions
     
     def on_detection_finished(self, results: DetectionResults):
         """检测完成回调"""
@@ -554,12 +590,12 @@ class ComicTextDetectorGUI(QMainWindow):
             except Exception as e:
                 QMessageBox.warning(self, "警告", f"参数更新失败: {e}")
     
-    def add_recent_file(self, file_path: str):
-        """添加到最近文件"""
-        if file_path in self.recent_files:
-            self.recent_files.remove(file_path)
+    def add_recent_folder(self, folder_path: str):
+        """添加到最近项目文件夹"""
+        if folder_path in self.recent_files:  # 这里保持变量名不变，避免大量修改
+            self.recent_files.remove(folder_path)
         
-        self.recent_files.insert(0, file_path)
+        self.recent_files.insert(0, folder_path)
         
         # 限制最近文件数量
         max_recent = self.config.gui_params.get('recent_files_count', 10)
@@ -569,13 +605,14 @@ class ComicTextDetectorGUI(QMainWindow):
         self.update_recent_menu()
     
     def update_recent_menu(self):
-        """更新最近文件菜单"""
+        """更新最近项目文件夹菜单"""
         self.recent_menu.clear()
         
-        for i, file_path in enumerate(self.recent_files):
-            if Path(file_path).exists():
-                action = QAction(f"{i+1}. {Path(file_path).name}", self)
-                action.triggered.connect(lambda checked, path=file_path: self.load_image(path))
+        for i, folder_path in enumerate(self.recent_files):
+            if Path(folder_path).exists():
+                folder_name = Path(folder_path).name
+                action = QAction(f"{i+1}. {folder_name}", self)
+                action.triggered.connect(lambda checked, path=folder_path: self.load_project_folder(path))
                 self.recent_menu.addAction(action)
         
         if not self.recent_files:

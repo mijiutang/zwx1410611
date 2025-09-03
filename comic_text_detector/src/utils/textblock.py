@@ -189,8 +189,7 @@ class TextBlock(object):
             M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
             region = cv2.warpPerspective(img, M, (w, h))
             region = cv2.rotate(region, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        # cv2.imshow('region'+str(idx), region)
-        # cv2.waitKey(0)
+            
         return region
 
     def get_text(self):
