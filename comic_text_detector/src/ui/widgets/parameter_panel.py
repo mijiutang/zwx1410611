@@ -16,6 +16,7 @@ class ParameterPanel(QWidget):
     """参数控制面板"""
     
     parameters_changed = pyqtSignal()
+    ocr_text_modified = pyqtSignal(int, str)  # 新增：OCR文本修改信号(region_idx, new_text)
     
     def __init__(self, config: Config):
         super().__init__()
@@ -32,7 +33,8 @@ class ParameterPanel(QWidget):
         self.min_box_height_spin = None
         self.enable_filter_checkbox = None
         self.lang_checkboxes = {}
-        self.stats_labels = {}
+        self.ocr_results_widgets = {}  # 存储OCR结果编辑控件
+        self.current_detection_results = None  # 当前检测结果对象
         
         # 初始化UI
         self.init_ui()
@@ -64,9 +66,9 @@ class ParameterPanel(QWidget):
         language_group = self.create_language_group()
         layout.addWidget(language_group)
         
-        # 统计信息组
-        stats_group = self.create_stats_group()
-        layout.addWidget(stats_group)
+        # OCR结果组
+        ocr_group = self.create_ocr_group()
+        layout.addWidget(ocr_group)
         
         # 弹簧，将控件推到顶部
         layout.addStretch()
@@ -263,33 +265,6 @@ class ParameterPanel(QWidget):
         
         return group
     
-    def create_stats_group(self) -> QGroupBox:
-        """创建统计信息组"""
-        group = QGroupBox("统计信息")
-        layout = QVBoxLayout(group)
-        
-        stats_items = [
-            ("total_regions", "检测区域:"),
-            ("detection_time", "检测耗时:"),
-            ("avg_confidence", "平均置信度:"),
-            ("languages", "检测语言:")
-        ]
-        
-        for key, label_text in stats_items:
-            item_layout = QHBoxLayout()
-            
-            label = QLabel(label_text)
-            value_label = QLabel("-")
-            value_label.setAlignment(Qt.AlignRight)
-            
-            item_layout.addWidget(label)
-            item_layout.addWidget(value_label)
-            
-            self.stats_labels[key] = value_label
-            layout.addLayout(item_layout)
-        
-        return group
-    
     def browse_model(self):
         """浏览模型文件"""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -433,44 +408,127 @@ class ParameterPanel(QWidget):
                 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"更新默认配置时发生错误：{e}")
-    
-    def update_stats(self, stats: Dict[str, Any]):
-        """更新统计信息"""
-        if "stats" in stats:
-            stats_data = stats["stats"]
-        else:
-            stats_data = stats
+
+    def create_ocr_group(self) -> QGroupBox:
+        """创建OCR结果显示组"""
+        group = QGroupBox("OCR结果")
+        self.ocr_layout = QVBoxLayout(group)
         
-        # 更新各项统计
-        if "total_regions" in stats_data:
-            self.stats_labels["total_regions"].setText(str(stats_data["total_regions"]))
+        # 滚动区域用于显示多个OCR结果
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setMinimumHeight(200)
+        scroll_area.setMaximumHeight(300)
         
-        # 检测时间
-        detection_time = None
-        if "detection_time" in stats_data:
-            detection_time = stats_data["detection_time"]
-        elif "detection_time" in stats:
-            detection_time = stats["detection_time"]
+        # 创建OCR结果容器
+        self.ocr_container = QWidget()
+        self.ocr_container_layout = QVBoxLayout(self.ocr_container)
+        self.ocr_container_layout.setContentsMargins(5, 5, 5, 5)
+        
+        scroll_area.setWidget(self.ocr_container)
+        self.ocr_layout.addWidget(scroll_area)
+        
+        # 提示标签
+        self.ocr_hint_label = QLabel("请先完成检测和OCR识别")
+        self.ocr_hint_label.setAlignment(Qt.AlignCenter)
+        self.ocr_hint_label.setStyleSheet("color: #888888; font-style: italic;")
+        self.ocr_container_layout.addWidget(self.ocr_hint_label)
+        
+        return group
+
+    def update_ocr_results(self, detection_results):
+        """更新OCR结果显示"""
+        from src.core.detector import DetectionResults
+        
+        self.current_detection_results = detection_results
+        
+        # 清空现有的OCR控件
+        self.clear_ocr_results()
+        
+        if not isinstance(detection_results, DetectionResults) or not detection_results.has_ocr_results:
+            self.ocr_hint_label.setText("暂无OCR结果")
+            self.ocr_hint_label.setVisible(True)
+            return
+        
+        self.ocr_hint_label.setVisible(False)
+        
+        # 根据text_regions创建OCR结果编辑控件
+        for i, region in enumerate(detection_results.text_regions):
+            ocr_text = region.get('ocr_text', '')
+            confidence = region.get('ocr_confidence', 0.0)
             
-        if detection_time is not None:
-            self.stats_labels["detection_time"].setText(f"{detection_time:.2f}s")
+            # 创建每个OCR结果的控件组
+            result_widget = QWidget()
+            result_layout = QVBoxLayout(result_widget)
+            result_layout.setContentsMargins(5, 5, 5, 5)
+            
+            # 标题（序号 + 置信度）
+            title_label = QLabel(f"区域{i} (置信度: {confidence:.3f})")
+            title_label.setFont(QFont("Arial", 9, QFont.Bold))
+            result_layout.addWidget(title_label)
+            
+            # 文本编辑框
+            text_edit = QTextEdit()
+            text_edit.setPlainText(ocr_text)
+            text_edit.setMaximumHeight(80)
+            text_edit.setMinimumHeight(50)
+            
+            # 连接文本变化信号到自动保存
+            text_edit.textChanged.connect(
+                lambda region_idx=i: self.on_ocr_text_changed(region_idx)
+            )
+            
+            result_layout.addWidget(text_edit)
+            
+            # 分隔线
+            if i < len(detection_results.text_regions) - 1:
+                line = QFrame()
+                line.setFrameShape(QFrame.HLine)
+                line.setFrameShadow(QFrame.Sunken)
+                result_layout.addWidget(line)
+            
+            # 保存控件引用
+            self.ocr_results_widgets[i] = text_edit
+            
+            # 添加到容器
+            self.ocr_container_layout.addWidget(result_widget)
+
+    def on_ocr_text_changed(self, region_idx: int):
+        """OCR文本变化时的回调"""
+        if (self.current_detection_results and 
+            region_idx < len(self.current_detection_results.text_regions)):
+            
+            # 获取修改后的文本
+            if region_idx in self.ocr_results_widgets:
+                new_text = self.ocr_results_widgets[region_idx].toPlainText()
+                
+                # 更新检测结果中的OCR文本
+                self.current_detection_results.text_regions[region_idx]['ocr_text'] = new_text
+                
+                # 更新OCR结果字典
+                region_key = f"region_{region_idx}"
+                self.current_detection_results.ocr_results[region_key] = new_text
+                
+                # 发射信号通知主窗口保存更改
+                self.ocr_text_modified.emit(region_idx, new_text)
+
+    def clear_ocr_results(self):
+        """清空OCR结果显示"""
+        # 清空控件引用
+        self.ocr_results_widgets.clear()
         
-        # 平均置信度
-        if "avg_confidence" in stats_data:
-            conf_val = stats_data["avg_confidence"]
-            self.stats_labels["avg_confidence"].setText(f"{conf_val:.3f}")
+        # 清空布局中的所有控件
+        while self.ocr_container_layout.count():
+            child = self.ocr_container_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
         
-        # 检测语言
-        if "languages" in stats_data:
-            langs = stats_data["languages"]
-            lang_str = ", ".join(langs) if langs else "无"
-            self.stats_labels["languages"].setText(lang_str)
-    
-    def clear_stats(self):
-        """清空统计信息"""
-        for label in self.stats_labels.values():
-            label.setText("-")
-    
+        # 重新添加提示标签
+        self.ocr_hint_label = QLabel("请先完成检测和OCR识别")
+        self.ocr_hint_label.setAlignment(Qt.AlignCenter)
+        self.ocr_hint_label.setStyleSheet("color: #888888; font-style: italic;")
+        self.ocr_container_layout.addWidget(self.ocr_hint_label)
+     
     def validate_parameters(self) -> tuple[bool, str]:
         """验证参数有效性"""
         # 检查模型文件

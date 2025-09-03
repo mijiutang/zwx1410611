@@ -991,22 +991,31 @@ class ProjectResults:
         """添加单个检测结果"""
         self.detection_results.append(result)
     
-    def get_project_ocr_results(self) -> Dict[str, str]:
-        """获取整个项目的OCR结果"""
+    def get_project_ocr_results(self) -> Dict[str, Dict[str, str]]:
+        """获取整个项目的OCR结果 - 按区域分组格式"""
         project_ocr = {}
         for result in self.detection_results:
-            if result.has_ocr_results:
-                # 合并每张图片的OCR文本
-                all_texts = []
+            if result.has_ocr_results and result.ocr_results:
+                # 保持区域分离的格式
+                image_ocr = {}
                 for region_key, text in result.ocr_results.items():
-                    if text.strip():
-                        all_texts.append(text.strip())
-                combined_text = " ".join(all_texts)
-                project_ocr[result.image_name] = combined_text
+                    if text.strip():  # 只保存非空文本
+                        # 将 region_0 格式转换为 区域0 格式
+                        if region_key.startswith("region_"):
+                            region_num = region_key.split("_")[1]
+                            display_key = f"区域{region_num}"
+                        else:
+                            display_key = region_key
+                        
+                        image_ocr[display_key] = text.strip()
+                
+                project_ocr[result.image_name] = image_ocr
             else:
-                project_ocr[result.image_name] = ""
+                # 没有OCR结果的图片设为空字典
+                project_ocr[result.image_name] = {}
+        
         return project_ocr
-    
+
     def get_project_detection_results(self) -> Dict[str, Any]:
         """获取整个项目的检测结果摘要"""
         project_results = {
@@ -1083,14 +1092,21 @@ class ProjectResults:
             with open(result_json_path, 'w', encoding='utf-8') as f:
                 json.dump(project_results, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
             saved_files.append(str(result_json_path))
-            
+
             # 保存OCR结果（如果有）
             project_ocr = self.get_project_ocr_results()
-            if any(text.strip() for text in project_ocr.values()):
+            # 检查是否有任何图片包含OCR文本
+            has_ocr_results = any(
+                any(text.strip() for text in image_regions.values()) 
+                for image_regions in project_ocr.values() 
+                if image_regions
+            )
+
+            if has_ocr_results:
                 ocr_json_path = project_dir / "ocr_results.json"
                 with open(ocr_json_path, 'w', encoding='utf-8') as f:
                     json.dump(project_ocr, f, ensure_ascii=False, indent=2)
-                saved_files.append(str(ocr_json_path))
+                saved_files.append(str(ocr_json_path))           
         
         self.total_processing_time = time.time() - self.processing_start_time
         
@@ -2468,6 +2484,8 @@ GUI应用主类 - 分离版本（检测和OCR独立）- 适配新的项目结构
 
 import sys
 import json
+import os
+import time
 from pathlib import Path
 from typing import Optional, List
 
@@ -2761,12 +2779,12 @@ class ComicTextDetectorGUI(QMainWindow):
         file_menu.addSeparator()
         
         # 批量处理
-        batch_action = QAction('批量处理（仅检测）(&B)', self)
+        batch_action = QAction('批量处理（仅检测）- 自动输出(&B)', self)
         batch_action.triggered.connect(self.start_batch_detection)
         file_menu.addAction(batch_action)
-        
+
         # 批量处理（包含OCR）
-        batch_ocr_action = QAction('批量处理（含OCR）(&M)', self)
+        batch_ocr_action = QAction('批量处理（含OCR）- 自动输出(&M)', self)
         batch_ocr_action.triggered.connect(self.start_batch_with_ocr)
         file_menu.addAction(batch_ocr_action)
         
@@ -3194,29 +3212,18 @@ class ComicTextDetectorGUI(QMainWindow):
             QMessageBox.information(self, "提示", "请先选择项目文件夹并确保检测器已加载")
             return
         
-        # 获取项目名称
-        if self.current_project_folder:
-            default_project_name = Path(self.current_project_folder).name
-        else:
-            default_project_name = f"project_{int(time.time())}"
-        
-        project_name, ok = QInputDialog.getText(
-            self, '项目名称', 
-            f'请输入项目名称（用于创建输出文件夹）:',
-            text=default_project_name
-        )
-        
-        if not ok or not project_name.strip():
+        if not self.current_project_folder:
+            QMessageBox.warning(self, "错误", "当前没有选择项目文件夹")
             return
         
-        project_name = project_name.strip()
+        # 自动生成项目名称和输出路径
+        input_folder = Path(self.current_project_folder)
+        project_name = f"{input_folder.name}_out"
+        output_dir = str(input_folder.parent)  # 输出到输入文件夹的父目录
         
-        # 选择输出目录
-        output_dir = QFileDialog.getExistingDirectory(
-            self, "选择输出目录", str(self.config.results_dir)
-        )
-        
-        if not output_dir:
+        # 检查输出目录是否可写
+        if not os.access(output_dir, os.W_OK):
+            QMessageBox.warning(self, "错误", f"输出目录没有写入权限：{output_dir}")
             return
         
         # 更新检测器参数
@@ -3234,6 +3241,9 @@ class ComicTextDetectorGUI(QMainWindow):
         
         operation_name = "批量处理（含OCR）" if include_ocr else "批量检测"
         self.status_label.setText(f"正在{operation_name}...")
+        
+        # 显示自动生成的路径信息
+        self.statusBar().showMessage(f"开始{operation_name} -> 输出到: {Path(output_dir) / project_name}")
         
         # 启动批量处理线程
         self.batch_worker = BatchProcessWorker(
@@ -3265,7 +3275,15 @@ class ComicTextDetectorGUI(QMainWindow):
         # 获取项目统计信息
         project_stats = project_results.get_project_detection_results()['stats']
         
+        # 计算输出路径（用于显示）
+        if self.current_project_folder:
+            input_folder = Path(self.current_project_folder)
+            expected_output_path = input_folder.parent / f"{input_folder.name}_out"
+        else:
+            expected_output_path = "未知路径"
+        
         completion_msg = f"项目 '{project_results.project_name}' 批量处理完成！\n\n"
+        completion_msg += f"输出路径: {expected_output_path}\n\n"
         completion_msg += f"处理统计:\n"
         completion_msg += f"• 总文件数: {total_files}\n"
         completion_msg += f"• 检测成功: {successful}\n"
@@ -3276,7 +3294,7 @@ class ComicTextDetectorGUI(QMainWindow):
         if project_stats['total_ocr_time'] > 0:
             completion_msg += f"• OCR总时间: {project_stats['total_ocr_time']:.1f}s\n"
         
-        completion_msg += f"\n输出目录已按项目结构组织，便于管理。"
+        completion_msg += f"\n结果已自动保存到输入文件夹同级目录！"
         
         QMessageBox.information(self, "批量处理完成", completion_msg)
         

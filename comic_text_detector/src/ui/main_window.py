@@ -151,6 +151,7 @@ class ComicTextDetectorGUI(QMainWindow):
         # 左侧面板 - 参数控制
         self.parameter_panel = ParameterPanel(self.config)
         self.parameter_panel.parameters_changed.connect(self.on_parameters_changed)
+        self.parameter_panel.ocr_text_modified.connect(self.on_ocr_text_modified)
         main_layout.addWidget(self.parameter_panel, stretch=0)
         
         # 右侧面板 - 图像显示和控制
@@ -533,8 +534,7 @@ class ComicTextDetectorGUI(QMainWindow):
         self.statusBar().showMessage(f"检测完成: 找到 {region_count} 个文字区域, 耗时 {detection_time:.2f}s")
         self.status_label.setText(f"检测完成: {region_count} 个区域")
         
-        # 更新参数面板统计信息
-        self.parameter_panel.update_stats(results.to_dict())
+        self.parameter_panel.update_ocr_results(results)
         
         # 恢复按钮状态
         self.detect_button.setEnabled(True)
@@ -570,14 +570,26 @@ class ComicTextDetectorGUI(QMainWindow):
         self.statusBar().showMessage(f"OCR完成: 识别了 {total_text_length} 个字符, 耗时 {ocr_time:.2f}s")
         self.status_label.setText(f"OCR完成: {total_text_length} 个字符")
         
-        # 更新参数面板统计信息
-        self.parameter_panel.update_stats(results.to_dict())
+        self.parameter_panel.update_ocr_results(results)
         
         # 恢复按钮状态
         self.detect_button.setEnabled(True)
         self.ocr_button.setEnabled(True)
         self.save_button.setEnabled(True)
         self.progress_bar.setVisible(False)
+
+    def on_ocr_text_modified(self, region_idx: int, new_text: str):
+        """OCR文本修改回调 - 自动保存"""
+        if self.current_results:
+            try:
+                # 更新可视化（如果需要重新生成带OCR文本的结果图）
+                self.image_viewer.set_detection_regions(self.current_results.text_regions)
+                
+                # 更新状态栏
+                self.statusBar().showMessage(f"区域{region_idx}的OCR文本已修改并保存")
+                
+            except Exception as e:
+                print(f"保存OCR修改时出错: {e}")
 
     def on_ocr_error(self, error_msg: str):
         """OCR错误回调"""
