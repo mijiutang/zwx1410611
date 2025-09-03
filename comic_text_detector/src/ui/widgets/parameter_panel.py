@@ -1,5 +1,5 @@
 """
-参数控制面板组件
+参数控制面板组件 - 清理版本
 """
 
 from pathlib import Path
@@ -23,9 +23,14 @@ class ParameterPanel(QWidget):
         
         # 控件引用
         self.model_path_edit = None
+        self.device_combo = None
         self.input_size_combo = None
-        self.conf_thresh_slider = None
-        self.mask_thresh_slider = None
+        self.conf_thresh_input = None
+        self.mask_thresh_input = None
+        self.containment_input = None
+        self.min_box_width_spin = None
+        self.min_box_height_spin = None
+        self.enable_filter_checkbox = None
         self.lang_checkboxes = {}
         self.stats_labels = {}
         
@@ -46,6 +51,10 @@ class ParameterPanel(QWidget):
         # 模型选择组
         model_group = self.create_model_group()
         layout.addWidget(model_group)
+        
+        # 设备和尺寸配置组
+        config_group = self.create_config_group()
+        layout.addWidget(config_group)
         
         # 检测参数组
         detection_group = self.create_detection_group()
@@ -88,35 +97,6 @@ class ParameterPanel(QWidget):
         
         layout.addLayout(button_layout)
 
-    def update_default_config(self):
-        """更新默认配置"""
-        try:
-            # 获取当前参数
-            current_params = self.get_parameters()
-            model_path = self.get_model_path()
-            
-            # 更新配置对象
-            if model_path:
-                self.config.set('paths.default_model', str(Path(model_path).relative_to(self.config.project_root)))
-            
-            self.config.set('detector.input_size', current_params['input_size'])
-            self.config.set('detector.conf_thresh', current_params['conf_thresh'])
-            self.config.set('detector.mask_thresh', current_params['mask_thresh'])
-            self.config.set('detector.allowed_languages', current_params['allowed_languages'])
-            
-            # 保存为默认配置
-            if self.config.save_as_default():
-                QMessageBox.information(
-                    self, 
-                    "成功", 
-                    "默认配置已更新！\n下次启动应用时将使用当前参数作为默认值。"
-                )
-            else:
-                QMessageBox.warning(self, "警告", "默认配置更新失败！")
-                
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"更新默认配置时发生错误：{e}")
-    
     def create_model_group(self) -> QGroupBox:
         """创建模型选择组"""
         group = QGroupBox("模型设置")
@@ -124,21 +104,26 @@ class ParameterPanel(QWidget):
         
         # 模型路径选择
         model_layout = QHBoxLayout()
+        model_layout.addWidget(QLabel("模型文件:"))
         
         self.model_path_edit = QLineEdit()
         self.model_path_edit.setPlaceholderText("选择模型文件...")
         self.model_path_edit.textChanged.connect(self.parameters_changed.emit)
+        model_layout.addWidget(self.model_path_edit, 1)
         
         browse_button = QPushButton("浏览")
         browse_button.clicked.connect(self.browse_model)
-        
-        model_layout.addWidget(QLabel("模型文件:"))
-        model_layout.addWidget(self.model_path_edit, 1)
         model_layout.addWidget(browse_button)
         
         layout.addLayout(model_layout)
+        return group
+
+    def create_config_group(self) -> QGroupBox:
+        """创建配置参数组"""
+        group = QGroupBox("运行配置")
+        layout = QVBoxLayout(group)
         
-    # 设备选择 - 添加这部分
+        # 设备选择
         device_layout = QHBoxLayout()
         device_layout.addWidget(QLabel("计算设备:"))
         
@@ -158,7 +143,6 @@ class ParameterPanel(QWidget):
         
         device_layout.addWidget(self.device_combo)
         device_layout.addStretch()
-        
         layout.addLayout(device_layout)
 
         # 输入尺寸选择
@@ -172,7 +156,6 @@ class ParameterPanel(QWidget):
         
         size_layout.addWidget(self.input_size_combo)
         size_layout.addStretch()
-        
         layout.addLayout(size_layout)
         
         return group
@@ -182,7 +165,7 @@ class ParameterPanel(QWidget):
         group = QGroupBox("检测参数")
         layout = QVBoxLayout(group)
         
-        # 置信度阈值输入框
+        # 置信度阈值
         conf_layout = QHBoxLayout()
         conf_layout.addWidget(QLabel("置信度阈值:"))
         
@@ -191,14 +174,13 @@ class ParameterPanel(QWidget):
         self.conf_thresh_input.setSingleStep(0.01)
         self.conf_thresh_input.setDecimals(2)
         self.conf_thresh_input.setValue(0.40)
-        self.conf_thresh_input.setSuffix("")
         self.conf_thresh_input.valueChanged.connect(self.parameters_changed.emit)
         
         conf_layout.addWidget(self.conf_thresh_input)
         conf_layout.addStretch()
         layout.addLayout(conf_layout)
         
-        # 掩码阈值输入框
+        # 掩码阈值
         mask_layout = QHBoxLayout()
         mask_layout.addWidget(QLabel("掩码阈值:"))
         
@@ -213,7 +195,7 @@ class ParameterPanel(QWidget):
         mask_layout.addStretch()
         layout.addLayout(mask_layout)
         
-        # 包含关系阈值输入框
+        # 包含关系阈值
         contain_layout = QHBoxLayout()
         contain_layout.addWidget(QLabel("包含关系阈值:"))
         
@@ -228,7 +210,7 @@ class ParameterPanel(QWidget):
         contain_layout.addStretch()
         layout.addLayout(contain_layout)
         
-        # 最小框尺寸保持不变 (已经是输入框)
+        # 最小框尺寸
         min_size_layout = QHBoxLayout()
         min_size_layout.addWidget(QLabel("最小框尺寸:"))
 
@@ -251,13 +233,13 @@ class ParameterPanel(QWidget):
         min_size_layout.addStretch()
         layout.addLayout(min_size_layout)
         
-        # 启用框过滤复选框保持不变
+        # 启用框过滤
         self.enable_filter_checkbox = QCheckBox("启用框过滤")
         self.enable_filter_checkbox.setChecked(True)
         self.enable_filter_checkbox.stateChanged.connect(self.parameters_changed.emit)
         layout.addWidget(self.enable_filter_checkbox)
 
-        return group      
+        return group
       
     def create_language_group(self) -> QGroupBox:
         """创建语言选择组"""
@@ -333,11 +315,11 @@ class ParameterPanel(QWidget):
         
         params = {
             "input_size": int(self.input_size_combo.currentText()),
-            "conf_thresh": self.conf_thresh_input.value(),  # 改为输入框
-            "mask_thresh": self.mask_thresh_input.value(),  # 改为输入框
+            "conf_thresh": self.conf_thresh_input.value(),
+            "mask_thresh": self.mask_thresh_input.value(),
             "allowed_languages": allowed_languages,
             "device": self.device_combo.currentText(),
-            "containment_thresh": self.containment_input.value(),  # 改为输入框
+            "containment_thresh": self.containment_input.value(),
             "enable_box_filter": self.enable_filter_checkbox.isChecked(),
             "min_box_width": self.min_box_width_spin.value(),
             "min_box_height": self.min_box_height_spin.value()
@@ -409,33 +391,78 @@ class ParameterPanel(QWidget):
             "input_size": 1280,
             "conf_thresh": 0.4,
             "mask_thresh": 0.3,
-            "allowed_languages": ["zh", "ja"]
+            "containment_thresh": 0.8,
+            "min_box_width": 10,
+            "min_box_height": 10,
+            "enable_box_filter": True,
+            "allowed_languages": ["zh", "ja"],
+            "device": "auto"
         }
         self.set_parameters(default_params)
         self.parameters_changed.emit()
     
+    def update_default_config(self):
+        """更新默认配置"""
+        try:
+            # 获取当前参数
+            current_params = self.get_parameters()
+            model_path = self.get_model_path()
+            
+            # 更新配置对象
+            if model_path:
+                try:
+                    relative_path = str(Path(model_path).relative_to(self.config.project_root))
+                    self.config.set('paths.default_model', relative_path)
+                except ValueError:
+                    # 如果无法获取相对路径，保存绝对路径
+                    self.config.set('paths.default_model', model_path)
+            
+            for key, value in current_params.items():
+                if key != 'device':  # device 不保存到默认配置
+                    self.config.set(f'detector.{key}', value)
+            
+            # 保存为默认配置
+            if self.config.save_as_default():
+                QMessageBox.information(
+                    self, 
+                    "成功", 
+                    "默认配置已更新！\n下次启动应用时将使用当前参数作为默认值。"
+                )
+            else:
+                QMessageBox.warning(self, "警告", "默认配置更新失败！")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"更新默认配置时发生错误：{e}")
+    
     def update_stats(self, stats: Dict[str, Any]):
         """更新统计信息"""
         if "stats" in stats:
-            stats = stats["stats"]
+            stats_data = stats["stats"]
+        else:
+            stats_data = stats
         
         # 更新各项统计
-        if "total_regions" in stats:
-            self.stats_labels["total_regions"].setText(str(stats["total_regions"]))
+        if "total_regions" in stats_data:
+            self.stats_labels["total_regions"].setText(str(stats_data["total_regions"]))
         
-        if "detection_time" in stats.get("parent", {}):
-            time_val = stats["parent"]["detection_time"]
-            self.stats_labels["detection_time"].setText(f"{time_val:.2f}s")
+        # 检测时间
+        detection_time = None
+        if "detection_time" in stats_data:
+            detection_time = stats_data["detection_time"]
         elif "detection_time" in stats:
-            time_val = stats["detection_time"]
-            self.stats_labels["detection_time"].setText(f"{time_val:.2f}s")
+            detection_time = stats["detection_time"]
+            
+        if detection_time is not None:
+            self.stats_labels["detection_time"].setText(f"{detection_time:.2f}s")
         
-        if "avg_confidence" in stats:
-            conf_val = stats["avg_confidence"]
+        # 平均置信度
+        if "avg_confidence" in stats_data:
+            conf_val = stats_data["avg_confidence"]
             self.stats_labels["avg_confidence"].setText(f"{conf_val:.3f}")
         
-        if "languages" in stats:
-            langs = stats["languages"]
+        # 检测语言
+        if "languages" in stats_data:
+            langs = stats_data["languages"]
             lang_str = ", ".join(langs) if langs else "无"
             self.stats_labels["languages"].setText(lang_str)
     
@@ -468,84 +495,14 @@ class ParameterPanel(QWidget):
         
         summary = f"""参数摘要:
 模型: {model_name}
+设备: {params['device']}
 输入尺寸: {params['input_size']}
 置信度阈值: {params['conf_thresh']:.2f}
 掩码阈值: {params['mask_thresh']:.2f}
-支持语言: {', '.join(params['allowed_languages'])}"""
+支持语言: {', '.join(params['allowed_languages'])}
+框过滤: {'启用' if params['enable_box_filter'] else '禁用'}"""
         
         return summary
-
-
-class AdvancedParameterDialog(QDialog):
-    """高级参数设置对话框"""
-    
-    def __init__(self, current_params: Dict[str, Any], parent=None):
-        super().__init__(parent)
-        self.current_params = current_params.copy()
-        self.result_params = current_params.copy()
-        
-        self.init_ui()
-        self.load_parameters()
-    
-    def init_ui(self):
-        """初始化UI"""
-        self.setWindowTitle("高级参数设置")
-        self.setModal(True)
-        self.resize(400, 500)
-        
-        layout = QVBoxLayout(self)
-        
-        # 参数组
-        scroll_area = QScrollArea()
-        scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout(scroll_widget)
-        
-        # NMS阈值
-        nms_group = QGroupBox("NMS参数")
-        nms_layout = QVBoxLayout(nms_group)
-        
-        self.nms_thresh_spin = QDoubleSpinBox()
-        self.nms_thresh_spin.setRange(0.1, 0.9)
-        self.nms_thresh_spin.setSingleStep(0.05)
-        self.nms_thresh_spin.setValue(0.35)
-        
-        nms_layout.addWidget(QLabel("NMS阈值:"))
-        nms_layout.addWidget(self.nms_thresh_spin)
-        scroll_layout.addWidget(nms_group)
-        
-        # 其他高级参数可以在这里添加
-        # ...
-        
-        scroll_area.setWidget(scroll_widget)
-        layout.addWidget(scroll_area)
-        
-        # 按钮
-        button_layout = QHBoxLayout()
-        
-        ok_button = QPushButton("确定")
-        ok_button.clicked.connect(self.accept)
-        cancel_button = QPushButton("取消") 
-        cancel_button.clicked.connect(self.reject)
-        
-        button_layout.addStretch()
-        button_layout.addWidget(ok_button)
-        button_layout.addWidget(cancel_button)
-        
-        layout.addLayout(button_layout)
-    
-    def load_parameters(self):
-        """加载参数"""
-        if "nms_thresh" in self.current_params:
-            self.nms_thresh_spin.setValue(self.current_params["nms_thresh"])
-    
-    def accept(self):
-        """确认对话框"""
-        self.result_params["nms_thresh"] = self.nms_thresh_spin.value()
-        super().accept()
-    
-    def get_parameters(self) -> Dict[str, Any]:
-        """获取参数"""
-        return self.result_params
 
 
 if __name__ == "__main__":
