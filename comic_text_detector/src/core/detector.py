@@ -1,5 +1,5 @@
 """
-增强版核心检测器类 - 集成OCR文本识别功能
+分离版核心检测器类 - 独立的检测和OCR功能
 """
 
 import cv2
@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Union
+import time
 
 from src.core.inference import TextDetector
 from src.utils.textmask import refine_mask, refine_undetected_mask, REFINEMASK_ANNOTATION
@@ -251,6 +252,7 @@ class DetectionResults:
         
         # OCR结果
         self.ocr_results: Dict[str, str] = {}
+        self.has_ocr_results: bool = False
         
         # 元数据
         self.detection_time: float = 0.0
@@ -265,6 +267,7 @@ class DetectionResults:
             'image_name': self.image_name,
             'text_regions': self.text_regions,
             'ocr_results': self.ocr_results,
+            'has_ocr_results': self.has_ocr_results,
             'detection_time': self.detection_time,
             'ocr_time': self.ocr_time,
             'model_info': self.model_info,
@@ -278,7 +281,7 @@ class DetectionResults:
         }
 
 class ComicTextDetector:
-    """漫画文本检测器主类 - 集成OCR功能"""
+    """漫画文本检测器主类 - 分离的检测和OCR功能"""
     
     def __init__(self, 
                  model_path: Optional[str] = None,
@@ -366,20 +369,17 @@ class ComicTextDetector:
         except Exception as e:
             raise RuntimeError(f"检测器初始化失败: {e}")
     
-    def detect(self, image_path: Union[str, Path], enable_ocr: Optional[bool] = None, **kwargs) -> DetectionResults:
+    def detect_only(self, image_path: Union[str, Path], **kwargs) -> DetectionResults:
         """
-        执行文本检测和OCR识别
+        仅执行文本检测，不进行OCR识别
         
         Args:
             image_path: 图片路径
-            enable_ocr: 是否启用OCR（覆盖初始化设置）
             **kwargs: 临时覆盖的参数
             
         Returns:
-            DetectionResults: 检测结果对象
+            DetectionResults: 仅包含检测结果的对象
         """
-        import time
-        
         image_path = str(image_path)
         if not Path(image_path).exists():
             raise FileNotFoundError(f"图片文件不存在: {image_path}")
@@ -407,16 +407,6 @@ class ComicTextDetector:
             # 处理检测结果
             text_regions = self._process_detection_results(blk_list, img.shape)
             
-            # OCR处理
-            ocr_start_time = time.time()
-            should_do_ocr = enable_ocr if enable_ocr is not None else self.ocr_processor.enable_ocr
-            
-            if should_do_ocr:
-                ocr_results = self.ocr_processor.process_text_regions(img, text_regions)
-                results.ocr_results = ocr_results
-            
-            ocr_time = time.time() - ocr_start_time
-            
             # 生成可视化结果
             result_image = self._visualize_results(img.copy(), text_regions)
             
@@ -427,22 +417,92 @@ class ComicTextDetector:
             results.refined_mask = mask_refined
             results.result_image = result_image
             results.detection_time = detection_time
-            results.ocr_time = ocr_time
+            results.ocr_time = 0.0
+            results.has_ocr_results = False
             results.model_info = self._get_model_info()
             results.parameters = self._get_current_parameters(**kwargs)
             
             # 更新统计
             self.detection_count += 1
             self.total_time += detection_time
-            self.total_ocr_time += ocr_time
             
-            print(f"检测完成: 找到 {len(text_regions)} 个文字区域, 检测耗时: {detection_time:.3f}s, OCR耗时: {ocr_time:.3f}s")
+            print(f"检测完成: 找到 {len(text_regions)} 个文字区域, 检测耗时: {detection_time:.3f}s")
             
             return results
             
         except Exception as e:
             print(f"检测失败: {e}")
             raise
+    
+    def run_ocr_on_results(self, results: DetectionResults) -> DetectionResults:
+        """
+        对现有检测结果进行OCR识别
+        
+        Args:
+            results: 检测结果对象
+            
+        Returns:
+            DetectionResults: 更新了OCR结果的对象
+        """
+        if not self.ocr_processor.enable_ocr:
+            print("OCR功能未启用，跳过文本识别")
+            return results
+        
+        if results.has_ocr_results:
+            print("该结果已包含OCR结果，跳过重复处理")
+            return results
+        
+        ocr_start_time = time.time()
+        
+        try:
+            # 进行OCR处理
+            ocr_results = self.ocr_processor.process_text_regions(
+                results.original_image, 
+                results.text_regions
+            )
+            
+            ocr_time = time.time() - ocr_start_time
+            
+            # 更新结果对象
+            results.ocr_results = ocr_results
+            results.ocr_time = ocr_time
+            results.has_ocr_results = True
+            
+            # 重新生成可视化结果（包含OCR文本）
+            results.result_image = self._visualize_results(results.original_image.copy(), results.text_regions)
+            
+            # 更新统计
+            self.total_ocr_time += ocr_time
+            
+            print(f"OCR完成: 处理 {len(results.text_regions)} 个文字区域, OCR耗时: {ocr_time:.3f}s")
+            
+            return results
+            
+        except Exception as e:
+            print(f"OCR处理失败: {e}")
+            raise
+    
+    def detect(self, image_path: Union[str, Path], enable_ocr: Optional[bool] = None, **kwargs) -> DetectionResults:
+        """
+        执行文本检测，可选择是否进行OCR识别（保持兼容性）
+        
+        Args:
+            image_path: 图片路径
+            enable_ocr: 是否启用OCR（覆盖初始化设置）
+            **kwargs: 临时覆盖的参数
+            
+        Returns:
+            DetectionResults: 检测结果对象
+        """
+        # 先进行检测
+        results = self.detect_only(image_path, **kwargs)
+        
+        # 如果需要OCR，则进行OCR处理
+        should_do_ocr = enable_ocr if enable_ocr is not None else self.ocr_processor.enable_ocr
+        if should_do_ocr:
+            results = self.run_ocr_on_results(results)
+        
+        return results
     
     def _process_detection_results(self, blk_list: List[TextBlock], img_shape: Tuple) -> List[Dict]:
         """处理检测结果，转换为标准格式"""
@@ -546,8 +606,8 @@ class ComicTextDetector:
                     json.dump(results.to_dict(), f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
                 print(f"JSON结果已保存: {json_path}")
             
-            # 单独保存OCR结果
-            if results.ocr_results:
+            # 单独保存OCR结果（如果有的话）
+            if results.has_ocr_results and results.ocr_results:
                 ocr_path = output_dir / f"{base_name}_ocr.json"
                 with open(ocr_path, 'w', encoding='utf-8') as f:
                     json.dump({results.image_name: results.ocr_results}, f, ensure_ascii=False, indent=2)
@@ -613,58 +673,6 @@ class ComicTextDetector:
             'model_info': self._get_model_info()
         }
     
-    def batch_process_with_ocr(self, image_paths: List[Union[str, Path]], 
-                              output_dir: Union[str, Path]) -> Dict[str, str]:
-        """
-        批量处理图片并进行OCR识别
-        
-        Args:
-            image_paths: 图片路径列表
-            output_dir: 输出目录
-            
-        Returns:
-            Dict[str, str]: 图片名到OCR文本的映射
-        """
-        batch_results = {}
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        print(f"开始批量处理{len(image_paths)}张图片")
-        
-        for i, image_path in enumerate(image_paths, 1):
-            try:
-                print(f"处理第{i}/{len(image_paths)}张图片: {image_path}")
-                
-                # 执行检测和OCR
-                results = self.detect(image_path, enable_ocr=True)
-                
-                # 保存结果
-                self.save_results(results, output_dir)
-                
-                # 汇总OCR文本
-                all_texts = []
-                for region_key, text in results.ocr_results.items():
-                    if text.strip():
-                        all_texts.append(text.strip())
-                
-                combined_text = " ".join(all_texts)
-                batch_results[results.image_name] = combined_text
-                
-                print(f"完成处理: {results.image_name}, 识别文本: {combined_text[:100]}...")
-                
-            except Exception as e:
-                print(f"处理图片{image_path}时出错: {e}")
-                image_name = Path(image_path).stem
-                batch_results[image_name] = ""
-        
-        # 保存批量OCR结果
-        batch_ocr_path = output_dir / "batch_ocr_results.json"
-        with open(batch_ocr_path, 'w', encoding='utf-8') as f:
-            json.dump(batch_results, f, ensure_ascii=False, indent=2)
-        
-        print(f"批量处理完成，结果已保存到: {batch_ocr_path}")
-        return batch_results
-    
     def __del__(self):
         """清理资源"""
         if hasattr(self, 'detector'):
@@ -673,26 +681,24 @@ class ComicTextDetector:
             torch.cuda.empty_cache()
 
 # 便捷函数
-def quick_detect_with_ocr(image_path: Union[str, Path], 
-                         model_path: Optional[str] = None,
-                         output_dir: Optional[str] = None,
-                         enable_ocr: bool = True,
-                         **kwargs) -> DetectionResults:
+def quick_detect_only(image_path: Union[str, Path], 
+                     model_path: Optional[str] = None,
+                     output_dir: Optional[str] = None,
+                     **kwargs) -> DetectionResults:
     """
-    快速检测和OCR函数
+    快速检测函数（仅检测，不OCR）
     
     Args:
         image_path: 图片路径
         model_path: 模型路径
         output_dir: 输出目录
-        enable_ocr: 是否启用OCR
         **kwargs: 检测参数
         
     Returns:
         DetectionResults: 检测结果
     """
-    detector = ComicTextDetector(model_path=model_path, enable_ocr=enable_ocr, **kwargs)
-    results = detector.detect(image_path, enable_ocr=enable_ocr)
+    detector = ComicTextDetector(model_path=model_path, enable_ocr=False, **kwargs)
+    results = detector.detect_only(image_path)
     
     if output_dir:
         detector.save_results(results, output_dir)
@@ -711,10 +717,18 @@ if __name__ == "__main__":
     output_dir = sys.argv[2] if len(sys.argv) > 2 else "test_results"
     
     try:
-        results = quick_detect_with_ocr(image_path, output_dir=output_dir, enable_ocr=True)
+        # 仅检测
+        results = quick_detect_only(image_path, output_dir=output_dir)
         print(f"检测完成! 找到 {len(results.text_regions)} 个文字区域")
-        print(f"OCR结果: {results.ocr_results}")
+        
+        # 可选择进行OCR
+        response = input("是否进行OCR识别? (y/n): ")
+        if response.lower() == 'y':
+            detector = ComicTextDetector(enable_ocr=True)
+            results = detector.run_ocr_on_results(results)
+            detector.save_results(results, output_dir)
+            print(f"OCR结果: {results.ocr_results}")
         
     except Exception as e:
-        print(f"检测失败: {e}")
+        print(f"处理失败: {e}")
         sys.exit(1)

@@ -53,9 +53,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "這不是超市買來的食鹽嗎？",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 1,
@@ -126,9 +124,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "你不是真的靈能者吧。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 2,
@@ -181,9 +177,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "不是淨化過的鹽，對我是無效的。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 3,
@@ -218,9 +212,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "…",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 4,
@@ -273,9 +265,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "是我一廂情願地認定靈都會怕鹽嗎？",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 5,
@@ -328,9 +318,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "既然食鹽溶不了他那就没辦法了。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 6,
@@ -365,9 +353,7 @@
         ]
       ],
       "text": "",
-      "angle": -7,
-      "ocr_text": "嗶嗶波",
-      "ocr_confidence": 0.0
+      "angle": -7
     },
     {
       "id": 7,
@@ -402,9 +388,7 @@
         ]
       ],
       "text": "",
-      "angle": 5,
-      "ocr_text": "嘟嘟嘟嘟",
-      "ocr_confidence": 0.0
+      "angle": 5
     },
     {
       "id": 8,
@@ -457,9 +441,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "呼叫最終兵器來吧。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 9,
@@ -494,9 +476,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 10,
@@ -531,9 +511,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "喂·路人？",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 11,
@@ -622,9 +600,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "抱歉可以請你馬上來一趟嗎？没有啦·真的真的有惡靈在啦！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 12,
@@ -659,9 +635,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "春",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 13,
@@ -750,29 +724,13 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "客人跟惡靈都在等。所以要快點來喔。麻煩你啦·那我先掛曬。",
-      "ocr_confidence": 0.0
+      "angle": 0
     }
   ],
-  "ocr_results": {
-    "region_0": "這不是超市買來的食鹽嗎？",
-    "region_1": "你不是真的靈能者吧。",
-    "region_2": "不是淨化過的鹽，對我是無效的。",
-    "region_3": "…",
-    "region_4": "是我一廂情願地認定靈都會怕鹽嗎？",
-    "region_5": "既然食鹽溶不了他那就没辦法了。",
-    "region_6": "嗶嗶波",
-    "region_7": "嘟嘟嘟嘟",
-    "region_8": "呼叫最終兵器來吧。",
-    "region_9": "",
-    "region_10": "喂·路人？",
-    "region_11": "抱歉可以請你馬上來一趟嗎？没有啦·真的真的有惡靈在啦！",
-    "region_12": "春",
-    "region_13": "客人跟惡靈都在等。所以要快點來喔。麻煩你啦·那我先掛曬。"
-  },
-  "detection_time": 0.3688216209411621,
-  "ocr_time": 6.0410990715026855,
+  "ocr_results": {},
+  "has_ocr_results": false,
+  "detection_time": 0.37956833839416504,
+  "ocr_time": 0.0,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",
@@ -795,6 +753,6 @@
       "ja"
     ],
     "avg_confidence": 0.9269285755498069,
-    "avg_ocr_confidence": 0.0
+    "avg_ocr_confidence": NaN
   }
 }

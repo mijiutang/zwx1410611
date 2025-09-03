@@ -1646,7 +1646,7 @@ if __name__ == '__main__':
 
 ```py
 """
-GUI应用主类
+GUI应用主类 - 清理版本
 """
 
 import sys
@@ -1686,6 +1686,7 @@ class DetectionWorker(QThread):
             self.finished.emit(results)
         except Exception as e:
             self.error.emit(str(e))
+
 
 class BatchProcessWorker(QThread):
     """批量处理工作线程"""
@@ -1735,10 +1736,10 @@ class BatchProcessWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
+
 class ComicTextDetectorGUI(QMainWindow):
     """漫画文本检测器GUI主窗口"""
     
-    # 在 __init__ 方法中（约第30行）添加新的属性：
     def __init__(self):
         super().__init__()
         
@@ -1751,13 +1752,14 @@ class ComicTextDetectorGUI(QMainWindow):
         self.current_image_path: Optional[str] = None
         self.recent_files: List[str] = []
         
-        # 添加这些新属性
+        # 项目管理
         self.current_project_folder: Optional[str] = None
         self.current_image_files: List[str] = []
         self.current_image_index: int = 0
         
         # 工作线程
         self.detection_worker: Optional[DetectionWorker] = None
+        self.batch_worker: Optional[BatchProcessWorker] = None
         
         # 初始化UI
         self.init_ui()
@@ -1794,65 +1796,39 @@ class ComicTextDetectorGUI(QMainWindow):
         self.image_viewer = ImageViewer()
         right_layout.addWidget(self.image_viewer, stretch=1)
         
-            # 状态和控制栏
+        # 状态和控制栏 - 简化版，仅保留导航按钮
         status_widget = QWidget()
         status_layout = QHBoxLayout(status_widget)
         status_layout.setContentsMargins(0, 5, 0, 5)
+
+        # 添加弹簧，让按钮居中显示
+        status_layout.addStretch()
 
         self.prev_button = QPushButton("上一张")
         self.prev_button.clicked.connect(self.prev_image)
         self.prev_button.setEnabled(False)
         status_layout.addWidget(self.prev_button)
-        
+
         self.next_button = QPushButton("下一张")
         self.next_button.clicked.connect(self.next_image)
         self.next_button.setEnabled(False)
         status_layout.addWidget(self.next_button)
-        
-        # 批量处理按钮
-        self.batch_button = QPushButton("开始批量处理")
-        self.batch_button.clicked.connect(self.start_batch_processing)
-        self.batch_button.setEnabled(False)
-        status_layout.addWidget(self.batch_button)
-        
-        # 进度条
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        status_layout.addWidget(self.progress_bar)
-        
-        # 状态标签
-        self.status_label = QLabel("请选择项目文件夹")
-        status_layout.addWidget(self.status_label)
-        
-        status_layout.addStretch()
-        
-        # 保存按钮
-        self.save_button = QPushButton("保存结果")
-        self.save_button.clicked.connect(self.save_results)
-        self.save_button.setEnabled(False)
-        status_layout.addWidget(self.save_button)
-        
-        right_layout.addWidget(status_widget)
-    
 
-        # 进度条
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        status_layout.addWidget(self.progress_bar)
-        
-        # 状态标签
-        self.status_label = QLabel("请选择项目文件夹")
-        status_layout.addWidget(self.status_label)
-        
+        # 添加弹簧，让按钮居中显示
         status_layout.addStretch()
-        
-        # 保存按钮
-        self.save_button = QPushButton("保存结果")
-        self.save_button.clicked.connect(self.save_results)
-        self.save_button.setEnabled(False)
-        status_layout.addWidget(self.save_button)
-        
+
         right_layout.addWidget(status_widget)
+        
+        # 为了避免代码错误，创建隐藏的占位组件
+        self.batch_button = QPushButton()
+        self.batch_button.hide()
+        self.progress_bar = QProgressBar()
+        self.progress_bar.hide()
+        self.status_label = QLabel()
+        self.status_label.hide()
+        self.save_button = QPushButton()
+        self.save_button.hide()
+        
         main_layout.addWidget(right_widget, stretch=1)
         
         # 创建菜单栏
@@ -1874,7 +1850,7 @@ class ComicTextDetectorGUI(QMainWindow):
         open_action.triggered.connect(self.open_project_folder)
         file_menu.addAction(open_action)
         
-        # 最近项目菜单 - 保留但改为最近项目
+        # 最近项目菜单
         self.recent_menu = file_menu.addMenu('最近项目(&R)')
         self.update_recent_menu()
         
@@ -1903,29 +1879,29 @@ class ComicTextDetectorGUI(QMainWindow):
         # 视图菜单
         view_menu = menubar.addMenu('视图(&V)')
         
-        # 添加显示检测区域的动作
+        # 显示检测区域
         self.toggle_regions_action = QAction('显示检测区域(&R)', self)
         self.toggle_regions_action.setShortcut('Ctrl+R')
         self.toggle_regions_action.setCheckable(True)
-        self.toggle_regions_action.setChecked(True)  # 默认显示
+        self.toggle_regions_action.setChecked(True)
         self.toggle_regions_action.triggered.connect(self.toggle_detection_regions)
         view_menu.addAction(self.toggle_regions_action)
 
-        # 在现有的 toggle_regions_action 后面添加
+        # 显示文本行
         self.toggle_lines_action = QAction('显示文本行(&L)', self)
         self.toggle_lines_action.setShortcut('Ctrl+L')
         self.toggle_lines_action.setCheckable(True)
-        self.toggle_lines_action.setChecked(True)  # 默认显示
+        self.toggle_lines_action.setChecked(True)
         self.toggle_lines_action.triggered.connect(self.toggle_text_lines)
         view_menu.addAction(self.toggle_lines_action)
 
+        # 显示文本块
         self.toggle_blocks_action = QAction('显示文本块(&B)', self)
         self.toggle_blocks_action.setShortcut('Ctrl+B')
         self.toggle_blocks_action.setCheckable(True)
-        self.toggle_blocks_action.setChecked(True)  # 默认显示
+        self.toggle_blocks_action.setChecked(True)
         self.toggle_blocks_action.triggered.connect(self.toggle_text_blocks)
         view_menu.addAction(self.toggle_blocks_action)
-        
 
         # 帮助菜单
         help_menu = menubar.addMenu('帮助(&H)')
@@ -1955,19 +1931,23 @@ class ComicTextDetectorGUI(QMainWindow):
                 QMessageBox.warning(self, "警告", f"文件夹中没有找到图片文件: {folder_path}")
                 return
             
-            # 保存当前项目路径和文件列表
-            self.current_project_path = folder_path
+            # 保存当前项目信息
+            self.current_project_folder = folder_path
             self.current_image_files = image_files
+            self.current_image_index = 0
             
-            # 显示第一张图片作为预览
-            if image_files:
-                self.image_viewer.load_image(image_files[0])
+            # 显示第一张图片
+            self.image_viewer.load_image(image_files[0])
+            self.current_image_path = image_files[0]
             
-            # 更新UI状态
-            self.batch_button.setEnabled(self.detector is not None)  # 启用批量处理按钮
+            # 更新按钮状态
+            self.prev_button.setEnabled(False)
+            self.next_button.setEnabled(len(image_files) > 1)
+            
+            # 更新最近文件夹
+            self.add_recent_folder(folder_path)
             
             # 更新状态
-            self.status_label.setText(f"已加载项目: {len(image_files)} 个文件")
             self.statusBar().showMessage(f"项目已加载: {folder_path} ({len(image_files)} 个文件)")
             
         except Exception as e:
@@ -1975,75 +1955,37 @@ class ComicTextDetectorGUI(QMainWindow):
 
     def prev_image(self):
         """切换到上一张图片"""
-        if hasattr(self, 'current_image_files') and self.current_image_files:
-            if self.current_image_index > 0:
-                self.current_image_index -= 1
-                self.load_current_image()
+        if self.current_image_files and self.current_image_index > 0:
+            self.current_image_index -= 1
+            self.load_current_image()
 
     def next_image(self):
         """切换到下一张图片"""
-        if hasattr(self, 'current_image_files') and self.current_image_files:
-            if self.current_image_index < len(self.current_image_files) - 1:
-                self.current_image_index += 1
-                self.load_current_image()
+        if self.current_image_files and self.current_image_index < len(self.current_image_files) - 1:
+            self.current_image_index += 1
+            self.load_current_image()
 
     def load_current_image(self):
         """加载当前索引的图片"""
-        if hasattr(self, 'current_image_files') and self.current_image_files:
-            current_image = self.current_image_files[self.current_image_index]
-            self.image_viewer.load_image(current_image)
-            self.current_image_path = current_image
+        if not self.current_image_files:
+            return
             
-            # 更新按钮状态
-            self.prev_button.setEnabled(self.current_image_index > 0)
-            self.next_button.setEnabled(self.current_image_index < len(self.current_image_files) - 1)
-            
-            # 更新状态显示
-            image_name = Path(current_image).name
-            total_count = len(self.current_image_files)
-            self.status_label.setText(f"图片: {image_name} ({self.current_image_index + 1}/{total_count})")
-
-    def on_batch_progress(self, current, total, message):
-        """批量处理进度回调"""
-        self.progress_bar.setValue(current)
-        self.status_label.setText(f"正在处理: {current}/{total}")
-        self.statusBar().showMessage(message)
-
-    def on_batch_finished(self, results_summary):
-        """批量处理完成回调"""
-        self.batch_results = results_summary
+        current_image = self.current_image_files[self.current_image_index]
+        self.image_viewer.load_image(current_image)
+        self.current_image_path = current_image
         
-        # 更新UI状态
-        self.batch_button.setEnabled(True)
-        self.save_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
+        # 更新按钮状态
+        self.prev_button.setEnabled(self.current_image_index > 0)
+        self.next_button.setEnabled(self.current_image_index < len(self.current_image_files) - 1)
         
-        # 显示完成信息
-        total_files = len(results_summary)
-        successful = sum(1 for text in results_summary.values() if text.strip())
-        
-        self.status_label.setText(f"批量处理完成: {successful}/{total_files} 成功")
-        
-        QMessageBox.information(
-            self, "完成", 
-            f"批量处理完成！\n"
-            f"总文件数: {total_files}\n"
-            f"成功处理: {successful}\n"
-            f"失败: {total_files - successful}"
-        )
-
-    def on_batch_error(self, error_msg: str):
-        """批量处理错误回调"""
-        self.batch_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
-        self.status_label.setText("批量处理失败")
-        
-        QMessageBox.critical(self, "批量处理失败", f"处理过程中发生错误: {error_msg}")
+        # 更新状态显示
+        image_name = Path(current_image).name
+        total_count = len(self.current_image_files)
+        self.statusBar().showMessage(f"图片: {image_name} ({self.current_image_index + 1}/{total_count})")
 
     def toggle_text_lines(self):
         """切换文本行显示"""
         self.image_viewer.toggle_lines()
-        # 更新动作文本
         if self.image_viewer.show_lines:
             self.toggle_lines_action.setText('隐藏文本行(&L)')
         else:
@@ -2052,7 +1994,6 @@ class ComicTextDetectorGUI(QMainWindow):
     def toggle_text_blocks(self):
         """切换文本块显示"""
         self.image_viewer.toggle_blocks()
-        # 更新动作文本
         if self.image_viewer.show_blocks:
             self.toggle_blocks_action.setText('隐藏文本块(&B)')
         else:
@@ -2061,7 +2002,6 @@ class ComicTextDetectorGUI(QMainWindow):
     def toggle_detection_regions(self):
         """切换检测区域显示"""
         self.image_viewer.toggle_regions()
-        # 更新动作文本
         if self.image_viewer.show_regions:
             self.toggle_regions_action.setText('隐藏检测区域(&R)')
         else:
@@ -2076,69 +2016,15 @@ class ComicTextDetectorGUI(QMainWindow):
                 self.detector = ComicTextDetector(
                     model_path=model_path,
                     config=self.config,
-                    **params  # 这样会包含device参数
+                    **params
                 )
                 device_info = f"({self.detector.device})" if hasattr(self.detector, 'device') else ""
-                self.status_label.setText(f"检测器已加载: {Path(model_path).name} {device_info}")
+                self.statusBar().showMessage(f"检测器已加载: {Path(model_path).name} {device_info}")
             else:
-                self.status_label.setText("请选择模型文件")
+                self.statusBar().showMessage("请选择模型文件")
         except Exception as e:
             QMessageBox.warning(self, "警告", f"检测器初始化失败: {e}")
-            self.status_label.setText("检测器初始化失败")
-    
-    def open_file(self):
-        """打开项目文件夹"""
-        folder_path = QFileDialog.getExistingDirectory(
-            self, "选择项目文件夹", 
-            str(self.config.examples_dir)
-        )
-        
-        if folder_path:
-            self.load_project_folder(folder_path)
-    
-    def load_project_folder(self, folder_path: str):
-        """加载项目文件夹"""
-        try:
-            # 检查文件夹是否包含图片
-            from src.utils.io_utils import find_all_imgs
-            image_files = find_all_imgs(folder_path, abs_path=True)
-            
-            if not image_files:
-                QMessageBox.information(self, "提示", "所选文件夹中没有找到支持的图片文件")
-                return
-            
-            # 显示文件夹信息和第一张图片
-            self.current_project_folder = folder_path
-            self.current_image_files = image_files
-            self.current_image_index = 0
-            
-            # 加载第一张图片
-            first_image = image_files[0]
-            self.image_viewer.load_image(first_image)
-            self.current_image_path = first_image
-            
-            # 更新UI状态
-            self.detect_button.setEnabled(self.detector is not None)
-            self.save_button.setEnabled(False)
-            
-            # 更新最近文件（改为最近项目文件夹）
-            self.add_recent_folder(folder_path)
-            
-            # 更新状态
-            folder_name = Path(folder_path).name
-            image_count = len(image_files)
-            self.status_label.setText(f"已加载项目: {folder_name} ({image_count}张图片)")
-            self.statusBar().showMessage(f"项目文件夹已加载: {folder_path}")
-            
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"无法加载项目文件夹: {e}")
-
-    # 添加处理单个图片文件的检测方法
-    def check_if_image_file(self, file_path: str) -> bool:
-        """检查是否为图片文件"""
-        from pathlib import Path
-        image_extensions = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif'}
-        return Path(file_path).suffix.lower() in image_extensions
+            self.statusBar().showMessage("检测器初始化失败")
     
     def on_detection_finished(self, results: DetectionResults):
         """检测完成回调"""
@@ -2148,31 +2034,18 @@ class ComicTextDetectorGUI(QMainWindow):
         self.image_viewer.set_result_image(results.result_image)
         self.image_viewer.set_detection_regions(results.text_regions)
         
-        # 更新UI状态
-        self.detect_button.setEnabled(True)
-        self.save_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
-        
         # 更新状态信息
         region_count = len(results.text_regions)
         detection_time = results.detection_time
-        self.status_label.setText(f"检测完成: {region_count} 个区域, {detection_time:.2f}s")
-        self.statusBar().showMessage(f"检测完成: 找到 {region_count} 个文字区域")
+        self.statusBar().showMessage(f"检测完成: 找到 {region_count} 个文字区域, 耗时 {detection_time:.2f}s")
         
         # 更新参数面板统计信息
         self.parameter_panel.update_stats(results.to_dict())
     
     def on_detection_error(self, error_msg: str):
         """检测错误回调"""
-        self.detect_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
-        self.status_label.setText("检测失败")
-        
+        self.statusBar().showMessage("检测失败")
         QMessageBox.critical(self, "检测失败", f"检测过程中发生错误: {error_msg}")
-    
-    def on_detection_progress(self, message: str):
-        """检测进度回调"""
-        self.statusBar().showMessage(message)
     
     def save_results(self):
         """保存检测结果"""
@@ -2197,25 +2070,23 @@ class ComicTextDetectorGUI(QMainWindow):
         """参数变化回调"""
         if hasattr(self, 'detector') and self.detector:
             try:
-                # 获取新参数
                 params = self.parameter_panel.get_parameters()
                 model_path = self.parameter_panel.get_model_path()
                 
-                # 如果模型路径或设备改变了，需要重新初始化检测器
+                # 检查是否需要重新初始化检测器
                 need_reinit = (model_path != self.detector.model_path or 
-                            params.get('device') != self.detector.device)
+                             params.get('device') != self.detector.device)
                 
                 if need_reinit:
                     self.init_detector()
                 else:
-                    # 仅更新其他参数
                     self.detector.update_parameters(**params)
             except Exception as e:
                 QMessageBox.warning(self, "警告", f"参数更新失败: {e}")
     
     def add_recent_folder(self, folder_path: str):
         """添加到最近项目文件夹"""
-        if folder_path in self.recent_files:  # 这里保持变量名不变，避免大量修改
+        if folder_path in self.recent_files:
             self.recent_files.remove(folder_path)
         
         self.recent_files.insert(0, folder_path)
@@ -2233,8 +2104,14 @@ class ComicTextDetectorGUI(QMainWindow):
         
         for i, folder_path in enumerate(self.recent_files):
             if Path(folder_path).exists():
+                # 显示文件夹名 + 上级目录，避免路径过长
                 folder_name = Path(folder_path).name
-                action = QAction(f"{i+1}. {folder_name}", self)
+                parent_name = Path(folder_path).parent.name
+                display_name = f"{parent_name}/{folder_name}" if parent_name != folder_name else folder_name
+                
+                action = QAction(f"{i+1}. {display_name}", self)
+                # 设置工具提示显示完整路径
+                action.setToolTip(folder_path)
                 action.triggered.connect(lambda checked, path=folder_path: self.load_project_folder(path))
                 self.recent_menu.addAction(action)
         
@@ -2242,20 +2119,56 @@ class ComicTextDetectorGUI(QMainWindow):
             action = QAction("(空)", self)
             action.setEnabled(False)
             self.recent_menu.addAction(action)
-    
-    def export_config(self):
-        """导出配置"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "导出配置", "config.yaml", "配置文件 (*.yaml *.json)"
+
+    def start_batch_processing(self):
+        """开始批量处理"""
+        if not self.current_image_files or not self.detector:
+            QMessageBox.information(self, "提示", "请先选择项目文件夹并确保检测器已加载")
+            return
+        
+        # 选择输出目录
+        output_dir = QFileDialog.getExistingDirectory(
+            self, "选择输出目录", str(self.config.results_dir)
         )
         
-        if file_path:
-            try:
-                self.config.save(file_path)
-                QMessageBox.information(self, "成功", f"配置已导出到: {file_path}")
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"导出失败: {e}")
-    
+        if not output_dir:
+            return
+        
+        # 更新检测器参数
+        params = self.parameter_panel.get_parameters()
+        self.detector.update_parameters(**params)
+        
+        # 启动批量处理线程
+        self.batch_worker = BatchProcessWorker(self.detector, self.current_image_files, output_dir)
+        self.batch_worker.finished.connect(self.on_batch_finished)
+        self.batch_worker.error.connect(self.on_batch_error)
+        self.batch_worker.progress.connect(self.on_batch_progress)
+        self.batch_worker.start()
+
+    def on_batch_progress(self, current, total, message):
+        """批量处理进度回调"""
+        self.statusBar().showMessage(f"批量处理进度: {current}/{total} - {message}")
+
+    def on_batch_finished(self, results_summary):
+        """批量处理完成回调"""
+        total_files = len(results_summary)
+        successful = sum(1 for text in results_summary.values() if text.strip())
+        
+        self.statusBar().showMessage(f"批量处理完成: {successful}/{total_files} 成功")
+        
+        QMessageBox.information(
+            self, "完成", 
+            f"批量处理完成！\n"
+            f"总文件数: {total_files}\n"
+            f"成功处理: {successful}\n"
+            f"失败: {total_files - successful}"
+        )
+
+    def on_batch_error(self, error_msg: str):
+        """批量处理错误回调"""
+        self.statusBar().showMessage("批量处理失败")
+        QMessageBox.critical(self, "批量处理失败", f"处理过程中发生错误: {error_msg}")
+
     def show_about(self):
         """显示关于对话框"""
         about_text = """
@@ -2290,11 +2203,7 @@ class ComicTextDetectorGUI(QMainWindow):
     def save_settings(self):
         """保存设置"""
         settings = QSettings("ComicTextDetector", "MainWindow")
-        
-        # 保存窗口几何
         settings.setValue("geometry", self.saveGeometry())
-        
-        # 保存最近文件
         settings.setValue("recent_files", self.recent_files)
     
     def closeEvent(self, event):
@@ -2312,82 +2221,13 @@ class ComicTextDetectorGUI(QMainWindow):
             self.batch_worker.quit()
             self.batch_worker.wait()
         
-        # 保存设置
+        # 保存设置并清理资源
         self.save_settings()
         
-        # 清理资源
         if self.detector:
             del self.detector
         
         event.accept()
-
-    def start_batch_processing(self):
-        """开始批量处理"""
-        if not hasattr(self, 'current_image_files') or not self.current_image_files or not self.detector:
-            QMessageBox.information(self, "提示", "请先选择项目文件夹")
-            return
-        
-        # 选择输出目录
-        output_dir = QFileDialog.getExistingDirectory(
-            self, "选择输出目录", str(self.config.results_dir)
-        )
-        
-        if not output_dir:
-            return
-        
-        # 更新检测器参数
-        params = self.parameter_panel.get_parameters()
-        self.detector.update_parameters(**params)
-        
-        # 禁用按钮，显示进度
-        self.batch_button.setEnabled(False)
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setMaximum(len(self.current_image_files))
-        self.progress_bar.setValue(0)
-        
-        # 启动批量处理线程
-        self.batch_worker = BatchProcessWorker(self.detector, self.current_image_files, output_dir)
-        self.batch_worker.finished.connect(self.on_batch_finished)
-        self.batch_worker.error.connect(self.on_batch_error)
-        self.batch_worker.progress.connect(self.on_batch_progress)
-        self.batch_worker.start()
-
-    def on_batch_progress(self, current, total, message):
-        """批量处理进度回调"""
-        self.progress_bar.setValue(current)
-        self.status_label.setText(f"正在处理: {current}/{total}")
-        self.statusBar().showMessage(message)
-
-    def on_batch_finished(self, results_summary):
-        """批量处理完成回调"""
-        self.batch_results = results_summary
-        
-        # 更新UI状态
-        self.batch_button.setEnabled(True)
-        self.save_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
-        
-        # 显示完成信息
-        total_files = len(results_summary)
-        successful = sum(1 for text in results_summary.values() if text.strip())
-        
-        self.status_label.setText(f"批量处理完成: {successful}/{total_files} 成功")
-        
-        QMessageBox.information(
-            self, "完成", 
-            f"批量处理完成！\n"
-            f"总文件数: {total_files}\n"
-            f"成功处理: {successful}\n"
-            f"失败: {total_files - successful}"
-        )
-
-    def on_batch_error(self, error_msg: str):
-        """批量处理错误回调"""
-        self.batch_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
-        self.status_label.setText("批量处理失败")
-        
-        QMessageBox.critical(self, "批量处理失败", f"处理过程中发生错误: {error_msg}")
 
 
 if __name__ == "__main__":
@@ -2828,7 +2668,7 @@ class DragDropImageViewer(ImageViewer):
 
 ```py
 """
-参数控制面板组件
+参数控制面板组件 - 清理版本
 """
 
 from pathlib import Path
@@ -2852,9 +2692,14 @@ class ParameterPanel(QWidget):
         
         # 控件引用
         self.model_path_edit = None
+        self.device_combo = None
         self.input_size_combo = None
-        self.conf_thresh_slider = None
-        self.mask_thresh_slider = None
+        self.conf_thresh_input = None
+        self.mask_thresh_input = None
+        self.containment_input = None
+        self.min_box_width_spin = None
+        self.min_box_height_spin = None
+        self.enable_filter_checkbox = None
         self.lang_checkboxes = {}
         self.stats_labels = {}
         
@@ -2875,6 +2720,10 @@ class ParameterPanel(QWidget):
         # 模型选择组
         model_group = self.create_model_group()
         layout.addWidget(model_group)
+        
+        # 设备和尺寸配置组
+        config_group = self.create_config_group()
+        layout.addWidget(config_group)
         
         # 检测参数组
         detection_group = self.create_detection_group()
@@ -2917,35 +2766,6 @@ class ParameterPanel(QWidget):
         
         layout.addLayout(button_layout)
 
-    def update_default_config(self):
-        """更新默认配置"""
-        try:
-            # 获取当前参数
-            current_params = self.get_parameters()
-            model_path = self.get_model_path()
-            
-            # 更新配置对象
-            if model_path:
-                self.config.set('paths.default_model', str(Path(model_path).relative_to(self.config.project_root)))
-            
-            self.config.set('detector.input_size', current_params['input_size'])
-            self.config.set('detector.conf_thresh', current_params['conf_thresh'])
-            self.config.set('detector.mask_thresh', current_params['mask_thresh'])
-            self.config.set('detector.allowed_languages', current_params['allowed_languages'])
-            
-            # 保存为默认配置
-            if self.config.save_as_default():
-                QMessageBox.information(
-                    self, 
-                    "成功", 
-                    "默认配置已更新！\n下次启动应用时将使用当前参数作为默认值。"
-                )
-            else:
-                QMessageBox.warning(self, "警告", "默认配置更新失败！")
-                
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"更新默认配置时发生错误：{e}")
-    
     def create_model_group(self) -> QGroupBox:
         """创建模型选择组"""
         group = QGroupBox("模型设置")
@@ -2953,21 +2773,26 @@ class ParameterPanel(QWidget):
         
         # 模型路径选择
         model_layout = QHBoxLayout()
+        model_layout.addWidget(QLabel("模型文件:"))
         
         self.model_path_edit = QLineEdit()
         self.model_path_edit.setPlaceholderText("选择模型文件...")
         self.model_path_edit.textChanged.connect(self.parameters_changed.emit)
+        model_layout.addWidget(self.model_path_edit, 1)
         
         browse_button = QPushButton("浏览")
         browse_button.clicked.connect(self.browse_model)
-        
-        model_layout.addWidget(QLabel("模型文件:"))
-        model_layout.addWidget(self.model_path_edit, 1)
         model_layout.addWidget(browse_button)
         
         layout.addLayout(model_layout)
+        return group
+
+    def create_config_group(self) -> QGroupBox:
+        """创建配置参数组"""
+        group = QGroupBox("运行配置")
+        layout = QVBoxLayout(group)
         
-    # 设备选择 - 添加这部分
+        # 设备选择
         device_layout = QHBoxLayout()
         device_layout.addWidget(QLabel("计算设备:"))
         
@@ -2987,7 +2812,6 @@ class ParameterPanel(QWidget):
         
         device_layout.addWidget(self.device_combo)
         device_layout.addStretch()
-        
         layout.addLayout(device_layout)
 
         # 输入尺寸选择
@@ -3001,7 +2825,6 @@ class ParameterPanel(QWidget):
         
         size_layout.addWidget(self.input_size_combo)
         size_layout.addStretch()
-        
         layout.addLayout(size_layout)
         
         return group
@@ -3011,7 +2834,7 @@ class ParameterPanel(QWidget):
         group = QGroupBox("检测参数")
         layout = QVBoxLayout(group)
         
-        # 置信度阈值输入框
+        # 置信度阈值
         conf_layout = QHBoxLayout()
         conf_layout.addWidget(QLabel("置信度阈值:"))
         
@@ -3020,14 +2843,13 @@ class ParameterPanel(QWidget):
         self.conf_thresh_input.setSingleStep(0.01)
         self.conf_thresh_input.setDecimals(2)
         self.conf_thresh_input.setValue(0.40)
-        self.conf_thresh_input.setSuffix("")
         self.conf_thresh_input.valueChanged.connect(self.parameters_changed.emit)
         
         conf_layout.addWidget(self.conf_thresh_input)
         conf_layout.addStretch()
         layout.addLayout(conf_layout)
         
-        # 掩码阈值输入框
+        # 掩码阈值
         mask_layout = QHBoxLayout()
         mask_layout.addWidget(QLabel("掩码阈值:"))
         
@@ -3042,7 +2864,7 @@ class ParameterPanel(QWidget):
         mask_layout.addStretch()
         layout.addLayout(mask_layout)
         
-        # 包含关系阈值输入框
+        # 包含关系阈值
         contain_layout = QHBoxLayout()
         contain_layout.addWidget(QLabel("包含关系阈值:"))
         
@@ -3057,7 +2879,7 @@ class ParameterPanel(QWidget):
         contain_layout.addStretch()
         layout.addLayout(contain_layout)
         
-        # 最小框尺寸保持不变 (已经是输入框)
+        # 最小框尺寸
         min_size_layout = QHBoxLayout()
         min_size_layout.addWidget(QLabel("最小框尺寸:"))
 
@@ -3080,13 +2902,13 @@ class ParameterPanel(QWidget):
         min_size_layout.addStretch()
         layout.addLayout(min_size_layout)
         
-        # 启用框过滤复选框保持不变
+        # 启用框过滤
         self.enable_filter_checkbox = QCheckBox("启用框过滤")
         self.enable_filter_checkbox.setChecked(True)
         self.enable_filter_checkbox.stateChanged.connect(self.parameters_changed.emit)
         layout.addWidget(self.enable_filter_checkbox)
 
-        return group      
+        return group
       
     def create_language_group(self) -> QGroupBox:
         """创建语言选择组"""
@@ -3162,11 +2984,11 @@ class ParameterPanel(QWidget):
         
         params = {
             "input_size": int(self.input_size_combo.currentText()),
-            "conf_thresh": self.conf_thresh_input.value(),  # 改为输入框
-            "mask_thresh": self.mask_thresh_input.value(),  # 改为输入框
+            "conf_thresh": self.conf_thresh_input.value(),
+            "mask_thresh": self.mask_thresh_input.value(),
             "allowed_languages": allowed_languages,
             "device": self.device_combo.currentText(),
-            "containment_thresh": self.containment_input.value(),  # 改为输入框
+            "containment_thresh": self.containment_input.value(),
             "enable_box_filter": self.enable_filter_checkbox.isChecked(),
             "min_box_width": self.min_box_width_spin.value(),
             "min_box_height": self.min_box_height_spin.value()
@@ -3238,33 +3060,78 @@ class ParameterPanel(QWidget):
             "input_size": 1280,
             "conf_thresh": 0.4,
             "mask_thresh": 0.3,
-            "allowed_languages": ["zh", "ja"]
+            "containment_thresh": 0.8,
+            "min_box_width": 10,
+            "min_box_height": 10,
+            "enable_box_filter": True,
+            "allowed_languages": ["zh", "ja"],
+            "device": "auto"
         }
         self.set_parameters(default_params)
         self.parameters_changed.emit()
     
+    def update_default_config(self):
+        """更新默认配置"""
+        try:
+            # 获取当前参数
+            current_params = self.get_parameters()
+            model_path = self.get_model_path()
+            
+            # 更新配置对象
+            if model_path:
+                try:
+                    relative_path = str(Path(model_path).relative_to(self.config.project_root))
+                    self.config.set('paths.default_model', relative_path)
+                except ValueError:
+                    # 如果无法获取相对路径，保存绝对路径
+                    self.config.set('paths.default_model', model_path)
+            
+            for key, value in current_params.items():
+                if key != 'device':  # device 不保存到默认配置
+                    self.config.set(f'detector.{key}', value)
+            
+            # 保存为默认配置
+            if self.config.save_as_default():
+                QMessageBox.information(
+                    self, 
+                    "成功", 
+                    "默认配置已更新！\n下次启动应用时将使用当前参数作为默认值。"
+                )
+            else:
+                QMessageBox.warning(self, "警告", "默认配置更新失败！")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"更新默认配置时发生错误：{e}")
+    
     def update_stats(self, stats: Dict[str, Any]):
         """更新统计信息"""
         if "stats" in stats:
-            stats = stats["stats"]
+            stats_data = stats["stats"]
+        else:
+            stats_data = stats
         
         # 更新各项统计
-        if "total_regions" in stats:
-            self.stats_labels["total_regions"].setText(str(stats["total_regions"]))
+        if "total_regions" in stats_data:
+            self.stats_labels["total_regions"].setText(str(stats_data["total_regions"]))
         
-        if "detection_time" in stats.get("parent", {}):
-            time_val = stats["parent"]["detection_time"]
-            self.stats_labels["detection_time"].setText(f"{time_val:.2f}s")
+        # 检测时间
+        detection_time = None
+        if "detection_time" in stats_data:
+            detection_time = stats_data["detection_time"]
         elif "detection_time" in stats:
-            time_val = stats["detection_time"]
-            self.stats_labels["detection_time"].setText(f"{time_val:.2f}s")
+            detection_time = stats["detection_time"]
+            
+        if detection_time is not None:
+            self.stats_labels["detection_time"].setText(f"{detection_time:.2f}s")
         
-        if "avg_confidence" in stats:
-            conf_val = stats["avg_confidence"]
+        # 平均置信度
+        if "avg_confidence" in stats_data:
+            conf_val = stats_data["avg_confidence"]
             self.stats_labels["avg_confidence"].setText(f"{conf_val:.3f}")
         
-        if "languages" in stats:
-            langs = stats["languages"]
+        # 检测语言
+        if "languages" in stats_data:
+            langs = stats_data["languages"]
             lang_str = ", ".join(langs) if langs else "无"
             self.stats_labels["languages"].setText(lang_str)
     
@@ -3297,84 +3164,14 @@ class ParameterPanel(QWidget):
         
         summary = f"""参数摘要:
 模型: {model_name}
+设备: {params['device']}
 输入尺寸: {params['input_size']}
 置信度阈值: {params['conf_thresh']:.2f}
 掩码阈值: {params['mask_thresh']:.2f}
-支持语言: {', '.join(params['allowed_languages'])}"""
+支持语言: {', '.join(params['allowed_languages'])}
+框过滤: {'启用' if params['enable_box_filter'] else '禁用'}"""
         
         return summary
-
-
-class AdvancedParameterDialog(QDialog):
-    """高级参数设置对话框"""
-    
-    def __init__(self, current_params: Dict[str, Any], parent=None):
-        super().__init__(parent)
-        self.current_params = current_params.copy()
-        self.result_params = current_params.copy()
-        
-        self.init_ui()
-        self.load_parameters()
-    
-    def init_ui(self):
-        """初始化UI"""
-        self.setWindowTitle("高级参数设置")
-        self.setModal(True)
-        self.resize(400, 500)
-        
-        layout = QVBoxLayout(self)
-        
-        # 参数组
-        scroll_area = QScrollArea()
-        scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout(scroll_widget)
-        
-        # NMS阈值
-        nms_group = QGroupBox("NMS参数")
-        nms_layout = QVBoxLayout(nms_group)
-        
-        self.nms_thresh_spin = QDoubleSpinBox()
-        self.nms_thresh_spin.setRange(0.1, 0.9)
-        self.nms_thresh_spin.setSingleStep(0.05)
-        self.nms_thresh_spin.setValue(0.35)
-        
-        nms_layout.addWidget(QLabel("NMS阈值:"))
-        nms_layout.addWidget(self.nms_thresh_spin)
-        scroll_layout.addWidget(nms_group)
-        
-        # 其他高级参数可以在这里添加
-        # ...
-        
-        scroll_area.setWidget(scroll_widget)
-        layout.addWidget(scroll_area)
-        
-        # 按钮
-        button_layout = QHBoxLayout()
-        
-        ok_button = QPushButton("确定")
-        ok_button.clicked.connect(self.accept)
-        cancel_button = QPushButton("取消") 
-        cancel_button.clicked.connect(self.reject)
-        
-        button_layout.addStretch()
-        button_layout.addWidget(ok_button)
-        button_layout.addWidget(cancel_button)
-        
-        layout.addLayout(button_layout)
-    
-    def load_parameters(self):
-        """加载参数"""
-        if "nms_thresh" in self.current_params:
-            self.nms_thresh_spin.setValue(self.current_params["nms_thresh"])
-    
-    def accept(self):
-        """确认对话框"""
-        self.result_params["nms_thresh"] = self.nms_thresh_spin.value()
-        super().accept()
-    
-    def get_parameters(self) -> Dict[str, Any]:
-        """获取参数"""
-        return self.result_params
 
 
 if __name__ == "__main__":

@@ -89,9 +89,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "具有說服力的神秘力量更强…只要讓他們見識超能力就行了!！!",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 1,
@@ -144,9 +142,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "所有人一定都會馬上跟過來的！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 2,
@@ -199,9 +195,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "小茂！和我合作！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 3,
@@ -254,9 +248,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "你還有其他遺言嗎？",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 4,
@@ -309,9 +301,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "一起爬上世界的頂點吧！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 5,
@@ -382,9 +372,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "慢著慢著慢著啊…你還是想把我除掉嗎！！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 6,
@@ -419,9 +407,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "噫啊啊啊！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 7,
@@ -456,9 +442,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "真…真的假的啊!?",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 8,
@@ -493,9 +477,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "拜託饒了我吧…",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 9,
@@ -530,25 +512,13 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "我還不想消失啊…",
-      "ocr_confidence": 0.0
+      "angle": 0
     }
   ],
-  "ocr_results": {
-    "region_0": "具有說服力的神秘力量更强…只要讓他們見識超能力就行了!！!",
-    "region_1": "所有人一定都會馬上跟過來的！",
-    "region_2": "小茂！和我合作！",
-    "region_3": "你還有其他遺言嗎？",
-    "region_4": "一起爬上世界的頂點吧！",
-    "region_5": "慢著慢著慢著啊…你還是想把我除掉嗎！！",
-    "region_6": "噫啊啊啊！",
-    "region_7": "真…真的假的啊!?",
-    "region_8": "拜託饒了我吧…",
-    "region_9": "我還不想消失啊…"
-  },
-  "detection_time": 0.6159861087799072,
-  "ocr_time": 4.518176317214966,
+  "ocr_results": {},
+  "has_ocr_results": false,
+  "detection_time": 0.5519239902496338,
+  "ocr_time": 0.0,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",
@@ -571,6 +541,6 @@
       "ja"
     ],
     "avg_confidence": 0.9513000130653382,
-    "avg_ocr_confidence": 0.0
+    "avg_ocr_confidence": NaN
   }
 }

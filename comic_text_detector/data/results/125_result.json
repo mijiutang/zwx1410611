@@ -71,9 +71,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "只能找新社員了…拼死去找！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 1,
@@ -108,17 +106,13 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "沒什麼怎麼辦的啦。",
-      "ocr_confidence": 0.0
+      "angle": 0
     }
   ],
-  "ocr_results": {
-    "region_0": "只能找新社員了…拼死去找！",
-    "region_1": "沒什麼怎麼辦的啦。"
-  },
-  "detection_time": 0.6946661472320557,
-  "ocr_time": 1.2701752185821533,
+  "ocr_results": {},
+  "has_ocr_results": false,
+  "detection_time": 0.46916723251342773,
+  "ocr_time": 0.0,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",
@@ -141,6 +135,6 @@
       "ja"
     ],
     "avg_confidence": 0.8154999911785126,
-    "avg_ocr_confidence": 0.0
+    "avg_ocr_confidence": NaN
   }
 }

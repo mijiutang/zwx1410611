@@ -53,9 +53,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "人家無處可去了啦！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 1,
@@ -126,9 +124,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "但是，你昨天好像是認真地想把我給殺了…",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 2,
@@ -181,9 +177,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "我不會再做壞事了啦～",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 3,
@@ -218,9 +212,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "真的嗎？",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 4,
@@ -255,9 +247,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "真的啦",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 5,
@@ -310,9 +300,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "…還是放學後，去找師父商量看看好了",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 6,
@@ -383,9 +371,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "知道了，總之我暫時不會除掉你",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 7,
@@ -456,9 +442,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "但你別在我家跟學校做什麼奇怪的事喔。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 8,
@@ -511,9 +495,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "叶這個濫好人…",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 10,
@@ -584,9 +566,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "我要找出你的破綻附身到你身上去！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 11,
@@ -621,9 +601,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "哥哥！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 12,
@@ -694,9 +672,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "媽媽叫你快點去吃早飯…",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 13,
@@ -731,9 +707,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "嗯，律。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 14,
@@ -768,29 +742,13 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "我就去了。",
-      "ocr_confidence": 0.0
+      "angle": 0
     }
   ],
-  "ocr_results": {
-    "region_0": "人家無處可去了啦！",
-    "region_1": "但是，你昨天好像是認真地想把我給殺了…",
-    "region_2": "我不會再做壞事了啦～",
-    "region_3": "真的嗎？",
-    "region_4": "真的啦",
-    "region_5": "…還是放學後，去找師父商量看看好了",
-    "region_6": "知道了，總之我暫時不會除掉你",
-    "region_7": "但你別在我家跟學校做什麼奇怪的事喔。",
-    "region_8": "叶這個濫好人…",
-    "region_9": "我要找出你的破綻附身到你身上去！",
-    "region_10": "哥哥！",
-    "region_11": "媽媽叫你快點去吃早飯…",
-    "region_12": "嗯，律。",
-    "region_13": "我就去了。"
-  },
-  "detection_time": 0.6503376960754395,
-  "ocr_time": 5.575526237487793,
+  "ocr_results": {},
+  "has_ocr_results": false,
+  "detection_time": 0.3900606632232666,
+  "ocr_time": 0.0,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",
@@ -813,6 +771,6 @@
       "ja"
     ],
     "avg_confidence": 0.941928574017116,
-    "avg_ocr_confidence": 0.0
+    "avg_ocr_confidence": NaN
   }
 }

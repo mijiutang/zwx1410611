@@ -53,9 +53,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "竹中！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 1,
@@ -108,9 +106,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "我一直相信你不會拋棄我們的！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 2,
@@ -145,9 +141,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "學",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 3,
@@ -182,9 +176,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "我學生會的人，",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 4,
@@ -255,9 +247,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "剛剛受理了二年二班竹中同學的退社申請特來報告。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 5,
@@ -292,9 +282,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 6,
@@ -329,22 +317,13 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "學生會!",
-      "ocr_confidence": 0.0
+      "angle": 0
     }
   ],
-  "ocr_results": {
-    "region_0": "竹中！",
-    "region_1": "我一直相信你不會拋棄我們的！",
-    "region_2": "學",
-    "region_3": "我學生會的人，",
-    "region_4": "剛剛受理了二年二班竹中同學的退社申請特來報告。",
-    "region_5": "",
-    "region_6": "學生會!"
-  },
-  "detection_time": 0.4965972900390625,
-  "ocr_time": 3.0400407314300537,
+  "ocr_results": {},
+  "has_ocr_results": false,
+  "detection_time": 0.3009517192840576,
+  "ocr_time": 0.0,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",
@@ -367,6 +346,6 @@
       "ja"
     ],
     "avg_confidence": 0.9581428595951625,
-    "avg_ocr_confidence": 0.0
+    "avg_ocr_confidence": NaN
   }
 }

@@ -71,9 +71,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "就交給我吧。只要讓我好好除靈，",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 1,
@@ -144,9 +142,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "花子小姐的臉一定也會恢復原狀的。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 2,
@@ -199,18 +195,13 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "我才不是在擔心她的臉啦！！",
-      "ocr_confidence": 0.0
+      "angle": 0
     }
   ],
-  "ocr_results": {
-    "region_0": "就交給我吧。只要讓我好好除靈，",
-    "region_1": "花子小姐的臉一定也會恢復原狀的。",
-    "region_2": "我才不是在擔心她的臉啦！！"
-  },
-  "detection_time": 0.651270866394043,
-  "ocr_time": 1.9197540283203125,
+  "ocr_results": {},
+  "has_ocr_results": false,
+  "detection_time": 0.42791080474853516,
+  "ocr_time": 0.0,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",
@@ -233,6 +224,6 @@
       "ja"
     ],
     "avg_confidence": 0.9303333361943563,
-    "avg_ocr_confidence": 0.0
+    "avg_ocr_confidence": NaN
   }
 }

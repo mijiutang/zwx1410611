@@ -89,9 +89,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "話1-3-第靈幻新隆自稱靈能者",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 1,
@@ -162,9 +160,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "一話2第-19青春的疑問",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 2,
@@ -253,9 +249,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "話3第-35-暗田留腦感電波社",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 3,
@@ -326,9 +320,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "-51第4話為了自己",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 4,
@@ -417,9 +409,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "話-67-第5想要受歡迎簡單說來就是",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 5,
@@ -508,9 +498,7 @@
         ]
       ],
       "text": "",
-      "angle": -6,
-      "ocr_text": "話勸募-83-第6集團的",
-      "ocr_confidence": 0.0
+      "angle": -6
     },
     {
       "id": 6,
@@ -563,9 +551,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "話8潰堤第",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 7,
@@ -636,9 +622,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "8潰堤第-121-話-98第7周圍的氣氛",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 9,
@@ -709,9 +693,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "話9妄想第-155-成為神的靈",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 10,
@@ -800,25 +782,13 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "附錄-174-最可怕的鬧鬼景點篇",
-      "ocr_confidence": 0.0
+      "angle": 0
     }
   ],
-  "ocr_results": {
-    "region_0": "話1-3-第靈幻新隆自稱靈能者",
-    "region_1": "一話2第-19青春的疑問",
-    "region_2": "話3第-35-暗田留腦感電波社",
-    "region_3": "-51第4話為了自己",
-    "region_4": "話-67-第5想要受歡迎簡單說來就是",
-    "region_5": "話勸募-83-第6集團的",
-    "region_6": "話8潰堤第",
-    "region_7": "8潰堤第-121-話-98第7周圍的氣氛",
-    "region_8": "話9妄想第-155-成為神的靈",
-    "region_9": "附錄-174-最可怕的鬧鬼景點篇"
-  },
-  "detection_time": 0.7134604454040527,
-  "ocr_time": 6.667237997055054,
+  "ocr_results": {},
+  "has_ocr_results": false,
+  "detection_time": 0.3482475280761719,
+  "ocr_time": 0.0,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",
@@ -841,6 +811,6 @@
       "ja"
     ],
     "avg_confidence": 0.7712000042200089,
-    "avg_ocr_confidence": 0.0
+    "avg_ocr_confidence": NaN
   }
 }

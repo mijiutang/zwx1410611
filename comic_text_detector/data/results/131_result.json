@@ -35,9 +35,7 @@
         ]
       ],
       "text": "",
-      "angle": -3,
-      "ocr_text": "閉嘴",
-      "ocr_confidence": 0.0
+      "angle": -3
     },
     {
       "id": 1,
@@ -72,9 +70,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "路人超能1001",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 2,
@@ -127,9 +123,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "你們想惹火我這個副會長德川嗎?",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 3,
@@ -164,9 +158,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "真是的，",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 4,
@@ -219,9 +211,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "我並不是想要整你們…",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 5,
@@ -274,9 +264,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "桌上的茶杯跟零食是怎麼回事？",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 6,
@@ -347,9 +335,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "你們該不會把社費都花在這些零食上了吧。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 7,
@@ -420,9 +406,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "但像你們這種社團，也一樣每個月從學校預算裡，分走2千元社費",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 8,
@@ -493,9 +477,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "還有這裡也並不是多餘的空教室。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 9,
@@ -548,9 +530,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "而且社長三年五班的暗田，",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 10,
@@ -621,26 +601,13 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "妳已經好幾個月沒交活動報告書了吧",
-      "ocr_confidence": 0.0
+      "angle": 0
     }
   ],
-  "ocr_results": {
-    "region_0": "閉嘴",
-    "region_1": "路人超能1001",
-    "region_2": "你們想惹火我這個副會長德川嗎?",
-    "region_3": "真是的，",
-    "region_4": "我並不是想要整你們…",
-    "region_5": "桌上的茶杯跟零食是怎麼回事？",
-    "region_6": "你們該不會把社費都花在這些零食上了吧。",
-    "region_7": "但像你們這種社團，也一樣每個月從學校預算裡，分走2千元社費",
-    "region_8": "還有這裡也並不是多餘的空教室。",
-    "region_9": "而且社長三年五班的暗田，",
-    "region_10": "妳已經好幾個月沒交活動報告書了吧"
-  },
-  "detection_time": 0.5038962364196777,
-  "ocr_time": 5.54690146446228,
+  "ocr_results": {},
+  "has_ocr_results": false,
+  "detection_time": 0.3190762996673584,
+  "ocr_time": 0.0,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",
@@ -663,6 +630,6 @@
       "ja"
     ],
     "avg_confidence": 0.8834545558149164,
-    "avg_ocr_confidence": 0.0
+    "avg_ocr_confidence": NaN
   }
 }

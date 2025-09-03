@@ -71,9 +71,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "追根究底，你們腦感電波社是在做什麼的？",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 1,
@@ -126,9 +124,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "雖然我沒自信能夠理解，但還是請你們說明一下活動內容吧。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 2,
@@ -181,9 +177,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "讓腦活性化，來接收感應力。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 3,
@@ -218,9 +212,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "0业",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 4,
@@ -291,9 +283,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "因為人腦還有許多未知的能力。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 5,
@@ -346,9 +336,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "果然還是不行，無法理解。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 6,
@@ -419,9 +407,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "是說妳們應該沒做出什麼糟糕的事來吧？",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 7,
@@ -492,9 +478,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "在發生危險事件前，先把妳們廢社才是正確的選擇啊。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 8,
@@ -547,9 +531,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "你這番話很失禮耶！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 9,
@@ -620,25 +602,13 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "之所以沒交活動報告，就是因為我們真的什麼活動都沒做啦！",
-      "ocr_confidence": 0.0
+      "angle": 0
     }
   ],
-  "ocr_results": {
-    "region_0": "追根究底，你們腦感電波社是在做什麼的？",
-    "region_1": "雖然我沒自信能夠理解，但還是請你們說明一下活動內容吧。",
-    "region_2": "讓腦活性化，來接收感應力。",
-    "region_3": "0业",
-    "region_4": "因為人腦還有許多未知的能力。",
-    "region_5": "果然還是不行，無法理解。",
-    "region_6": "是說妳們應該沒做出什麼糟糕的事來吧？",
-    "region_7": "在發生危險事件前，先把妳們廢社才是正確的選擇啊。",
-    "region_8": "你這番話很失禮耶！",
-    "region_9": "之所以沒交活動報告，就是因為我們真的什麼活動都沒做啦！"
-  },
-  "detection_time": 0.5207536220550537,
-  "ocr_time": 5.327064275741577,
+  "ocr_results": {},
+  "has_ocr_results": false,
+  "detection_time": 0.33361315727233887,
+  "ocr_time": 0.0,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",
@@ -661,6 +631,6 @@
       "ja"
     ],
     "avg_confidence": 0.938699996471405,
-    "avg_ocr_confidence": 0.0
+    "avg_ocr_confidence": NaN
   }
 }

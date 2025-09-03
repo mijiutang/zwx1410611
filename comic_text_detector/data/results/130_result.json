@@ -53,9 +53,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "成立社團的條件是要有五名以上成員。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 1,
@@ -126,9 +124,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "很遺憾，可以請你們收拾東西離開嗎？",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 2,
@@ -199,9 +195,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "正好有新成立社團想要申請社團教室。這裡要交給他們使用。",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 3,
@@ -236,9 +230,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "廢社…太突然了吧…",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 4,
@@ -291,9 +283,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "你們幹嘛擅自決定啊！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 5,
@@ -346,9 +336,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "我才不會讓[腦感電波社解散呢！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 6,
@@ -419,9 +407,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "沒錯沒錯!我們可是不會讓出這裡的！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 7,
@@ -492,9 +478,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "少瞧不起人了！你以為梳成三七頭就很了不起了嗎!?",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 8,
@@ -529,9 +513,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "等等等等一下啊.",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 9,
@@ -584,9 +566,7 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "學生會算哪根葱啊！",
-      "ocr_confidence": 0.0
+      "angle": 0
     },
     {
       "id": 10,
@@ -639,26 +619,13 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "腦電社可是很團結的！",
-      "ocr_confidence": 0.0
+      "angle": 0
     }
   ],
-  "ocr_results": {
-    "region_0": "成立社團的條件是要有五名以上成員。",
-    "region_1": "很遺憾，可以請你們收拾東西離開嗎？",
-    "region_2": "正好有新成立社團想要申請社團教室。這裡要交給他們使用。",
-    "region_3": "廢社…太突然了吧…",
-    "region_4": "你們幹嘛擅自決定啊！",
-    "region_5": "我才不會讓[腦感電波社解散呢！",
-    "region_6": "沒錯沒錯!我們可是不會讓出這裡的！",
-    "region_7": "少瞧不起人了！你以為梳成三七頭就很了不起了嗎!?",
-    "region_8": "等等等等一下啊.",
-    "region_9": "學生會算哪根葱啊！",
-    "region_10": "腦電社可是很團結的！"
-  },
-  "detection_time": 0.413851261138916,
-  "ocr_time": 6.050843715667725,
+  "ocr_results": {},
+  "has_ocr_results": false,
+  "detection_time": 0.35013508796691895,
+  "ocr_time": 0.0,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",
@@ -681,6 +648,6 @@
       "ja"
     ],
     "avg_confidence": 0.925909085707231,
-    "avg_ocr_confidence": 0.0
+    "avg_ocr_confidence": NaN
   }
 }

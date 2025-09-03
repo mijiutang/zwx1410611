@@ -35,16 +35,13 @@
         ]
       ],
       "text": "",
-      "angle": 0,
-      "ocr_text": "廢道了團社社",
-      "ocr_confidence": 0.0
+      "angle": 0
     }
   ],
-  "ocr_results": {
-    "region_0": "廢道了團社社"
-  },
-  "detection_time": 0.5425584316253662,
-  "ocr_time": 1.1376867294311523,
+  "ocr_results": {},
+  "has_ocr_results": false,
+  "detection_time": 0.31913185119628906,
+  "ocr_time": 0.0,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",
@@ -67,6 +64,6 @@
       "ja"
     ],
     "avg_confidence": 0.6470000147819519,
-    "avg_ocr_confidence": 0.0
+    "avg_ocr_confidence": NaN
   }
 }
