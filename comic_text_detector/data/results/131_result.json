@@ -1,5 +1,5 @@
 {
-  "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples/131.jpg",
+  "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\131.jpg",
   "image_name": "131",
   "text_regions": [
     {
@@ -639,8 +639,8 @@
     "region_9": "而且社長三年五班的暗田，",
     "region_10": "妳已經好幾個月沒交活動報告書了吧"
   },
-  "detection_time": 0.9117488861083984,
-  "ocr_time": 5.4430389404296875,
+  "detection_time": 0.4677903652191162,
+  "ocr_time": 5.424828052520752,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

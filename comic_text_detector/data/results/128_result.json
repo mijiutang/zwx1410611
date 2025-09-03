@@ -1,0 +1,372 @@
+{
+  "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\128.jpg",
+  "image_name": "128",
+  "text_regions": [
+    {
+      "id": 0,
+      "bbox": [
+        1258,
+        182,
+        1344,
+        389
+      ],
+      "confidence": 0.9440000057220459,
+      "language": "ja",
+      "vertical": true,
+      "font_size": 55,
+      "lines": [
+        [
+          [
+            1289,
+            352
+          ],
+          [
+            1317,
+            352
+          ],
+          [
+            1317,
+            389
+          ],
+          [
+            1289,
+            389
+          ]
+        ],
+        [
+          [
+            1258,
+            184
+          ],
+          [
+            1339,
+            182
+          ],
+          [
+            1344,
+            378
+          ],
+          [
+            1262,
+            379
+          ]
+        ]
+      ],
+      "text": "",
+      "angle": 0,
+      "ocr_text": "竹中！",
+      "ocr_confidence": 0.0
+    },
+    {
+      "id": 1,
+      "bbox": [
+        125,
+        142,
+        255,
+        561
+      ],
+      "confidence": 0.9710000157356262,
+      "language": "ja",
+      "vertical": true,
+      "font_size": 69,
+      "lines": [
+        [
+          [
+            188,
+            142
+          ],
+          [
+            255,
+            142
+          ],
+          [
+            255,
+            461
+          ],
+          [
+            188,
+            461
+          ]
+        ],
+        [
+          [
+            125,
+            143
+          ],
+          [
+            196,
+            143
+          ],
+          [
+            196,
+            561
+          ],
+          [
+            125,
+            561
+          ]
+        ]
+      ],
+      "text": "",
+      "angle": 0,
+      "ocr_text": "我一直相信你不會拋棄我們的！",
+      "ocr_confidence": 0.0
+    },
+    {
+      "id": 2,
+      "bbox": [
+        386,
+        911,
+        472,
+        1129
+      ],
+      "confidence": 0.9480000138282776,
+      "language": "ja",
+      "vertical": true,
+      "font_size": 86,
+      "lines": [
+        [
+          [
+            386,
+            911
+          ],
+          [
+            472,
+            911
+          ],
+          [
+            472,
+            1129
+          ],
+          [
+            386,
+            1129
+          ]
+        ]
+      ],
+      "text": "",
+      "angle": 0,
+      "ocr_text": "學",
+      "ocr_confidence": 0.0
+    },
+    {
+      "id": 3,
+      "bbox": [
+        1275,
+        922,
+        1372,
+        1411
+      ],
+      "confidence": 0.9419999718666077,
+      "language": "ja",
+      "vertical": true,
+      "font_size": 97,
+      "lines": [
+        [
+          [
+            1275,
+            922
+          ],
+          [
+            1372,
+            922
+          ],
+          [
+            1372,
+            1411
+          ],
+          [
+            1275,
+            1411
+          ]
+        ]
+      ],
+      "text": "",
+      "angle": 0,
+      "ocr_text": "我學生會的人，",
+      "ocr_confidence": 0.0
+    },
+    {
+      "id": 4,
+      "bbox": [
+        532,
+        1531,
+        728,
+        2015
+      ],
+      "confidence": 0.9810000061988831,
+      "language": "ja",
+      "vertical": true,
+      "font_size": 62,
+      "lines": [
+        [
+          [
+            646,
+            1531
+          ],
+          [
+            728,
+            1531
+          ],
+          [
+            728,
+            2015
+          ],
+          [
+            646,
+            2015
+          ]
+        ],
+        [
+          [
+            596,
+            1535
+          ],
+          [
+            659,
+            1535
+          ],
+          [
+            659,
+            2010
+          ],
+          [
+            596,
+            2010
+          ]
+        ],
+        [
+          [
+            532,
+            1532
+          ],
+          [
+            597,
+            1532
+          ],
+          [
+            597,
+            1791
+          ],
+          [
+            532,
+            1791
+          ]
+        ]
+      ],
+      "text": "",
+      "angle": 0,
+      "ocr_text": "剛剛受理了二年二班竹中同學的退社申請特來報告。",
+      "ocr_confidence": 0.0
+    },
+    {
+      "id": 5,
+      "bbox": [
+        611,
+        1994,
+        648,
+        2034
+      ],
+      "confidence": 0.9810000061988831,
+      "language": "ja",
+      "vertical": true,
+      "font_size": 62,
+      "lines": [
+        [
+          [
+            611,
+            1994
+          ],
+          [
+            648,
+            1994
+          ],
+          [
+            648,
+            2034
+          ],
+          [
+            611,
+            2034
+          ]
+        ]
+      ],
+      "text": "",
+      "angle": 0,
+      "ocr_text": "",
+      "ocr_confidence": 0.0
+    },
+    {
+      "id": 6,
+      "bbox": [
+        120,
+        1693,
+        199,
+        1982
+      ],
+      "confidence": 0.9399999976158142,
+      "language": "ja",
+      "vertical": true,
+      "font_size": 79,
+      "lines": [
+        [
+          [
+            120,
+            1693
+          ],
+          [
+            199,
+            1693
+          ],
+          [
+            199,
+            1982
+          ],
+          [
+            120,
+            1982
+          ]
+        ]
+      ],
+      "text": "",
+      "angle": 0,
+      "ocr_text": "學生會!",
+      "ocr_confidence": 0.0
+    }
+  ],
+  "ocr_results": {
+    "region_0": "竹中！",
+    "region_1": "我一直相信你不會拋棄我們的！",
+    "region_2": "學",
+    "region_3": "我學生會的人，",
+    "region_4": "剛剛受理了二年二班竹中同學的退社申請特來報告。",
+    "region_5": "",
+    "region_6": "學生會!"
+  },
+  "detection_time": 0.5160858631134033,
+  "ocr_time": 2.987816333770752,
+  "model_info": {
+    "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
+    "device": "cuda",
+    "backend": "torch",
+    "ocr_enabled": true
+  },
+  "parameters": {
+    "input_size": 1536,
+    "conf_thresh": 0.4,
+    "nms_thresh": 0.35,
+    "mask_thresh": 0.3,
+    "allowed_languages": [
+      "zh",
+      "ja"
+    ]
+  },
+  "stats": {
+    "total_regions": 7,
+    "languages": [
+      "ja"
+    ],
+    "avg_confidence": 0.9581428595951625,
+    "avg_ocr_confidence": 0.0
+  }
+}

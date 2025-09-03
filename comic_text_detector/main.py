@@ -18,10 +18,10 @@ from config.config import Config
 from src.utils.general import set_logging
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="漫画文本检测器")
+    parser = argparse.ArgumentParser(description="漫画文本检测器 - 批量处理模式")
     parser.add_argument("--mode", choices=["gui", "cli"], default="gui", 
                        help="运行模式：gui(图形界面) 或 cli(命令行)")
-    parser.add_argument("--image", type=str, help="输入图片路径 (CLI模式)")
+    parser.add_argument("--input_dir", type=str, help="输入图片文件夹路径 (CLI模式)", required=False)  # 改为文件夹
     parser.add_argument("--model", type=str, help="模型文件路径")
     parser.add_argument("--output", type=str, help="输出目录")
     parser.add_argument("--config", type=str, help="配置文件路径")
@@ -32,32 +32,44 @@ def parse_arguments():
     return parser.parse_args()
 
 def run_cli_mode(args):
-    """命令行模式"""
-    if not args.image:
-        print("错误：CLI模式需要指定 --image 参数")
+    """命令行模式 - 批量处理"""
+    if not args.input_dir:
+        print("错误：CLI模式需要指定 --input_dir 参数")
+        return 1
+    
+    input_dir = Path(args.input_dir)
+    if not input_dir.exists():
+        print(f"错误：输入文件夹不存在: {input_dir}")
+        return 1
+    
+    # 检查是否有图片文件
+    from src.utils.io_utils import find_all_imgs
+    image_files = find_all_imgs(str(input_dir), abs_path=True)
+    if not image_files:
+        print(f"错误：文件夹中没有找到图片文件: {input_dir}")
         return 1
     
     # 初始化检测器
     config = Config(args.config) if args.config else Config()
     detector = ComicTextDetector(
         model_path=args.model or config.model_path,
-        device=args.device,  # 添加这行
+        device=args.device,
         **config.detector_params
     )
     
-    # 执行检测
+    # 执行批量处理
     try:
-        results = detector.detect(args.image)
+        output_dir = Path(args.output) if args.output else Path("batch_results")
         
-        # 保存结果
-        output_dir = Path(args.output) if args.output else Path("results")
-        detector.save_results(results, args.image, output_dir)
+        print(f"开始批量处理，共 {len(image_files)} 个文件...")
+        batch_results = detector.batch_process_with_ocr(image_files, output_dir)
         
-        print(f"检测完成！结果保存到: {output_dir}")
+        print(f"批量处理完成！结果保存到: {output_dir}")
+        print(f"处理了 {len(batch_results)} 个文件")
         return 0
         
     except Exception as e:
-        print(f"检测失败：{e}")
+        print(f"批量处理失败：{e}")
         return 1
 
 def run_gui_mode(args):

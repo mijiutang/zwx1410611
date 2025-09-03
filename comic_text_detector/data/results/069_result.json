@@ -1,5 +1,5 @@
 {
-  "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples/069.jpg",
+  "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\069.jpg",
   "image_name": "069",
   "text_regions": [
     {
@@ -10,7 +10,7 @@
         1325,
         679
       ],
-      "confidence": 0.9200000166893005,
+      "confidence": 0.9190000295639038,
       "language": "ja",
       "vertical": true,
       "font_size": 205,
@@ -35,7 +35,9 @@
         ]
       ],
       "text": "",
-      "angle": 0
+      "angle": 0,
+      "ocr_text": "!!!!神明",
+      "ocr_confidence": 0.0
     },
     {
       "id": 1,
@@ -106,7 +108,9 @@
         ]
       ],
       "text": "",
-      "angle": 0
+      "angle": 0,
+      "ocr_text": "在全世界擁有無上的影響力，更是所有人類信仰的對象，",
+      "ocr_confidence": 0.0
     },
     {
       "id": 2,
@@ -141,7 +145,9 @@
         ]
       ],
       "text": "",
-      "angle": 0
+      "angle": 0,
+      "ocr_text": "成為神明!!",
+      "ocr_confidence": 0.0
     },
     {
       "id": 3,
@@ -151,7 +157,7 @@
         278,
         1095
       ],
-      "confidence": 0.9279999732971191,
+      "confidence": 0.9269999861717224,
       "language": "ja",
       "vertical": true,
       "font_size": 111,
@@ -176,7 +182,9 @@
         ]
       ],
       "text": "",
-      "angle": 0
+      "angle": 0,
+      "ocr_text": "我一直夢想能有一天成為神明!",
+      "ocr_confidence": 0.0
     },
     {
       "id": 4,
@@ -186,7 +194,7 @@
         1328,
         1316
       ],
-      "confidence": 0.9380000233650208,
+      "confidence": 0.9369999766349792,
       "language": "ja",
       "vertical": true,
       "font_size": 46,
@@ -211,7 +219,9 @@
         ]
       ],
       "text": "",
-      "angle": 0
+      "angle": 0,
+      "ocr_text": "喔",
+      "ocr_confidence": 0.0
     },
     {
       "id": 5,
@@ -221,7 +231,7 @@
         1195,
         1620
       ],
-      "confidence": 0.9380000233650208,
+      "confidence": 0.9369999766349792,
       "language": "ja",
       "vertical": true,
       "font_size": 46,
@@ -282,7 +292,9 @@
         ]
       ],
       "text": "",
-      "angle": 0
+      "angle": 0,
+      "ocr_text": "所以才附在人類身上，組成宗教團體啊？",
+      "ocr_confidence": 0.0
     },
     {
       "id": 6,
@@ -353,7 +365,9 @@
         ]
       ],
       "text": "",
-      "angle": 0
+      "angle": 0,
+      "ocr_text": "設立(笑)讓我學會了很多事喔！",
+      "ocr_confidence": 0.0
     },
     {
       "id": 7,
@@ -406,7 +420,9 @@
         ]
       ],
       "text": "",
-      "angle": 0
+      "angle": 0,
+      "ocr_text": "雖然被小茂毀於一旦。",
+      "ocr_confidence": 0.0
     },
     {
       "id": 8,
@@ -459,7 +475,9 @@
         ]
       ],
       "text": "",
-      "angle": 0
+      "angle": 0,
+      "ocr_text": "我啊，已經了解到了。",
+      "ocr_confidence": 0.0
     },
     {
       "id": 9,
@@ -530,7 +548,9 @@
         ]
       ],
       "text": "",
-      "angle": 0
+      "angle": 0,
+      "ocr_text": "為了真正掌握全世界的…",
+      "ocr_confidence": 0.0
     },
     {
       "id": 10,
@@ -601,18 +621,35 @@
         ]
       ],
       "text": "",
-      "angle": 0
+      "angle": 0,
+      "ocr_text": "比起小家子氣的心靈控制或集團心態……",
+      "ocr_confidence": 0.0
     }
   ],
-  "detection_time": 2.632732391357422,
+  "ocr_results": {
+    "region_0": "!!!!神明",
+    "region_1": "在全世界擁有無上的影響力，更是所有人類信仰的對象，",
+    "region_2": "成為神明!!",
+    "region_3": "我一直夢想能有一天成為神明!",
+    "region_4": "喔",
+    "region_5": "所以才附在人類身上，組成宗教團體啊？",
+    "region_6": "設立(笑)讓我學會了很多事喔！",
+    "region_7": "雖然被小茂毀於一旦。",
+    "region_8": "我啊，已經了解到了。",
+    "region_9": "為了真正掌握全世界的…",
+    "region_10": "比起小家子氣的心靈控制或集團心態……"
+  },
+  "detection_time": 0.45087242126464844,
+  "ocr_time": 5.287009000778198,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
-    "device": "cpu",
-    "backend": "torch"
+    "device": "cuda",
+    "backend": "torch",
+    "ocr_enabled": true
   },
   "parameters": {
     "input_size": 1536,
-    "conf_thresh": 0.45,
+    "conf_thresh": 0.4,
     "nms_thresh": 0.35,
     "mask_thresh": 0.3,
     "allowed_languages": [
@@ -625,6 +662,7 @@
     "languages": [
       "ja"
     ],
-    "avg_confidence": 0.8620909127322111
+    "avg_confidence": 0.8617272702130404,
+    "avg_ocr_confidence": 0.0
   }
 }

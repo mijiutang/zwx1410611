@@ -750,7 +750,7 @@ if __name__ == '__main__':
 
 ```py
 """
-核心检测器类 - 整合文本检测功能
+增强版核心检测器类 - 集成OCR文本识别功能
 """
 
 import cv2
@@ -766,9 +766,14 @@ from src.utils.io_utils import imread, imwrite, NumpyEncoder
 from src.utils.textblock import TextBlock, visualize_textblocks
 from config.config import Config
 
-# 在 import 部分后添加以下函数
-
-
+# OCR相关导入
+try:
+    from paddlex import create_pipeline
+    PADDLEX_AVAILABLE = True
+except ImportError:
+    print("Warning: PaddleX not available. OCR功能将被禁用。")
+    print("请安装PaddleX: pip install paddlex")
+    PADDLEX_AVAILABLE = False
 
 def calculate_containment_ratio(box_small, box_large):
     """计算小框在大框中的包含比例"""
@@ -790,17 +795,15 @@ def calculate_containment_ratio(box_small, box_large):
     return inter_area / small_area if small_area > 0 else 0.0
 
 def filter_and_merge_boxes(text_regions, config_params):
-    """过滤和合并检测框 - 修正版本"""
+    """过滤和合并检测框"""
     if not config_params.get('enable_box_filter', True):
         return text_regions
     
     min_box_width = config_params.get('min_box_width', 10)
     min_box_height = config_params.get('min_box_height', 10)
-
     containment_thresh = config_params.get('containment_thresh', 0.8)
     
     print(f"开始框处理，共有{len(text_regions)}个框")
-
     
     # 1. 过滤小框
     filtered_regions = []
@@ -843,6 +846,145 @@ def filter_and_merge_boxes(text_regions, config_params):
 
     return filtered_regions
 
+class OCRProcessor:
+    """OCR处理器类"""
+    
+    def __init__(self, enable_ocr=True):
+        self.enable_ocr = enable_ocr and PADDLEX_AVAILABLE
+        self.ocr_pipeline = None
+        
+        if self.enable_ocr:
+            try:
+                self.ocr_pipeline = create_pipeline(pipeline="OCR")
+                print("OCR pipeline 初始化成功")
+            except Exception as e:
+                print(f"OCR pipeline 初始化失败: {e}")
+                self.enable_ocr = False
+    
+    def extract_text_region(self, image: np.ndarray, bbox: List[int]) -> np.ndarray:
+        """从图像中提取文本区域"""
+        x1, y1, x2, y2 = bbox
+        # 确保坐标在图像范围内
+        h, w = image.shape[:2]
+        x1 = max(0, min(x1, w-1))
+        y1 = max(0, min(y1, h-1))
+        x2 = max(x1+1, min(x2, w))
+        y2 = max(y1+1, min(y2, h))
+        
+        region = image[y1:y2, x1:x2]
+        return region
+    
+    def process_text_regions(self, image: np.ndarray, text_regions: List[Dict]) -> Dict[str, str]:
+        """处理所有文本区域并进行OCR识别"""
+        ocr_results = {}
+        
+        if not self.enable_ocr:
+            print("OCR功能未启用，跳过文本识别")
+            return ocr_results
+        
+        print(f"开始OCR处理，共有{len(text_regions)}个文本区域")
+        
+        for i, region in enumerate(text_regions):
+            try:
+                # 提取文本区域图像
+                bbox = region['bbox']
+                text_region = self.extract_text_region(image, bbox)
+                
+                if text_region.size == 0:
+                    print(f"区域{i}为空，跳过OCR")
+                    continue
+                
+                # 执行OCR
+                ocr_result = self.ocr_pipeline.predict(
+                    input=text_region,
+                    use_doc_orientation_classify=False,
+                    use_doc_unwarping=False,
+                    use_textline_orientation=True,
+                )
+                
+                # 处理OCR结果
+                recognized_text = self._parse_ocr_result(ocr_result, region.get('language', 'unknown'))
+                
+                # 存储结果
+                region_key = f"region_{i}"
+                ocr_results[region_key] = recognized_text
+                
+                # 更新region信息
+                region['ocr_text'] = recognized_text
+                region['ocr_confidence'] = self._calculate_average_confidence(ocr_result)
+                
+                print(f"区域{i}OCR结果: {recognized_text[:50]}...")
+                
+            except Exception as e:
+                print(f"区域{i}OCR处理失败: {e}")
+                region_key = f"region_{i}"
+                ocr_results[region_key] = ""
+                region['ocr_text'] = ""
+                region['ocr_confidence'] = 0.0
+        
+        return ocr_results
+    
+    def _parse_ocr_result(self, ocr_result, language='unknown') -> str:
+        """解析OCR结果"""
+        try:
+            texts = []
+            for result in ocr_result:
+                if 'rec_texts' in result:
+                    rec_texts = result['rec_texts']
+                    boxes = result.get('rec_boxes', [])
+                    
+                    # 安全检查：确保数据存在且不为空
+                    if (rec_texts is not None and len(rec_texts) > 0 and 
+                        boxes is not None and len(boxes) > 0):
+                        
+                        # 确保文本和框的数量匹配
+                        min_len = min(len(rec_texts), len(boxes))
+                        if min_len > 0:
+                            # 创建文本和坐标的配对列表
+                            text_box_pairs = list(zip(rec_texts[:min_len], boxes[:min_len]))
+                            
+                            # 根据语言类型排序
+                            if language == 'ja':  # 日文从右到左
+                                try:
+                                    sorted_pairs = sorted(text_box_pairs, 
+                                                        key=lambda pair: float(pair[1][0]) if len(pair[1]) > 0 else 0, 
+                                                        reverse=True)
+                                except (IndexError, TypeError, ValueError):
+                                    # 如果排序失败，使用原始顺序
+                                    sorted_pairs = text_box_pairs
+                            else:  # 其他语言从左到右
+                                try:
+                                    sorted_pairs = sorted(text_box_pairs, 
+                                                        key=lambda pair: float(pair[1][0]) if len(pair[1]) > 0 else 0)
+                                except (IndexError, TypeError, ValueError):
+                                    # 如果排序失败，使用原始顺序
+                                    sorted_pairs = text_box_pairs
+                            
+                            # 提取排序后的文本
+                            sorted_texts = [str(pair[0]) for pair in sorted_pairs if pair[0]]
+                            texts.extend(sorted_texts)
+            
+            return "".join(texts)
+            
+        except Exception as e:
+            print(f"解析OCR结果失败: {e}")
+            import traceback
+            print(f"详细错误信息: {traceback.format_exc()}")
+            return ""
+    
+    def _calculate_average_confidence(self, ocr_result) -> float:
+        """计算平均置信度"""
+        try:
+            confidences = []
+            for result in ocr_result:
+                if 'rec_scores' in result:
+                    confidences.extend(result['rec_scores'])
+            
+            return float(np.mean(confidences)) if confidences else 0.0
+            
+        except Exception:
+            return 0.0
+
 class DetectionResults:
     """检测结果类"""
     
@@ -858,8 +1000,12 @@ class DetectionResults:
         self.refined_mask: Optional[np.ndarray] = None
         self.result_image: Optional[np.ndarray] = None
         
+        # OCR结果
+        self.ocr_results: Dict[str, str] = {}
+        
         # 元数据
         self.detection_time: float = 0.0
+        self.ocr_time: float = 0.0
         self.model_info: Dict[str, Any] = {}
         self.parameters: Dict[str, Any] = {}
     
@@ -869,32 +1015,36 @@ class DetectionResults:
             'image_path': self.image_path,
             'image_name': self.image_name,
             'text_regions': self.text_regions,
+            'ocr_results': self.ocr_results,
             'detection_time': self.detection_time,
+            'ocr_time': self.ocr_time,
             'model_info': self.model_info,
             'parameters': self.parameters,
             'stats': {
                 'total_regions': len(self.text_regions),
                 'languages': list(set(r.get('language', 'unknown') for r in self.text_regions)),
-                'avg_confidence': np.mean([r.get('confidence', 0) for r in self.text_regions]) if self.text_regions else 0
+                'avg_confidence': np.mean([r.get('confidence', 0) for r in self.text_regions]) if self.text_regions else 0,
+                'avg_ocr_confidence': np.mean([r.get('ocr_confidence', 0) for r in self.text_regions if 'ocr_confidence' in r]) if self.text_regions else 0
             }
         }
 
-
 class ComicTextDetector:
-    """漫画文本检测器主类"""
+    """漫画文本检测器主类 - 集成OCR功能"""
     
     def __init__(self, 
-             model_path: Optional[str] = None,
-             device: Optional[str] = None,
-             config: Optional[Config] = None,
-             **kwargs):
+                 model_path: Optional[str] = None,
+                 device: Optional[str] = None,
+                 config: Optional[Config] = None,
+                 enable_ocr: bool = True,
+                 **kwargs):
         """
         初始化检测器
         
         Args:
             model_path: 模型文件路径
-            device: 计算设备 ('cuda', 'cpu', 'auto', 'cuda:0', 'cuda:1', etc.)
+            device: 计算设备
             config: 配置对象
+            enable_ocr: 是否启用OCR功能
             **kwargs: 其他检测参数
         """
         # 配置管理
@@ -921,12 +1071,14 @@ class ComicTextDetector:
         self.mask_thresh = detector_params.get('mask_thresh', 0.3)
         self.allowed_languages = detector_params.get('allowed_languages', ['zh', 'ja'])
         
-        # 初始化检测器
+        # 初始化检测器和OCR处理器
         self._init_detector()
+        self.ocr_processor = OCRProcessor(enable_ocr=enable_ocr)
         
         # 统计信息
         self.detection_count = 0
         self.total_time = 0.0
+        self.total_ocr_time = 0.0
 
     def _resolve_device(self, device: str) -> str:
         """解析设备字符串"""
@@ -937,7 +1089,6 @@ class ComicTextDetector:
                 return 'cpu'
         elif device.startswith('cuda'):
             if torch.cuda.is_available():
-                # 检查指定的GPU是否存在
                 if ':' in device:
                     gpu_id = int(device.split(':')[1])
                     if gpu_id < torch.cuda.device_count():
@@ -963,16 +1114,16 @@ class ComicTextDetector:
                 nms_thresh=self.nms_thresh,
                 mask_thresh=self.mask_thresh
             )
-
         except Exception as e:
             raise RuntimeError(f"检测器初始化失败: {e}")
     
-    def detect(self, image_path: Union[str, Path], **kwargs) -> DetectionResults:
+    def detect(self, image_path: Union[str, Path], enable_ocr: Optional[bool] = None, **kwargs) -> DetectionResults:
         """
-        执行文本检测
+        执行文本检测和OCR识别
         
         Args:
             image_path: 图片路径
+            enable_ocr: 是否启用OCR（覆盖初始化设置）
             **kwargs: 临时覆盖的参数
             
         Returns:
@@ -1007,6 +1158,16 @@ class ComicTextDetector:
             # 处理检测结果
             text_regions = self._process_detection_results(blk_list, img.shape)
             
+            # OCR处理
+            ocr_start_time = time.time()
+            should_do_ocr = enable_ocr if enable_ocr is not None else self.ocr_processor.enable_ocr
+            
+            if should_do_ocr:
+                ocr_results = self.ocr_processor.process_text_regions(img, text_regions)
+                results.ocr_results = ocr_results
+            
+            ocr_time = time.time() - ocr_start_time
+            
             # 生成可视化结果
             result_image = self._visualize_results(img.copy(), text_regions)
             
@@ -1017,14 +1178,16 @@ class ComicTextDetector:
             results.refined_mask = mask_refined
             results.result_image = result_image
             results.detection_time = detection_time
+            results.ocr_time = ocr_time
             results.model_info = self._get_model_info()
             results.parameters = self._get_current_parameters(**kwargs)
             
             # 更新统计
             self.detection_count += 1
             self.total_time += detection_time
+            self.total_ocr_time += ocr_time
             
-            print(f"检测完成: 找到 {len(text_regions)} 个文字区域, 耗时: {detection_time:.3f}s")
+            print(f"检测完成: 找到 {len(text_regions)} 个文字区域, 检测耗时: {detection_time:.3f}s, OCR耗时: {ocr_time:.3f}s")
             
             return results
             
@@ -1079,22 +1242,30 @@ class ComicTextDetector:
             # 绘制边界框
             cv2.rectangle(result, (x1, y1), (x2, y2), color, 2)
             
-            # 标签
+            # 标签包含OCR结果
             label = f"{region['id']}_{region['language']}"
             if region['vertical']:
                 label += "_V"
             label += f"_{confidence:.3f}"
             
+            # 如果有OCR结果，显示部分文字
+            if 'ocr_text' in region and region['ocr_text']:
+                ocr_preview = region['ocr_text'][:10] + "..." if len(region['ocr_text']) > 10 else region['ocr_text']
+                label += f"\n{ocr_preview}"
+            
             # 绘制标签
-            label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
-            cv2.rectangle(result, (x1, y1-25), (x1+label_size[0], y1), color, -1)
-            cv2.putText(result, label, (x1, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            label_lines = label.split('\n')
+            for i, line in enumerate(label_lines):
+                label_size = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+                y_offset = y1 - 25 + i * 20
+                cv2.rectangle(result, (x1, y_offset-15), (x1+label_size[0], y_offset), color, -1)
+                cv2.putText(result, line, (x1, y_offset-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         return result
     
     def save_results(self, results: DetectionResults, output_dir: Union[str, Path]):
         """
-        保存检测结果
+        保存检测结果（包含OCR结果）
         
         Args:
             results: 检测结果对象
@@ -1119,12 +1290,19 @@ class ComicTextDetector:
                 imwrite(str(mask_path), results.refined_mask)
                 print(f"文字掩码已保存: {mask_path}")
             
-            # 保存JSON结果
+            # 保存JSON结果（包含OCR）
             if output_params.get('save_json', True):
                 json_path = output_dir / f"{base_name}_result.json"
                 with open(json_path, 'w', encoding='utf-8') as f:
                     json.dump(results.to_dict(), f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
                 print(f"JSON结果已保存: {json_path}")
+            
+            # 单独保存OCR结果
+            if results.ocr_results:
+                ocr_path = output_dir / f"{base_name}_ocr.json"
+                with open(ocr_path, 'w', encoding='utf-8') as f:
+                    json.dump({results.image_name: results.ocr_results}, f, ensure_ascii=False, indent=2)
+                print(f"OCR结果已保存: {ocr_path}")
             
             return output_dir
             
@@ -1137,7 +1315,8 @@ class ComicTextDetector:
         return {
             'model_path': self.model_path,
             'device': self.device,
-            'backend': getattr(self.detector, 'backend', 'unknown')
+            'backend': getattr(self.detector, 'backend', 'unknown'),
+            'ocr_enabled': self.ocr_processor.enable_ocr
         }
     
     def _get_current_parameters(self, **kwargs) -> Dict[str, Any]:
@@ -1178,10 +1357,64 @@ class ComicTextDetector:
         return {
             'detection_count': self.detection_count,
             'total_time': self.total_time,
+            'total_ocr_time': self.total_ocr_time,
             'avg_time_per_detection': self.total_time / self.detection_count if self.detection_count > 0 else 0,
+            'avg_ocr_time_per_detection': self.total_ocr_time / self.detection_count if self.detection_count > 0 else 0,
             'current_parameters': self._get_current_parameters(),
             'model_info': self._get_model_info()
         }
+    
+    def batch_process_with_ocr(self, image_paths: List[Union[str, Path]], 
+                              output_dir: Union[str, Path]) -> Dict[str, str]:
+        """
+        批量处理图片并进行OCR识别
+        
+        Args:
+            image_paths: 图片路径列表
+            output_dir: 输出目录
+            
+        Returns:
+            Dict[str, str]: 图片名到OCR文本的映射
+        """
+        batch_results = {}
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        print(f"开始批量处理{len(image_paths)}张图片")
+        
+        for i, image_path in enumerate(image_paths, 1):
+            try:
+                print(f"处理第{i}/{len(image_paths)}张图片: {image_path}")
+                
+                # 执行检测和OCR
+                results = self.detect(image_path, enable_ocr=True)
+                
+                # 保存结果
+                self.save_results(results, output_dir)
+                
+                # 汇总OCR文本
+                all_texts = []
+                for region_key, text in results.ocr_results.items():
+                    if text.strip():
+                        all_texts.append(text.strip())
+                
+                combined_text = " ".join(all_texts)
+                batch_results[results.image_name] = combined_text
+                
+                print(f"完成处理: {results.image_name}, 识别文本: {combined_text[:100]}...")
+                
+            except Exception as e:
+                print(f"处理图片{image_path}时出错: {e}")
+                image_name = Path(image_path).stem
+                batch_results[image_name] = ""
+        
+        # 保存批量OCR结果
+        batch_ocr_path = output_dir / "batch_ocr_results.json"
+        with open(batch_ocr_path, 'w', encoding='utf-8') as f:
+            json.dump(batch_results, f, ensure_ascii=False, indent=2)
+        
+        print(f"批量处理完成，结果已保存到: {batch_ocr_path}")
+        return batch_results
     
     def __del__(self):
         """清理资源"""
@@ -1190,32 +1423,32 @@ class ComicTextDetector:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-
 # 便捷函数
-def quick_detect(image_path: Union[str, Path], 
-                 model_path: Optional[str] = None,
-                 output_dir: Optional[str] = None,
-                 **kwargs) -> DetectionResults:
+def quick_detect_with_ocr(image_path: Union[str, Path], 
+                         model_path: Optional[str] = None,
+                         output_dir: Optional[str] = None,
+                         enable_ocr: bool = True,
+                         **kwargs) -> DetectionResults:
     """
-    快速检测函数
+    快速检测和OCR函数
     
     Args:
         image_path: 图片路径
         model_path: 模型路径
         output_dir: 输出目录
+        enable_ocr: 是否启用OCR
         **kwargs: 检测参数
         
     Returns:
         DetectionResults: 检测结果
     """
-    detector = ComicTextDetector(model_path=model_path, **kwargs)
-    results = detector.detect(image_path)
+    detector = ComicTextDetector(model_path=model_path, enable_ocr=enable_ocr, **kwargs)
+    results = detector.detect(image_path, enable_ocr=enable_ocr)
     
     if output_dir:
         detector.save_results(results, output_dir)
     
     return results
-
 
 if __name__ == "__main__":
     # 测试检测器
@@ -1229,8 +1462,9 @@ if __name__ == "__main__":
     output_dir = sys.argv[2] if len(sys.argv) > 2 else "test_results"
     
     try:
-        results = quick_detect(image_path, output_dir=output_dir)
+        results = quick_detect_with_ocr(image_path, output_dir=output_dir, enable_ocr=True)
         print(f"检测完成! 找到 {len(results.text_regions)} 个文字区域")
+        print(f"OCR结果: {results.ocr_results}")
         
     except Exception as e:
         print(f"检测失败: {e}")
@@ -1459,623 +1693,6 @@ if __name__ == '__main__':
 ```
 
 ### `models`
-
-#### `yolov5`
-
-##### `common.py`
-
-```py
-# YOLOv5 🚀 by Ultralytics, GPL-3.0 license
-"""
-Common modules
-"""
-
-import json
-import math
-import platform
-import warnings
-from collections import OrderedDict, namedtuple
-from copy import copy
-from pathlib import Path
-
-import cv2
-import numpy as np
-import requests
-import torch
-import torch.nn as nn
-from PIL import Image
-from torch.cuda import amp
-
-# 修复导入路径
-from src.utils.yolov5_utils import make_divisible, initialize_weights, check_anchor_order, check_version, fuse_conv_and_bn
-
-def autopad(k, p=None):  # kernel, padding
-    # Pad to 'same'
-    if p is None:
-        p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
-    return p
-
-class Conv(nn.Module):
-    # Standard convolution
-    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
-        super().__init__()
-        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=False)
-        self.bn = nn.BatchNorm2d(c2)
-        if isinstance(act, bool):
-            self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Module) else nn.Identity())
-        elif isinstance(act, str):
-            if act == 'leaky':
-                self.act = nn.LeakyReLU(0.1, inplace=True)
-            elif act == 'relu':
-                self.act = nn.ReLU(inplace=True)
-            else:
-                self.act = None
-    def forward(self, x):
-        return self.act(self.bn(self.conv(x)))
-
-    def forward_fuse(self, x):
-        return self.act(self.conv(x))
-
-
-class DWConv(Conv):
-    # Depth-wise convolution class
-    def __init__(self, c1, c2, k=1, s=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
-        super().__init__(c1, c2, k, s, g=math.gcd(c1, c2), act=act)
-
-
-class TransformerLayer(nn.Module):
-    # Transformer layer https://arxiv.org/abs/2010.11929 (LayerNorm layers removed for better performance)
-    def __init__(self, c, num_heads):
-        super().__init__()
-        self.q = nn.Linear(c, c, bias=False)
-        self.k = nn.Linear(c, c, bias=False)
-        self.v = nn.Linear(c, c, bias=False)
-        self.ma = nn.MultiheadAttention(embed_dim=c, num_heads=num_heads)
-        self.fc1 = nn.Linear(c, c, bias=False)
-        self.fc2 = nn.Linear(c, c, bias=False)
-
-    def forward(self, x):
-        x = self.ma(self.q(x), self.k(x), self.v(x))[0] + x
-        x = self.fc2(self.fc1(x)) + x
-        return x
-
-
-class TransformerBlock(nn.Module):
-    # Vision Transformer https://arxiv.org/abs/2010.11929
-    def __init__(self, c1, c2, num_heads, num_layers):
-        super().__init__()
-        self.conv = None
-        if c1 != c2:
-            self.conv = Conv(c1, c2)
-        self.linear = nn.Linear(c2, c2)  # learnable position embedding
-        self.tr = nn.Sequential(*(TransformerLayer(c2, num_heads) for _ in range(num_layers)))
-        self.c2 = c2
-
-    def forward(self, x):
-        if self.conv is not None:
-            x = self.conv(x)
-        b, _, w, h = x.shape
-        p = x.flatten(2).permute(2, 0, 1)
-        return self.tr(p + self.linear(p)).permute(1, 2, 0).reshape(b, self.c2, w, h)
-
-
-class Bottleneck(nn.Module):
-    # Standard bottleneck
-    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5, act=True):  # ch_in, ch_out, shortcut, groups, expansion
-        super().__init__()
-        c_ = int(c2 * e)  # hidden channels
-        self.cv1 = Conv(c1, c_, 1, 1, act=act)
-        self.cv2 = Conv(c_, c2, 3, 1, g=g, act=act)
-        self.add = shortcut and c1 == c2
-
-    def forward(self, x):
-        return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
-
-
-class BottleneckCSP(nn.Module):
-    # CSP Bottleneck https://github.com/WongKinYiu/CrossStagePartialNetworks
-    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
-        super().__init__()
-        c_ = int(c2 * e)  # hidden channels
-        self.cv1 = Conv(c1, c_, 1, 1)
-        self.cv2 = nn.Conv2d(c1, c_, 1, 1, bias=False)
-        self.cv3 = nn.Conv2d(c_, c_, 1, 1, bias=False)
-        self.cv4 = Conv(2 * c_, c2, 1, 1)
-        self.bn = nn.BatchNorm2d(2 * c_)  # applied to cat(cv2, cv3)
-        self.act = nn.SiLU()
-        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
-
-    def forward(self, x):
-        y1 = self.cv3(self.m(self.cv1(x)))
-        y2 = self.cv2(x)
-        return self.cv4(self.act(self.bn(torch.cat((y1, y2), dim=1))))
-
-
-class C3(nn.Module):
-    # CSP Bottleneck with 3 convolutions
-    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5, act=True):  # ch_in, ch_out, number, shortcut, groups, expansion
-        super().__init__()
-        c_ = int(c2 * e)  # hidden channels
-        self.cv1 = Conv(c1, c_, 1, 1, act=act)
-        self.cv2 = Conv(c1, c_, 1, 1, act=act)
-        self.cv3 = Conv(2 * c_, c2, 1, act=act)  # act=FReLU(c2)
-        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, e=1.0, act=act) for _ in range(n)))
-        # self.m = nn.Sequential(*[CrossConv(c_, c_, 3, 1, g, 1.0, shortcut) for _ in range(n)])
-
-    def forward(self, x):
-        return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
-
-
-class C3TR(C3):
-    # C3 module with TransformerBlock()
-    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
-        super().__init__(c1, c2, n, shortcut, g, e)
-        c_ = int(c2 * e)
-        self.m = TransformerBlock(c_, c_, 4, n)
-
-
-class C3SPP(C3):
-    # C3 module with SPP()
-    def __init__(self, c1, c2, k=(5, 9, 13), n=1, shortcut=True, g=1, e=0.5):
-        super().__init__(c1, c2, n, shortcut, g, e)
-        c_ = int(c2 * e)
-        self.m = SPP(c_, c_, k)
-
-
-class C3Ghost(C3):
-    # C3 module with GhostBottleneck()
-    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
-        super().__init__(c1, c2, n, shortcut, g, e)
-        c_ = int(c2 * e)  # hidden channels
-        self.m = nn.Sequential(*(GhostBottleneck(c_, c_) for _ in range(n)))
-
-
-class SPP(nn.Module):
-    # Spatial Pyramid Pooling (SPP) layer https://arxiv.org/abs/1406.4729
-    def __init__(self, c1, c2, k=(5, 9, 13)):
-        super().__init__()
-        c_ = c1 // 2  # hidden channels
-        self.cv1 = Conv(c1, c_, 1, 1)
-        self.cv2 = Conv(c_ * (len(k) + 1), c2, 1, 1)
-        self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in k])
-
-    def forward(self, x):
-        x = self.cv1(x)
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')  # suppress torch 1.9.0 max_pool2d() warning
-            return self.cv2(torch.cat([x] + [m(x) for m in self.m], 1))
-
-
-class SPPF(nn.Module):
-    # Spatial Pyramid Pooling - Fast (SPPF) layer for YOLOv5 by Glenn Jocher
-    def __init__(self, c1, c2, k=5):  # equivalent to SPP(k=(5, 9, 13))
-        super().__init__()
-        c_ = c1 // 2  # hidden channels
-        self.cv1 = Conv(c1, c_, 1, 1)
-        self.cv2 = Conv(c_ * 4, c2, 1, 1)
-        self.m = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
-
-    def forward(self, x):
-        x = self.cv1(x)
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')  # suppress torch 1.9.0 max_pool2d() warning
-            y1 = self.m(x)
-            y2 = self.m(y1)
-            return self.cv2(torch.cat([x, y1, y2, self.m(y2)], 1))
-
-
-class Focus(nn.Module):
-    # Focus wh information into c-space
-    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
-        super().__init__()
-        self.conv = Conv(c1 * 4, c2, k, s, p, g, act)
-        # self.contract = Contract(gain=2)
-
-    def forward(self, x):  # x(b,c,w,h) -> y(b,4c,w/2,h/2)
-        return self.conv(torch.cat([x[..., ::2, ::2], x[..., 1::2, ::2], x[..., ::2, 1::2], x[..., 1::2, 1::2]], 1))
-        # return self.conv(self.contract(x))
-
-
-class GhostConv(nn.Module):
-    # Ghost Convolution https://github.com/huawei-noah/ghostnet
-    def __init__(self, c1, c2, k=1, s=1, g=1, act=True):  # ch_in, ch_out, kernel, stride, groups
-        super().__init__()
-        c_ = c2 // 2  # hidden channels
-        self.cv1 = Conv(c1, c_, k, s, None, g, act)
-        self.cv2 = Conv(c_, c_, 5, 1, None, c_, act)
-
-    def forward(self, x):
-        y = self.cv1(x)
-        return torch.cat([y, self.cv2(y)], 1)
-
-
-class GhostBottleneck(nn.Module):
-    # Ghost Bottleneck https://github.com/huawei-noah/ghostnet
-    def __init__(self, c1, c2, k=3, s=1):  # ch_in, ch_out, kernel, stride
-        super().__init__()
-        c_ = c2 // 2
-        self.conv = nn.Sequential(GhostConv(c1, c_, 1, 1),  # pw
-                                  DWConv(c_, c_, k, s, act=False) if s == 2 else nn.Identity(),  # dw
-                                  GhostConv(c_, c2, 1, 1, act=False))  # pw-linear
-        self.shortcut = nn.Sequential(DWConv(c1, c1, k, s, act=False),
-                                      Conv(c1, c2, 1, 1, act=False)) if s == 2 else nn.Identity()
-
-    def forward(self, x):
-        return self.conv(x) + self.shortcut(x)
-
-
-class Contract(nn.Module):
-    # Contract width-height into channels, i.e. x(1,64,80,80) to x(1,256,40,40)
-    def __init__(self, gain=2):
-        super().__init__()
-        self.gain = gain
-
-    def forward(self, x):
-        b, c, h, w = x.size()  # assert (h / s == 0) and (W / s == 0), 'Indivisible gain'
-        s = self.gain
-        x = x.view(b, c, h // s, s, w // s, s)  # x(1,64,40,2,40,2)
-        x = x.permute(0, 3, 5, 1, 2, 4).contiguous()  # x(1,2,2,64,40,40)
-        return x.view(b, c * s * s, h // s, w // s)  # x(1,256,40,40)
-
-
-class Expand(nn.Module):
-    # Expand channels into width-height, i.e. x(1,64,80,80) to x(1,16,160,160)
-    def __init__(self, gain=2):
-        super().__init__()
-        self.gain = gain
-
-    def forward(self, x):
-        b, c, h, w = x.size()  # assert C / s ** 2 == 0, 'Indivisible gain'
-        s = self.gain
-        x = x.view(b, s, s, c // s ** 2, h, w)  # x(1,2,2,16,80,80)
-        x = x.permute(0, 3, 4, 1, 5, 2).contiguous()  # x(1,16,80,2,80,2)
-        return x.view(b, c // s ** 2, h * s, w * s)  # x(1,16,160,160)
-
-
-class Concat(nn.Module):
-    # Concatenate a list of tensors along dimension
-    def __init__(self, dimension=1):
-        super().__init__()
-        self.d = dimension
-
-    def forward(self, x):
-        return torch.cat(x, self.d)
-
-
-class Classify(nn.Module):
-    # Classification head, i.e. x(b,c1,20,20) to x(b,c2)
-    def __init__(self, c1, c2, k=1, s=1, p=None, g=1):  # ch_in, ch_out, kernel, stride, padding, groups
-        super().__init__()
-        self.aap = nn.AdaptiveAvgPool2d(1)  # to x(b,c1,1,1)
-        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g)  # to x(b,c2,1,1)
-        self.flat = nn.Flatten()
-
-    def forward(self, x):
-        z = torch.cat([self.aap(y) for y in (x if isinstance(x, list) else [x])], 1)  # cat if list
-        return self.flat(self.conv(z))  # flatten to x(b,c2)
-```
-
-##### `yolo.py`
-
-```py
-from operator import mod
-from cv2 import imshow
-from src.utils.yolov5_utils import scale_img  # 修复导入路径
-from copy import deepcopy
-from .common import *
-
-class Detect(nn.Module):
-    stride = None  # strides computed during build
-    onnx_dynamic = False  # ONNX export parameter
-
-    def __init__(self, nc=80, anchors=(), ch=(), inplace=True):  # detection layer
-        super().__init__()
-        self.nc = nc  # number of classes
-        self.no = nc + 5  # number of outputs per anchor
-        self.nl = len(anchors)  # number of detection layers
-        self.na = len(anchors[0]) // 2  # number of anchors
-        self.grid = [torch.zeros(1)] * self.nl  # init grid
-        self.anchor_grid = [torch.zeros(1)] * self.nl  # init anchor grid
-        self.register_buffer('anchors', torch.tensor(anchors).float().view(self.nl, -1, 2))  # shape(nl,na,2)
-        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
-        self.inplace = inplace  # use in-place ops (e.g. slice assignment)
-
-    def forward(self, x):
-        z = []  # inference output
-        for i in range(self.nl):
-            x[i] = self.m[i](x[i])  # conv
-            bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
-            x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
-
-            if not self.training:  # inference
-                if self.onnx_dynamic or self.grid[i].shape[2:4] != x[i].shape[2:4]:
-                    self.grid[i], self.anchor_grid[i] = self._make_grid(nx, ny, i)
-
-                y = x[i].sigmoid()
-                if self.inplace:
-                    y[..., 0:2] = (y[..., 0:2] * 2 - 0.5 + self.grid[i]) * self.stride[i]  # xy
-                    y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
-                else:  # for YOLOv5 on AWS Inferentia https://github.com/ultralytics/yolov5/pull/2953
-                    xy = (y[..., 0:2] * 2 - 0.5 + self.grid[i]) * self.stride[i]  # xy
-                    wh = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
-                    y = torch.cat((xy, wh, y[..., 4:]), -1)
-                z.append(y.view(bs, -1, self.no))
-
-        return x if self.training else (torch.cat(z, 1), x)
-
-    def _make_grid(self, nx=20, ny=20, i=0):
-        d = self.anchors[i].device
-        if check_version(torch.__version__, '1.10.0'):  # torch>=1.10.0 meshgrid workaround for torch>=0.7 compatibility
-            yv, xv = torch.meshgrid([torch.arange(ny, device=d), torch.arange(nx, device=d)], indexing='ij')
-        else:
-            yv, xv = torch.meshgrid([torch.arange(ny, device=d), torch.arange(nx, device=d)])
-        grid = torch.stack((xv, yv), 2).expand((1, self.na, ny, nx, 2)).float()
-        anchor_grid = (self.anchors[i].clone() * self.stride[i]) \
-            .view((1, self.na, 1, 1, 2)).expand((1, self.na, ny, nx, 2)).float()
-        return grid, anchor_grid
-
-class Model(nn.Module):
-    def __init__(self, cfg='yolov5s.yaml', ch=3, nc=None, anchors=None):  # model, input channels, number of classes
-        super().__init__()
-        self.out_indices = None
-        if isinstance(cfg, dict):
-            self.yaml = cfg  # model dict
-        else:  # is *.yaml
-            import yaml  # for torch hub
-            self.yaml_file = Path(cfg).name
-            with open(cfg, encoding='ascii', errors='ignore') as f:
-                self.yaml = yaml.safe_load(f)  # model dict
-
-        # Define model
-        ch = self.yaml['ch'] = self.yaml.get('ch', ch)  # input channels
-        if nc and nc != self.yaml['nc']:
-            # LOGGER.info(f"Overriding model.yaml nc={self.yaml['nc']} with nc={nc}")
-            self.yaml['nc'] = nc  # override yaml value
-        if anchors:
-            # LOGGER.info(f'Overriding model.yaml anchors with anchors={anchors}')
-            self.yaml['anchors'] = round(anchors)  # override yaml value
-        self.model, self.save = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
-        self.names = [str(i) for i in range(self.yaml['nc'])]  # default names
-        self.inplace = self.yaml.get('inplace', True)
-
-        # Build strides, anchors
-        m = self.model[-1]  # Detect()
-        # with torch.no_grad():
-        if isinstance(m, Detect):
-            s = 256  # 2x min stride
-            m.inplace = self.inplace
-            m.stride = torch.tensor([s / x.shape[-2] for x in self.forward(torch.zeros(1, ch, s, s))])  # forward
-            m.anchors /= m.stride.view(-1, 1, 1)
-            check_anchor_order(m)
-            self.stride = m.stride
-            self._initialize_biases()  # only run once
-
-        # Init weights, biases
-        initialize_weights(self)
-
-    def forward(self, x, augment=False, profile=False, visualize=False, detect=False):
-        if augment:
-            return self._forward_augment(x)  # augmented inference, None
-        return self._forward_once(x, profile, visualize, detect=detect)  # single-scale inference, train
-
-    def _forward_augment(self, x):
-        img_size = x.shape[-2:]  # height, width
-        s = [1, 0.83, 0.67]  # scales
-        f = [None, 3, None]  # flips (2-ud, 3-lr)
-        y = []  # outputs
-        for si, fi in zip(s, f):
-            xi = scale_img(x.flip(fi) if fi else x, si, gs=int(self.stride.max()))
-            yi = self._forward_once(xi)[0]  # forward
-            # cv2.imwrite(f'img_{si}.jpg', 255 * xi[0].cpu().numpy().transpose((1, 2, 0))[:, :, ::-1])  # save
-            yi = self._descale_pred(yi, fi, si, img_size)
-            y.append(yi)
-        y = self._clip_augmented(y)  # clip augmented tails
-        return torch.cat(y, 1), None  # augmented inference, train
-
-    def _forward_once(self, x, profile=False, visualize=False, detect=False):
-        y, dt = [], []  # outputs
-        z = []
-        for ii, m in enumerate(self.model):
-            if m.f != -1:  # if not from previous layer
-                x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
-            if profile:
-                self._profile_one_layer(m, x, dt)
-            x = m(x)  # run
-            y.append(x if m.i in self.save else None)  # save output
-            if self.out_indices is not None:
-                if m.i in self.out_indices:
-                    z.append(x)
-        if self.out_indices is not None:
-            if detect:
-                return x, z
-            else:
-                return z
-        else:
-            return x
-
-    def _descale_pred(self, p, flips, scale, img_size):
-        # de-scale predictions following augmented inference (inverse operation)
-        if self.inplace:
-            p[..., :4] /= scale  # de-scale
-            if flips == 2:
-                p[..., 1] = img_size[0] - p[..., 1]  # de-flip ud
-            elif flips == 3:
-                p[..., 0] = img_size[1] - p[..., 0]  # de-flip lr
-        else:
-            x, y, wh = p[..., 0:1] / scale, p[..., 1:2] / scale, p[..., 2:4] / scale  # de-scale
-            if flips == 2:
-                y = img_size[0] - y  # de-flip ud
-            elif flips == 3:
-                x = img_size[1] - x  # de-flip lr
-            p = torch.cat((x, y, wh, p[..., 4:]), -1)
-        return p
-
-    def _clip_augmented(self, y):
-        # Clip YOLOv5 augmented inference tails
-        nl = self.model[-1].nl  # number of detection layers (P3-P5)
-        g = sum(4 ** x for x in range(nl))  # grid points
-        e = 1  # exclude layer count
-        i = (y[0].shape[1] // g) * sum(4 ** x for x in range(e))  # indices
-        y[0] = y[0][:, :-i]  # large
-        i = (y[-1].shape[1] // g) * sum(4 ** (nl - 1 - x) for x in range(e))  # indices
-        y[-1] = y[-1][:, i:]  # small
-        return y
-
-    def _profile_one_layer(self, m, x, dt):
-        c = isinstance(m, Detect)  # is final layer, copy input as inplace fix
-        for _ in range(10):
-            m(x.copy() if c else x)
-
-
-    def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
-        # https://arxiv.org/abs/1708.02002 section 3.3
-        # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
-        m = self.model[-1]  # Detect() module
-        for mi, s in zip(m.m, m.stride):  # from
-            b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
-            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
-            b.data[:, 5:] += math.log(0.6 / (m.nc - 0.999999)) if cf is None else torch.log(cf / cf.sum())  # cls
-            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
-
-    def _print_biases(self):
-        m = self.model[-1]  # Detect() module
-        for mi in m.m:  # from
-            b = mi.bias.detach().view(m.na, -1).T  # conv.bias(255) to (3,85)
-
-    def fuse(self):  # fuse model Conv2d() + BatchNorm2d() layers
-        for m in self.model.modules():
-            if isinstance(m, (Conv, DWConv)) and hasattr(m, 'bn'):
-                m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
-                delattr(m, 'bn')  # remove batchnorm
-                m.forward = m.forward_fuse  # update forward
-        # self.info()
-        return self
-
-    # def info(self, verbose=False, img_size=640):  # print model information
-    #     model_info(self, verbose, img_size)
-
-    def _apply(self, fn):
-        # Apply to(), cpu(), cuda(), half() to model tensors that are not parameters or registered buffers
-        self = super()._apply(fn)
-        m = self.model[-1]  # Detect()
-        if isinstance(m, Detect):
-            m.stride = fn(m.stride)
-            m.grid = list(map(fn, m.grid))
-            if isinstance(m.anchor_grid, list):
-                m.anchor_grid = list(map(fn, m.anchor_grid))
-        return self
-
-def parse_model(d, ch):  # model_dict, input_channels(3)
-    # LOGGER.info(f"\n{'':>3}{'from':>18}{'n':>3}{'params':>10}  {'module':<40}{'arguments':<30}")
-    anchors, nc, gd, gw = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
-    na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
-    no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
-
-    layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
-    for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):  # from, number, module, args
-        m = eval(m) if isinstance(m, str) else m  # eval strings
-        for j, a in enumerate(args):
-            try:
-                args[j] = eval(a) if isinstance(a, str) else a  # eval strings
-            except NameError:
-                pass
-
-        n = n_ = max(round(n * gd), 1) if n > 1 else n  # depth gain
-        if m in [Conv, GhostConv, Bottleneck, GhostBottleneck, SPP, SPPF, DWConv, Focus,
-                 BottleneckCSP, C3, C3TR, C3SPP, C3Ghost]:
-            c1, c2 = ch[f], args[0]
-            if c2 != no:  # if not output
-                c2 = make_divisible(c2 * gw, 8)
-
-            args = [c1, c2, *args[1:]]
-            if m in [BottleneckCSP, C3, C3TR, C3Ghost]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m is nn.BatchNorm2d:
-            args = [ch[f]]
-        elif m is Concat:
-            c2 = sum(ch[x] for x in f)
-        elif m is Detect:
-            args.append([ch[x] for x in f])
-            if isinstance(args[1], int):  # number of anchors
-                args[1] = [list(range(args[1] * 2))] * len(f)
-        elif m is Contract:
-            c2 = ch[f] * args[0] ** 2
-        elif m is Expand:
-            c2 = ch[f] // args[0] ** 2
-        else:
-            c2 = ch[f]
-
-        m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-        t = str(m)[8:-2].replace('__main__.', '')  # module type
-        np = sum(x.numel() for x in m_.parameters())  # number params
-        m_.i, m_.f, m_.type, m_.np = i, f, t, np  # attach index, 'from' index, type, number params
-        # LOGGER.info(f'{i:>3}{str(f):>18}{n_:>3}{np:10.0f}  {t:<40}{str(args):<30}')  # print
-        save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
-        layers.append(m_)
-        if i == 0:
-            ch = []
-        ch.append(c2)
-    return nn.Sequential(*layers), sorted(save)
-
-def load_yolov5(weights, map_location='cuda', fuse=True, inplace=True, out_indices=[1, 3, 5, 7, 9]):
-    if isinstance(weights, str):
-        ckpt = torch.load(weights, map_location=map_location)  # load
-    else:
-        ckpt = weights
-    
-    if fuse:
-        model = ckpt['model'].float().fuse().eval()  # FP32 model
-    else:
-        model = ckpt['model'].float().eval()  # without layer fuse
-
-    # Compatibility updates
-    for m in model.modules():
-        if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Model]:
-            m.inplace = inplace  # pytorch 1.7.0 compatibility
-            if type(m) is Detect:
-                if not isinstance(m.anchor_grid, list):  # new Detect Layer compatibility
-                    delattr(m, 'anchor_grid')
-                    setattr(m, 'anchor_grid', [torch.zeros(1)] * m.nl)
-        elif type(m) is Conv:
-            m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility
-    model.out_indices = out_indices
-    return model
-
-@torch.no_grad()
-def load_yolov5_ckpt(weights, map_location='cpu', fuse=True, inplace=True, out_indices=[1, 3, 5, 7, 9]):
-    if isinstance(weights, str):
-        ckpt = torch.load(weights, map_location=map_location)  # load
-    else:
-        ckpt = weights
-    
-    model = Model(ckpt['cfg'])
-    model.load_state_dict(ckpt['weights'], strict=True)
-    
-    if fuse:
-        model = model.float().fuse().eval()  # FP32 model
-    else:
-        model = model.float().eval()  # without layer fuse
-
-    # Compatibility updates
-    for m in model.modules():
-        if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Model]:
-            m.inplace = inplace  # pytorch 1.7.0 compatibility
-            if type(m) is Detect:
-                if not isinstance(m.anchor_grid, list):  # new Detect Layer compatibility
-                    delattr(m, 'anchor_grid')
-                    setattr(m, 'anchor_grid', [torch.zeros(1)] * m.nl)
-        elif type(m) is Conv:
-            m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility
-    model.out_indices = out_indices
-    return model
-```
-
-##### `__init__.py`
-
-```py
-
-```
 
 #### `__init__.py`
 

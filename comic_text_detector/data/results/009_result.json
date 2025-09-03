@@ -1,0 +1,238 @@
+{
+  "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\009.jpg",
+  "image_name": "009",
+  "text_regions": [
+    {
+      "id": 0,
+      "bbox": [
+        1215,
+        195,
+        1343,
+        634
+      ],
+      "confidence": 0.9599999785423279,
+      "language": "ja",
+      "vertical": true,
+      "font_size": 52,
+      "lines": [
+        [
+          [
+            1283,
+            196
+          ],
+          [
+            1343,
+            196
+          ],
+          [
+            1339,
+            496
+          ],
+          [
+            1279,
+            496
+          ]
+        ],
+        [
+          [
+            1218,
+            195
+          ],
+          [
+            1282,
+            195
+          ],
+          [
+            1279,
+            608
+          ],
+          [
+            1215,
+            608
+          ]
+        ],
+        [
+          [
+            1230,
+            587
+          ],
+          [
+            1263,
+            587
+          ],
+          [
+            1263,
+            634
+          ],
+          [
+            1230,
+            634
+          ]
+        ]
+      ],
+      "text": "",
+      "angle": 0,
+      "ocr_text": "就交給我吧。只要讓我好好除靈，",
+      "ocr_confidence": 0.0
+    },
+    {
+      "id": 1,
+      "bbox": [
+        163,
+        357,
+        392,
+        738
+      ],
+      "confidence": 0.9660000205039978,
+      "language": "ja",
+      "vertical": true,
+      "font_size": 85,
+      "lines": [
+        [
+          [
+            293,
+            357
+          ],
+          [
+            392,
+            357
+          ],
+          [
+            392,
+            738
+          ],
+          [
+            293,
+            738
+          ]
+        ],
+        [
+          [
+            231,
+            367
+          ],
+          [
+            314,
+            367
+          ],
+          [
+            314,
+            735
+          ],
+          [
+            231,
+            735
+          ]
+        ],
+        [
+          [
+            165,
+            364
+          ],
+          [
+            237,
+            365
+          ],
+          [
+            234,
+            580
+          ],
+          [
+            163,
+            579
+          ]
+        ]
+      ],
+      "text": "",
+      "angle": 0,
+      "ocr_text": "花子小姐的臉一定也會恢復原狀的。",
+      "ocr_confidence": 0.0
+    },
+    {
+      "id": 2,
+      "bbox": [
+        1071,
+        883,
+        1345,
+        1641
+      ],
+      "confidence": 0.8650000095367432,
+      "language": "ja",
+      "vertical": true,
+      "font_size": 168,
+      "lines": [
+        [
+          [
+            1175,
+            883
+          ],
+          [
+            1345,
+            884
+          ],
+          [
+            1339,
+            1448
+          ],
+          [
+            1169,
+            1447
+          ]
+        ],
+        [
+          [
+            1071,
+            887
+          ],
+          [
+            1237,
+            887
+          ],
+          [
+            1237,
+            1641
+          ],
+          [
+            1071,
+            1641
+          ]
+        ]
+      ],
+      "text": "",
+      "angle": 0,
+      "ocr_text": "我才不是在擔心她的臉啦！！",
+      "ocr_confidence": 0.0
+    }
+  ],
+  "ocr_results": {
+    "region_0": "就交給我吧。只要讓我好好除靈，",
+    "region_1": "花子小姐的臉一定也會恢復原狀的。",
+    "region_2": "我才不是在擔心她的臉啦！！"
+  },
+  "detection_time": 1.2734203338623047,
+  "ocr_time": 2.0040860176086426,
+  "model_info": {
+    "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
+    "device": "cuda",
+    "backend": "torch",
+    "ocr_enabled": true
+  },
+  "parameters": {
+    "input_size": 1536,
+    "conf_thresh": 0.4,
+    "nms_thresh": 0.35,
+    "mask_thresh": 0.3,
+    "allowed_languages": [
+      "zh",
+      "ja"
+    ]
+  },
+  "stats": {
+    "total_regions": 3,
+    "languages": [
+      "ja"
+    ],
+    "avg_confidence": 0.9303333361943563,
+    "avg_ocr_confidence": 0.0
+  }
+}

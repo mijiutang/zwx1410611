@@ -1,0 +1,146 @@
+{
+  "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\125.jpg",
+  "image_name": "125",
+  "text_regions": [
+    {
+      "id": 0,
+      "bbox": [
+        116,
+        662,
+        419,
+        1321
+      ],
+      "confidence": 0.9139999747276306,
+      "language": "ja",
+      "vertical": true,
+      "font_size": 115,
+      "lines": [
+        [
+          [
+            312,
+            672
+          ],
+          [
+            419,
+            672
+          ],
+          [
+            419,
+            928
+          ],
+          [
+            312,
+            928
+          ]
+        ],
+        [
+          [
+            229,
+            662
+          ],
+          [
+            336,
+            666
+          ],
+          [
+            326,
+            963
+          ],
+          [
+            219,
+            959
+          ]
+        ],
+        [
+          [
+            116,
+            869
+          ],
+          [
+            246,
+            867
+          ],
+          [
+            248,
+            1282
+          ],
+          [
+            119,
+            1283
+          ]
+        ]
+      ],
+      "text": "",
+      "angle": 0,
+      "ocr_text": "只能找新社員了…拼死去找！",
+      "ocr_confidence": 0.0
+    },
+    {
+      "id": 1,
+      "bbox": [
+        1251,
+        315,
+        1368,
+        997
+      ],
+      "confidence": 0.7170000076293945,
+      "language": "ja",
+      "vertical": true,
+      "font_size": 117,
+      "lines": [
+        [
+          [
+            1251,
+            315
+          ],
+          [
+            1368,
+            315
+          ],
+          [
+            1368,
+            975
+          ],
+          [
+            1251,
+            975
+          ]
+        ]
+      ],
+      "text": "",
+      "angle": 0,
+      "ocr_text": "沒什麼怎麼辦的啦。",
+      "ocr_confidence": 0.0
+    }
+  ],
+  "ocr_results": {
+    "region_0": "只能找新社員了…拼死去找！",
+    "region_1": "沒什麼怎麼辦的啦。"
+  },
+  "detection_time": 0.698615550994873,
+  "ocr_time": 1.2930989265441895,
+  "model_info": {
+    "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
+    "device": "cuda",
+    "backend": "torch",
+    "ocr_enabled": true
+  },
+  "parameters": {
+    "input_size": 1536,
+    "conf_thresh": 0.4,
+    "nms_thresh": 0.35,
+    "mask_thresh": 0.3,
+    "allowed_languages": [
+      "zh",
+      "ja"
+    ]
+  },
+  "stats": {
+    "total_regions": 2,
+    "languages": [
+      "ja"
+    ],
+    "avg_confidence": 0.8154999911785126,
+    "avg_ocr_confidence": 0.0
+  }
+}
