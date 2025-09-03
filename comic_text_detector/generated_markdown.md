@@ -414,284 +414,84 @@ if __name__ == "__main__":
 
 # `src`
 
-## `core`
+## `api`
 
-### `basemodel.py`
+### `convenience.py`
 
 ```py
-# 修复后的 basemodel.py - 更新所有导入路径
+"""
+便捷函数和API接口
+"""
 
-from ..utils.general import CUDA, DEVICE
-from ..models.yolov5.yolo import Model
-import torch
-import cv2
-import numpy as np
-from src.models.yolov5.yolo import load_yolov5_ckpt  # 修复导入路径
-from src.utils.yolov5_utils import fuse_conv_and_bn  # 修复导入路径
-import glob
-import torch.nn as nn
-from src.utils.weight_init import init_weights  # 修复导入路径
-from src.models.yolov5.common import C3, Conv  # 修复导入路径
-from torchsummary import summary
-import torch.nn.functional as F
-import copy
+from typing import List, Optional, Union
+from pathlib import Path
 
-TEXTDET_MASK = 0
-TEXTDET_DET = 1
-TEXTDET_INFERENCE = 2
+from src.core.detector import ComicTextDetector
+from src.core.results import DetectionResults, ProjectResults
 
-class double_conv_up_c3(nn.Module):
-    def __init__(self, in_ch, mid_ch, out_ch, act=True):
-        super(double_conv_up_c3, self).__init__()
-        self.conv = nn.Sequential(
-        C3(in_ch+mid_ch, mid_ch, act=act),
-        nn.ConvTranspose2d(mid_ch, out_ch, kernel_size=4, stride = 2, padding=1, bias=False),
-        nn.BatchNorm2d(out_ch),
-        nn.ReLU(inplace=True),
-        )
 
-    def forward(self, x):
-        return self.conv(x)
-
-class double_conv_c3(nn.Module):
-    def __init__(self, in_ch, out_ch, stride=1, act=True):
-        super(double_conv_c3, self).__init__()
-        if stride > 1 :
-            self.down = nn.AvgPool2d(2,stride=2) if stride > 1 else None
-        self.conv = C3(in_ch, out_ch, act=act)
-
-    def forward(self, x):
-        if self.down is not None :
-            x = self.down(x)
-        x = self.conv(x)
-        return x
-
-class UnetHead(nn.Module):
-    def __init__(self, act=True) -> None:
-
-        super(UnetHead, self).__init__()
-        self.down_conv1 = double_conv_c3(512, 512, 2, act=act)
-        self.upconv0 = double_conv_up_c3(0, 512, 256, act=act)
-        self.upconv2 = double_conv_up_c3(256, 512, 256, act=act)
-        self.upconv3 = double_conv_up_c3(0, 512, 256, act=act)
-        self.upconv4 = double_conv_up_c3(128, 256, 128, act=act)
-        self.upconv5 = double_conv_up_c3(64, 128, 64, act=act)
-        self.upconv6 = nn.Sequential(
-            nn.ConvTranspose2d(64, 1, kernel_size=4, stride = 2, padding=1, bias=False),
-            nn.Sigmoid()
-        )
-
-    def forward(self, f160, f80, f40, f20, f3, forward_mode=TEXTDET_MASK):
-        # input: 640@3
-        d10 = self.down_conv1(f3) # 512@10
-        u20 = self.upconv0(d10)  # 256@10
-        u40 = self.upconv2(torch.cat([f20, u20], dim = 1)) # 256@40
-
-        if forward_mode == TEXTDET_DET:
-            return f80, f40, u40
-        else:
-            u80 = self.upconv3(torch.cat([f40, u40], dim = 1)) # 256@80
-            u160 = self.upconv4(torch.cat([f80, u80], dim = 1)) # 128@160
-            u320 = self.upconv5(torch.cat([f160, u160], dim = 1)) # 64@320
-            mask = self.upconv6(u320)
-            if forward_mode == TEXTDET_MASK:
-                return mask
-            else:
-                return mask, [f80, f40, u40]
-            
-    def init_weight(self, init_func):
-        self.apply(init_func)
-
-class DBHead(nn.Module):
-    def __init__(self, in_channels, k = 50, shrink_with_sigmoid=True, act=True):
-        super().__init__()
-        self.k = k
-        self.shrink_with_sigmoid = shrink_with_sigmoid
-        self.upconv3 = double_conv_up_c3(0, 512, 256, act=act)
-        self.upconv4 = double_conv_up_c3(128, 256, 128, act=act)
-        self.conv = nn.Sequential(
-            nn.Conv2d(128, in_channels, 1),
-            nn.BatchNorm2d(in_channels),
-            nn.ReLU(inplace=True)
-        )
-        self.binarize = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels // 4, 3, padding=1),
-            nn.BatchNorm2d(in_channels // 4),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(in_channels // 4, in_channels // 4, 2, 2),
-            nn.BatchNorm2d(in_channels // 4),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(in_channels // 4, 1, 2, 2)
-            )
-        self.thresh = self._init_thresh(in_channels)
-
-    def forward(self, f80, f40, u40, shrink_with_sigmoid=True, step_eval=False):
-        shrink_with_sigmoid = self.shrink_with_sigmoid
-        u80 = self.upconv3(torch.cat([f40, u40], dim = 1)) # 256@80
-        x = self.upconv4(torch.cat([f80, u80], dim = 1)) # 128@160
-        x = self.conv(x)
-        threshold_maps = self.thresh(x)
-        x = self.binarize(x)
-        shrink_maps = torch.sigmoid(x)
+def quick_detect_only(image_path: Union[str, Path], 
+                     model_path: Optional[str] = None,
+                     output_dir: Optional[str] = None,
+                     **kwargs) -> DetectionResults:
+    """
+    快速检测函数（仅检测，不OCR）
+    
+    Args:
+        image_path: 图片路径
+        model_path: 模型路径
+        output_dir: 输出目录
+        **kwargs: 检测参数
         
-        if self.training:
-            binary_maps = self.step_function(shrink_maps, threshold_maps)
-            if shrink_with_sigmoid:
-                return torch.cat((shrink_maps, threshold_maps, binary_maps), dim=1)
-            else:
-                return torch.cat((shrink_maps, threshold_maps, binary_maps, x), dim=1)
-        else:
-            if step_eval:
-                return self.step_function(shrink_maps, threshold_maps)
-            else:
-                return torch.cat((shrink_maps, threshold_maps), dim=1)
-
-    def init_weight(self, init_func):
-        self.apply(init_func)
-
-    def _init_thresh(self, inner_channels, serial=False, smooth=False, bias=False):
-        in_channels = inner_channels
-        if serial:
-            in_channels += 1
-        self.thresh = nn.Sequential(
-            nn.Conv2d(in_channels, inner_channels // 4, 3, padding=1, bias=bias),
-            nn.BatchNorm2d(inner_channels // 4),
-            nn.ReLU(inplace=True),
-            self._init_upsample(inner_channels // 4, inner_channels // 4, smooth=smooth, bias=bias),
-            nn.BatchNorm2d(inner_channels // 4),
-            nn.ReLU(inplace=True),
-            self._init_upsample(inner_channels // 4, 1, smooth=smooth, bias=bias),
-            nn.Sigmoid())
-        return self.thresh
-
-    def _init_upsample(self, in_channels, out_channels, smooth=False, bias=False):
-        if smooth:
-            inter_out_channels = out_channels
-            if out_channels == 1:
-                inter_out_channels = in_channels
-            module_list = [
-                nn.Upsample(scale_factor=2, mode='nearest'),
-                nn.Conv2d(in_channels, inter_out_channels, 3, 1, 1, bias=bias)]
-            if out_channels == 1:
-                module_list.append(nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=1, bias=True))
-            return nn.Sequential(module_list)
-        else:
-            return nn.ConvTranspose2d(in_channels, out_channels, 2, 2)
-
-    def step_function(self, x, y):
-        return torch.reciprocal(1 + torch.exp(-self.k * (x - y)))
-
-class TextDetector(nn.Module):
-    def __init__(self, weights, map_location='cpu', forward_mode=TEXTDET_MASK, act=True):
-        super(TextDetector, self).__init__()
-
-        yolov5s_backbone = load_yolov5_ckpt(weights=weights, map_location=map_location)
-        yolov5s_backbone.eval()
-        out_indices = [1, 3, 5, 7, 9]
-        yolov5s_backbone.out_indices = out_indices
-        yolov5s_backbone.model = yolov5s_backbone.model[:max(out_indices)+1]
-        self.act = act
-        self.seg_net = UnetHead(act=act)
-        self.backbone = yolov5s_backbone
-        self.dbnet = None
-        self.forward_mode = forward_mode
-
-    def train_mask(self):
-        self.forward_mode = TEXTDET_MASK
-        self.backbone.eval()
-        self.seg_net.train()
-
-    def initialize_db(self, unet_weights):
-        self.dbnet = DBHead(64, act=self.act)
-        self.seg_net.load_state_dict(torch.load(unet_weights, map_location='cpu')['weights'])
-        self.dbnet.init_weight(init_weights)
-        self.dbnet.upconv3 = copy.deepcopy(self.seg_net.upconv3)
-        self.dbnet.upconv4 = copy.deepcopy(self.seg_net.upconv4)
-        del self.seg_net.upconv3
-        del self.seg_net.upconv4
-        del self.seg_net.upconv5
-        del self.seg_net.upconv6
-        # del self.seg_net.conv_mask
+    Returns:
+        DetectionResults: 检测结果
+    """
+    detector = ComicTextDetector(model_path=model_path, enable_ocr=False, **kwargs)
+    results = detector.detect_only(image_path)
     
-    def train_db(self):
-        self.forward_mode = TEXTDET_DET
-        self.backbone.eval()
-        self.seg_net.eval()
-        self.dbnet.train()
-
-    def forward(self, x):
-        forward_mode = self.forward_mode
-        with torch.no_grad():
-            outs = self.backbone(x)
-        if forward_mode == TEXTDET_MASK:
-            return self.seg_net(*outs, forward_mode=forward_mode)
-        elif forward_mode == TEXTDET_DET:
-            with torch.no_grad():
-                outs = self.seg_net(*outs, forward_mode=forward_mode)
-            return self.dbnet(*outs)
-
-def get_base_det_models(model_path, device='cpu', half=False, act='leaky'):
-    textdetector_dict = torch.load(model_path, map_location=device)
-    blk_det = load_yolov5_ckpt(textdetector_dict['blk_det'], map_location=device)
-    text_seg = UnetHead(act=act)
-    text_seg.load_state_dict(textdetector_dict['text_seg'])
-    text_det = DBHead(64, act=act)
-    text_det.load_state_dict(textdetector_dict['text_det'])
-    if half:
-        return blk_det.eval().half(), text_seg.eval().half(), text_det.eval().half()
-    return blk_det.eval().to(device), text_seg.eval().to(device), text_det.eval().to(device)
-
-class TextDetBase(nn.Module):
-    def __init__(self, model_path, device='cpu', half=False, fuse=False, act='leaky'):
-        super(TextDetBase, self).__init__()
-        self.blk_det, self.text_seg, self.text_det = get_base_det_models(model_path, device, half, act=act)
-        if fuse:
-            self.fuse()
-
-    def fuse(self):
-        def _fuse(model):
-            for m in model.modules():
-                if isinstance(m, (Conv)) and hasattr(m, 'bn'):
-                    m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
-                    delattr(m, 'bn')  # remove batchnorm
-                    m.forward = m.forward_fuse  # update forward
-            return model
-        self.text_seg = _fuse(self.text_seg)
-        self.text_det = _fuse(self.text_det)
-
-    def forward(self, features):
-        blks, features = self.blk_det(features, detect=True)
-        mask, features = self.text_seg(*features, forward_mode=TEXTDET_INFERENCE)
-        lines = self.text_det(*features, step_eval=False)
-        return blks[0], mask, lines
-
-class TextDetBaseDNN:
-    def __init__(self, input_size, model_path):
-        self.input_size = input_size
-        self.model = cv2.dnn.readNetFromONNX(model_path)
-        self.uoln = self.model.getUnconnectedOutLayersNames()
+    if output_dir:
+        detector.save_results(results, output_dir)
     
-    def __call__(self, im_in):
-        blob = cv2.dnn.blobFromImage(im_in, scalefactor=1 / 255.0, size=(self.input_size, self.input_size))
-        self.model.setInput(blob)
-        blks, mask, lines_map  = self.model.forward(self.uoln)
-        return blks, mask, lines_map
+    return results
 
-if __name__ == '__main__':
-    device = 'cuda'
-    weights = r'data/yolov5sblk.ckpt'
 
-    # yolov5s_backbone = load_yolov5_ckpt(weights=weights, map_location='cpu')
-
-    model = TextDetector(weights, map_location=DEVICE)
-    model.to(DEVICE)
-    model.train_mask()
-    summary(model, (3, 640, 640), device=DEVICE)
-
-    # model.initialize_db(unet_weights='data/unet_head.pt')
-    # model.train_db()
-    # summary(model, (3, 640, 640), device=DEVICE)
+def batch_process_project(image_files: List[str], 
+                         project_name: str,
+                         output_dir: str,
+                         model_path: Optional[str] = None,
+                         include_ocr: bool = True,
+                         **kwargs) -> ProjectResults:
+    """
+    批量处理项目的便捷函数
+    
+    Args:
+        image_files: 图片文件列表
+        project_name: 项目名称
+        output_dir: 输出目录
+        model_path: 模型路径
+        include_ocr: 是否包含OCR
+        **kwargs: 其他检测参数
+        
+    Returns:
+        ProjectResults: 项目结果对象
+    """
+    detector = ComicTextDetector(model_path=model_path, enable_ocr=include_ocr, **kwargs)
+    return detector.batch_process_project(image_files, project_name, output_dir, include_ocr)
 ```
+
+### `__init__.py`
+
+```py
+"""
+API接口模块
+"""
+
+from .convenience import quick_detect_only, batch_process_project
+
+__all__ = ['quick_detect_only', 'batch_process_project']
+```
+
+## `core`
 
 ### `detector.py`
 
@@ -713,6 +513,10 @@ from src.utils.textmask import refine_mask, refine_undetected_mask, REFINEMASK_A
 from src.utils.io_utils import imread, imwrite, NumpyEncoder
 from src.utils.textblock import TextBlock, visualize_textblocks
 from config.config import Config
+from src.utils.detection_utils import filter_and_merge_boxes
+from src.processors.ocr_processor import OCRProcessor
+from src.core.results import DetectionResults, ProjectResults
+
 
 # OCR相关导入
 try:
@@ -722,401 +526,6 @@ except ImportError:
     print("Warning: PaddleX not available. OCR功能将被禁用。")
     print("请安装PaddleX: pip install paddlex")
     PADDLEX_AVAILABLE = False
-
-def calculate_containment_ratio(box_small, box_large):
-    """计算小框在大框中的包含比例"""
-    x1, y1, x2, y2 = box_small
-    x1_2, y1_2, x2_2, y2_2 = box_large
-    
-    # 计算交集
-    inter_x1 = max(x1, x1_2)
-    inter_y1 = max(y1, y1_2)
-    inter_x2 = min(x2, x2_2)
-    inter_y2 = min(y2, y2_2)
-    
-    if inter_x1 >= inter_x2 or inter_y1 >= inter_y2:
-        return 0.0
-    
-    inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
-    small_area = (x2 - x1) * (y2 - y1)
-    
-    return inter_area / small_area if small_area > 0 else 0.0
-
-def filter_and_merge_boxes(text_regions, config_params):
-    """过滤和合并检测框"""
-    if not config_params.get('enable_box_filter', True):
-        return text_regions
-    
-    min_box_width = config_params.get('min_box_width', 10)
-    min_box_height = config_params.get('min_box_height', 10)
-    containment_thresh = config_params.get('containment_thresh', 0.8)
-    
-    print(f"开始框处理，共有{len(text_regions)}个框")
-    
-    # 1. 过滤小框
-    filtered_regions = []
-    for i, region in enumerate(text_regions):
-        x1, y1, x2, y2 = region['bbox']
-        width = x2 - x1
-        height = y2 - y1
-        print(f"框{i}: 位置[{x1},{y1},{x2},{y2}], 尺寸{width}x{height}")
-        
-        if width >= min_box_width or height >= min_box_height:
-            filtered_regions.append(region)
-        else:
-            print(f"过滤掉小框{i}")
-    
-    if len(filtered_regions) <= 1:
-        print("框数量<=1，无需合并")
-        return filtered_regions
-    
-    # 2. 处理包含关系
-    to_remove = set()
-    for i in range(len(filtered_regions)):
-        if i in to_remove:
-            continue
-        for j in range(len(filtered_regions)):
-            if i == j or j in to_remove:
-                continue
-            
-            box_i = filtered_regions[i]['bbox']
-            box_j = filtered_regions[j]['bbox']
-            
-            containment_i_in_j = calculate_containment_ratio(box_i, box_j)
-            if containment_i_in_j > containment_thresh:
-                to_remove.add(i)
-                print(f"移除被包含的框{i}: 包含比例{containment_i_in_j:.3f}")
-                break
-    
-    # 移除被包含的框
-    filtered_regions = [region for i, region in enumerate(filtered_regions) if i not in to_remove]
-    print(f"包含关系处理后，剩余{len(filtered_regions)}个框")
-
-    return filtered_regions
-
-class OCRProcessor:
-    """OCR处理器类"""
-    
-    def __init__(self, enable_ocr=True):
-        self.enable_ocr = enable_ocr and PADDLEX_AVAILABLE
-        self.ocr_pipeline = None
-        
-        if self.enable_ocr:
-            try:
-                self.ocr_pipeline = create_pipeline(pipeline="OCR")
-                print("OCR pipeline 初始化成功")
-            except Exception as e:
-                print(f"OCR pipeline 初始化失败: {e}")
-                self.enable_ocr = False
-    
-    def extract_text_region(self, image: np.ndarray, bbox: List[int]) -> np.ndarray:
-        """从图像中提取文本区域"""
-        x1, y1, x2, y2 = bbox
-        # 确保坐标在图像范围内
-        h, w = image.shape[:2]
-        x1 = max(0, min(x1, w-1))
-        y1 = max(0, min(y1, h-1))
-        x2 = max(x1+1, min(x2, w))
-        y2 = max(y1+1, min(y2, h))
-        
-        region = image[y1:y2, x1:x2]
-        return region
-    
-    def process_text_regions(self, image: np.ndarray, text_regions: List[Dict]) -> Dict[str, str]:
-        """处理所有文本区域并进行OCR识别"""
-        ocr_results = {}
-        
-        if not self.enable_ocr:
-            print("OCR功能未启用，跳过文本识别")
-            return ocr_results
-        
-        print(f"开始OCR处理，共有{len(text_regions)}个文本区域")
-        
-        for i, region in enumerate(text_regions):
-            try:
-                # 提取文本区域图像
-                bbox = region['bbox']
-                text_region = self.extract_text_region(image, bbox)
-                
-                if text_region.size == 0:
-                    print(f"区域{i}为空，跳过OCR")
-                    continue
-                
-                # 执行OCR
-                ocr_result = self.ocr_pipeline.predict(
-                    input=text_region,
-                    use_doc_orientation_classify=False,
-                    use_doc_unwarping=False,
-                    use_textline_orientation=True,
-                )
-                
-                # 处理OCR结果
-                recognized_text = self._parse_ocr_result(ocr_result, region.get('language', 'unknown'))
-                
-                # 存储结果
-                region_key = f"region_{i}"
-                ocr_results[region_key] = recognized_text
-                
-                # 更新region信息
-                region['ocr_text'] = recognized_text
-                region['ocr_confidence'] = self._calculate_average_confidence(ocr_result)
-                
-                print(f"区域{i}OCR结果: {recognized_text[:50]}...")
-                
-            except Exception as e:
-                print(f"区域{i}OCR处理失败: {e}")
-                region_key = f"region_{i}"
-                ocr_results[region_key] = ""
-                region['ocr_text'] = ""
-                region['ocr_confidence'] = 0.0
-        
-        return ocr_results
-    
-    def _parse_ocr_result(self, ocr_result, language='unknown') -> str:
-        """解析OCR结果"""
-        try:
-            texts = []
-            for result in ocr_result:
-                if 'rec_texts' in result:
-                    rec_texts = result['rec_texts']
-                    boxes = result.get('rec_boxes', [])
-                    
-                    # 安全检查：确保数据存在且不为空
-                    if (rec_texts is not None and len(rec_texts) > 0 and 
-                        boxes is not None and len(boxes) > 0):
-                        
-                        # 确保文本和框的数量匹配
-                        min_len = min(len(rec_texts), len(boxes))
-                        if min_len > 0:
-                            # 创建文本和坐标的配对列表
-                            text_box_pairs = list(zip(rec_texts[:min_len], boxes[:min_len]))
-                            
-                            # 根据语言类型排序
-                            if language == 'ja':  # 日文从右到左
-                                try:
-                                    sorted_pairs = sorted(text_box_pairs, 
-                                                        key=lambda pair: float(pair[1][0]) if len(pair[1]) > 0 else 0, 
-                                                        reverse=True)
-                                except (IndexError, TypeError, ValueError):
-                                    # 如果排序失败，使用原始顺序
-                                    sorted_pairs = text_box_pairs
-                            else:  # 其他语言从左到右
-                                try:
-                                    sorted_pairs = sorted(text_box_pairs, 
-                                                        key=lambda pair: float(pair[1][0]) if len(pair[1]) > 0 else 0)
-                                except (IndexError, TypeError, ValueError):
-                                    # 如果排序失败，使用原始顺序
-                                    sorted_pairs = text_box_pairs
-                            
-                            # 提取排序后的文本
-                            sorted_texts = [str(pair[0]) for pair in sorted_pairs if pair[0]]
-                            texts.extend(sorted_texts)
-            
-            return "".join(texts)
-            
-        except Exception as e:
-            print(f"解析OCR结果失败: {e}")
-            import traceback
-            print(f"详细错误信息: {traceback.format_exc()}")
-            return ""
-    
-    def _calculate_average_confidence(self, ocr_result) -> float:
-        """计算平均置信度"""
-        try:
-            confidences = []
-            for result in ocr_result:
-                if 'rec_scores' in result:
-                    confidences.extend(result['rec_scores'])
-            
-            return float(np.mean(confidences)) if confidences else 0.0
-            
-        except Exception:
-            return 0.0
-
-class DetectionResults:
-    """检测结果类"""
-    
-    def __init__(self, image_path: str, original_image: np.ndarray):
-        self.image_path = image_path
-        self.original_image = original_image
-        self.image_name = Path(image_path).stem
-        
-        # 检测结果
-        self.text_regions: List[Dict] = []
-        self.text_blocks: List[TextBlock] = []
-        self.text_mask: Optional[np.ndarray] = None
-        self.refined_mask: Optional[np.ndarray] = None
-        self.result_image: Optional[np.ndarray] = None
-        
-        # OCR结果
-        self.ocr_results: Dict[str, str] = {}
-        self.has_ocr_results: bool = False
-        
-        # 元数据
-        self.detection_time: float = 0.0
-        self.ocr_time: float = 0.0
-        self.model_info: Dict[str, Any] = {}
-        self.parameters: Dict[str, Any] = {}
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """转换为字典格式"""
-        return {
-            'image_path': self.image_path,
-            'image_name': self.image_name,
-            'text_regions': self.text_regions,
-            'ocr_results': self.ocr_results,
-            'has_ocr_results': self.has_ocr_results,
-            'detection_time': self.detection_time,
-            'ocr_time': self.ocr_time,
-            'model_info': self.model_info,
-            'parameters': self.parameters,
-            'stats': {
-                'total_regions': len(self.text_regions),
-                'languages': list(set(r.get('language', 'unknown') for r in self.text_regions)),
-                'avg_confidence': np.mean([r.get('confidence', 0) for r in self.text_regions]) if self.text_regions else 0,
-                'avg_ocr_confidence': np.mean([r.get('ocr_confidence', 0) for r in self.text_regions if 'ocr_confidence' in r]) if self.text_regions else 0
-            }
-        }
-
-class ProjectResults:
-    """项目结果管理器"""
-    
-    def __init__(self, project_name: str):
-        self.project_name = project_name
-        self.detection_results: List[DetectionResults] = []
-        self.processing_start_time = time.time()
-        self.total_processing_time = 0.0
-    
-    def add_result(self, result: DetectionResults):
-        """添加单个检测结果"""
-        self.detection_results.append(result)
-    
-    def get_project_ocr_results(self) -> Dict[str, Dict[str, str]]:
-        """获取整个项目的OCR结果 - 按区域分组格式"""
-        project_ocr = {}
-        for result in self.detection_results:
-            if result.has_ocr_results and result.ocr_results:
-                # 保持区域分离的格式
-                image_ocr = {}
-                for region_key, text in result.ocr_results.items():
-                    if text.strip():  # 只保存非空文本
-                        # 将 region_0 格式转换为 区域0 格式
-                        if region_key.startswith("region_"):
-                            region_num = region_key.split("_")[1]
-                            display_key = f"区域{region_num}"
-                        else:
-                            display_key = region_key
-                        
-                        image_ocr[display_key] = text.strip()
-                
-                project_ocr[result.image_name] = image_ocr
-            else:
-                # 没有OCR结果的图片设为空字典
-                project_ocr[result.image_name] = {}
-        
-        return project_ocr
-
-    def get_project_detection_results(self) -> Dict[str, Any]:
-        """获取整个项目的检测结果摘要"""
-        project_results = {
-            'project_name': self.project_name,
-            'total_images': len(self.detection_results),
-            'processing_time': self.total_processing_time,
-            'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
-            'images': []
-        }
-        
-        for result in self.detection_results:
-            image_summary = {
-                'image_name': result.image_name,
-                'image_path': result.image_path,
-                'text_regions_count': len(result.text_regions),
-                'detection_time': result.detection_time,
-                'ocr_time': result.ocr_time,
-                'has_ocr': result.has_ocr_results,
-                'languages': list(set(r.get('language', 'unknown') for r in result.text_regions)),
-                'avg_confidence': np.mean([r.get('confidence', 0) for r in result.text_regions]) if result.text_regions else 0
-            }
-            project_results['images'].append(image_summary)
-        
-        # 计算项目统计信息
-        project_results['stats'] = {
-            'total_regions': sum(len(r.text_regions) for r in self.detection_results),
-            'images_with_ocr': sum(1 for r in self.detection_results if r.has_ocr_results),
-            'avg_regions_per_image': np.mean([len(r.text_regions) for r in self.detection_results]) if self.detection_results else 0,
-            'total_detection_time': sum(r.detection_time for r in self.detection_results),
-            'total_ocr_time': sum(r.ocr_time for r in self.detection_results),
-            'languages_detected': list(set(lang for r in self.detection_results for region in r.text_regions for lang in [region.get('language', 'unknown')]))
-        }
-        
-        return project_results
-    
-    def save_to_directory(self, base_output_dir: Union[str, Path], output_params: Dict[str, Any]):
-        """保存整个项目的结果到指定目录"""
-        base_output_dir = Path(base_output_dir)
-        project_dir = base_output_dir / self.project_name
-        project_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 创建子文件夹
-        if output_params.get('save_image', True):
-            result_images_dir = project_dir / "result_images"
-            result_images_dir.mkdir(exist_ok=True)
-        
-        if output_params.get('save_mask', True):
-            masks_dir = project_dir / "masks"
-            masks_dir.mkdir(exist_ok=True)
-        
-        saved_files = []
-        
-        # 保存每张图片的结果
-        for result in self.detection_results:
-            base_name = result.image_name
-            
-            # 保存结果图片
-            if output_params.get('save_image', True) and result.result_image is not None:
-                result_path = result_images_dir / f"{base_name}_result.{output_params.get('image_format', 'jpg')}"
-                imwrite(str(result_path), result.result_image)
-                saved_files.append(str(result_path))
-            
-            # 保存掩码
-            if output_params.get('save_mask', True) and result.refined_mask is not None:
-                mask_path = masks_dir / f"{base_name}_mask.{output_params.get('mask_format', 'png')}"
-                imwrite(str(mask_path), result.refined_mask)
-                saved_files.append(str(mask_path))
-        
-        # 保存项目级别的JSON结果
-        if output_params.get('save_json', True):
-            # 保存检测结果摘要
-            project_results = self.get_project_detection_results()
-            result_json_path = project_dir / "detection_results.json"
-            with open(result_json_path, 'w', encoding='utf-8') as f:
-                json.dump(project_results, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
-            saved_files.append(str(result_json_path))
-
-            # 保存OCR结果（如果有）
-            project_ocr = self.get_project_ocr_results()
-            # 检查是否有任何图片包含OCR文本
-            has_ocr_results = any(
-                any(text.strip() for text in image_regions.values()) 
-                for image_regions in project_ocr.values() 
-                if image_regions
-            )
-
-            if has_ocr_results:
-                ocr_json_path = project_dir / "ocr_results.json"
-                with open(ocr_json_path, 'w', encoding='utf-8') as f:
-                    json.dump(project_ocr, f, ensure_ascii=False, indent=2)
-                saved_files.append(str(ocr_json_path))           
-        
-        self.total_processing_time = time.time() - self.processing_start_time
-        
-        print(f"\n项目 '{self.project_name}' 处理完成:")
-        print(f"- 处理图片数: {len(self.detection_results)}")
-        print(f"- 总处理时间: {self.total_processing_time:.2f}s")
-        print(f"- 输出目录: {project_dir}")
-        print(f"- 保存文件数: {len(saved_files)}")
-        
-        return project_dir
 
 class ComicTextDetector:
     """漫画文本检测器主类 - 分离的检测和OCR功能"""
@@ -1842,6 +1251,210 @@ if __name__ == '__main__':
     traverse_by_dict(img_dir, save_dir)
 ```
 
+### `results.py`
+
+```py
+"""
+检测结果管理模块
+"""
+
+import time
+import json
+import numpy as np
+from pathlib import Path
+from typing import List, Dict, Any, Union
+
+from src.utils.io_utils import imwrite, NumpyEncoder
+from src.utils.textblock import TextBlock
+
+
+class DetectionResults:
+    """检测结果类"""
+    
+    def __init__(self, image_path: str, original_image: np.ndarray):
+        self.image_path = image_path
+        self.original_image = original_image
+        self.image_name = Path(image_path).stem
+        
+        # 检测结果
+        self.text_regions: List[Dict] = []
+        self.text_blocks: List[TextBlock] = []
+        self.text_mask: np.ndarray = None
+        self.refined_mask: np.ndarray = None
+        self.result_image: np.ndarray = None
+        
+        # OCR结果
+        self.ocr_results: Dict[str, str] = {}
+        self.has_ocr_results: bool = False
+        
+        # 元数据
+        self.detection_time: float = 0.0
+        self.ocr_time: float = 0.0
+        self.model_info: Dict[str, Any] = {}
+        self.parameters: Dict[str, Any] = {}
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式"""
+        return {
+            'image_path': self.image_path,
+            'image_name': self.image_name,
+            'text_regions': self.text_regions,
+            'ocr_results': self.ocr_results,
+            'has_ocr_results': self.has_ocr_results,
+            'detection_time': self.detection_time,
+            'ocr_time': self.ocr_time,
+            'model_info': self.model_info,
+            'parameters': self.parameters,
+            'stats': {
+                'total_regions': len(self.text_regions),
+                'languages': list(set(r.get('language', 'unknown') for r in self.text_regions)),
+                'avg_confidence': np.mean([r.get('confidence', 0) for r in self.text_regions]) if self.text_regions else 0,
+                'avg_ocr_confidence': np.mean([r.get('ocr_confidence', 0) for r in self.text_regions if 'ocr_confidence' in r]) if self.text_regions else 0
+            }
+        }
+
+
+class ProjectResults:
+    """项目结果管理器"""
+    
+    def __init__(self, project_name: str):
+        self.project_name = project_name
+        self.detection_results: List[DetectionResults] = []
+        self.processing_start_time = time.time()
+        self.total_processing_time = 0.0
+    
+    def add_result(self, result: DetectionResults):
+        """添加单个检测结果"""
+        self.detection_results.append(result)
+    
+    def get_project_ocr_results(self) -> Dict[str, Dict[str, str]]:
+        """获取整个项目的OCR结果 - 按区域分组格式"""
+        project_ocr = {}
+        for result in self.detection_results:
+            if result.has_ocr_results and result.ocr_results:
+                # 保持区域分离的格式
+                image_ocr = {}
+                for region_key, text in result.ocr_results.items():
+                    if text.strip():  # 只保存非空文本
+                        # 将 region_0 格式转换为 区域0 格式
+                        if region_key.startswith("region_"):
+                            region_num = region_key.split("_")[1]
+                            display_key = f"区域{region_num}"
+                        else:
+                            display_key = region_key
+                        
+                        image_ocr[display_key] = text.strip()
+                
+                project_ocr[result.image_name] = image_ocr
+            else:
+                # 没有OCR结果的图片设为空字典
+                project_ocr[result.image_name] = {}
+        
+        return project_ocr
+
+    def get_project_detection_results(self) -> Dict[str, Any]:
+        """获取整个项目的检测结果摘要"""
+        project_results = {
+            'project_name': self.project_name,
+            'total_images': len(self.detection_results),
+            'processing_time': self.total_processing_time,
+            'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'images': []
+        }
+        
+        for result in self.detection_results:
+            image_summary = {
+                'image_name': result.image_name,
+                'image_path': result.image_path,
+                'text_regions_count': len(result.text_regions),
+                'detection_time': result.detection_time,
+                'ocr_time': result.ocr_time,
+                'has_ocr': result.has_ocr_results,
+                'languages': list(set(r.get('language', 'unknown') for r in result.text_regions)),
+                'avg_confidence': np.mean([r.get('confidence', 0) for r in result.text_regions]) if result.text_regions else 0
+            }
+            project_results['images'].append(image_summary)
+        
+        # 计算项目统计信息
+        project_results['stats'] = {
+            'total_regions': sum(len(r.text_regions) for r in self.detection_results),
+            'images_with_ocr': sum(1 for r in self.detection_results if r.has_ocr_results),
+            'avg_regions_per_image': np.mean([len(r.text_regions) for r in self.detection_results]) if self.detection_results else 0,
+            'total_detection_time': sum(r.detection_time for r in self.detection_results),
+            'total_ocr_time': sum(r.ocr_time for r in self.detection_results),
+            'languages_detected': list(set(lang for r in self.detection_results for region in r.text_regions for lang in [region.get('language', 'unknown')]))
+        }
+        
+        return project_results
+    
+    def save_to_directory(self, base_output_dir: Union[str, Path], output_params: Dict[str, Any]):
+        """保存整个项目的结果到指定目录"""
+        base_output_dir = Path(base_output_dir)
+        project_dir = base_output_dir / self.project_name
+        project_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 创建子文件夹
+        if output_params.get('save_image', True):
+            result_images_dir = project_dir / "result_images"
+            result_images_dir.mkdir(exist_ok=True)
+        
+        if output_params.get('save_mask', True):
+            masks_dir = project_dir / "masks"
+            masks_dir.mkdir(exist_ok=True)
+        
+        saved_files = []
+        
+        # 保存每张图片的结果
+        for result in self.detection_results:
+            base_name = result.image_name
+            
+            # 保存结果图片
+            if output_params.get('save_image', True) and result.result_image is not None:
+                result_path = result_images_dir / f"{base_name}_result.{output_params.get('image_format', 'jpg')}"
+                imwrite(str(result_path), result.result_image)
+                saved_files.append(str(result_path))
+            
+            # 保存掩码
+            if output_params.get('save_mask', True) and result.refined_mask is not None:
+                mask_path = masks_dir / f"{base_name}_mask.{output_params.get('mask_format', 'png')}"
+                imwrite(str(mask_path), result.refined_mask)
+                saved_files.append(str(mask_path))
+        
+        # 保存项目级别的JSON结果
+        if output_params.get('save_json', True):
+            # 保存检测结果摘要
+            project_results = self.get_project_detection_results()
+            result_json_path = project_dir / "detection_results.json"
+            with open(result_json_path, 'w', encoding='utf-8') as f:
+                json.dump(project_results, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
+            saved_files.append(str(result_json_path))
+
+            # 保存OCR结果（如果有）
+            project_ocr = self.get_project_ocr_results()
+            # 检查是否有任何图片包含OCR文本
+            has_ocr_results = any(
+                any(text.strip() for text in image_regions.values()) 
+                for image_regions in project_ocr.values() 
+                if image_regions
+            )
+
+            if has_ocr_results:
+                ocr_json_path = project_dir / "ocr_results.json"
+                with open(ocr_json_path, 'w', encoding='utf-8') as f:
+                    json.dump(project_ocr, f, ensure_ascii=False, indent=2)
+                saved_files.append(str(ocr_json_path))           
+        
+        self.total_processing_time = time.time() - self.processing_start_time
+        
+        print(f"\n项目 '{self.project_name}' 处理完成:")
+        print(f"- 处理图片数: {len(self.detection_results)}")
+        print(f"- 总处理时间: {self.total_processing_time:.2f}s")
+        print(f"- 输出目录: {project_dir}")
+        print(f"- 保存文件数: {len(saved_files)}")
+        
+        return project_dir
+```
+
 ### `__init__.py`
 
 ```py
@@ -1850,627 +1463,185 @@ if __name__ == '__main__':
 
 ## `models`
 
-### `yolov5`
-
-#### `common.py`
+### `__init__.py`
 
 ```py
-# YOLOv5 🚀 by Ultralytics, GPL-3.0 license
+
+```
+
+## `processors`
+
+### `ocr_processor.py`
+
+```py
 """
-Common modules
+OCR处理器模块
 """
 
-import json
-import math
-import platform
-import warnings
-from collections import OrderedDict, namedtuple
-from copy import copy
+import numpy as np
+from typing import List, Dict, Any
 from pathlib import Path
 
-import cv2
-import numpy as np
-import requests
-import torch
-import torch.nn as nn
-from PIL import Image
-from torch.cuda import amp
-
-# 修复导入路径
-from src.utils.yolov5_utils import make_divisible, initialize_weights, check_anchor_order, check_version, fuse_conv_and_bn
-
-def autopad(k, p=None):  # kernel, padding
-    # Pad to 'same'
-    if p is None:
-        p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
-    return p
-
-class Conv(nn.Module):
-    # Standard convolution
-    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
-        super().__init__()
-        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=False)
-        self.bn = nn.BatchNorm2d(c2)
-        if isinstance(act, bool):
-            self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Module) else nn.Identity())
-        elif isinstance(act, str):
-            if act == 'leaky':
-                self.act = nn.LeakyReLU(0.1, inplace=True)
-            elif act == 'relu':
-                self.act = nn.ReLU(inplace=True)
-            else:
-                self.act = None
-    def forward(self, x):
-        return self.act(self.bn(self.conv(x)))
-
-    def forward_fuse(self, x):
-        return self.act(self.conv(x))
-
-
-class DWConv(Conv):
-    # Depth-wise convolution class
-    def __init__(self, c1, c2, k=1, s=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
-        super().__init__(c1, c2, k, s, g=math.gcd(c1, c2), act=act)
-
-
-class TransformerLayer(nn.Module):
-    # Transformer layer https://arxiv.org/abs/2010.11929 (LayerNorm layers removed for better performance)
-    def __init__(self, c, num_heads):
-        super().__init__()
-        self.q = nn.Linear(c, c, bias=False)
-        self.k = nn.Linear(c, c, bias=False)
-        self.v = nn.Linear(c, c, bias=False)
-        self.ma = nn.MultiheadAttention(embed_dim=c, num_heads=num_heads)
-        self.fc1 = nn.Linear(c, c, bias=False)
-        self.fc2 = nn.Linear(c, c, bias=False)
-
-    def forward(self, x):
-        x = self.ma(self.q(x), self.k(x), self.v(x))[0] + x
-        x = self.fc2(self.fc1(x)) + x
-        return x
-
-
-class TransformerBlock(nn.Module):
-    # Vision Transformer https://arxiv.org/abs/2010.11929
-    def __init__(self, c1, c2, num_heads, num_layers):
-        super().__init__()
-        self.conv = None
-        if c1 != c2:
-            self.conv = Conv(c1, c2)
-        self.linear = nn.Linear(c2, c2)  # learnable position embedding
-        self.tr = nn.Sequential(*(TransformerLayer(c2, num_heads) for _ in range(num_layers)))
-        self.c2 = c2
-
-    def forward(self, x):
-        if self.conv is not None:
-            x = self.conv(x)
-        b, _, w, h = x.shape
-        p = x.flatten(2).permute(2, 0, 1)
-        return self.tr(p + self.linear(p)).permute(1, 2, 0).reshape(b, self.c2, w, h)
-
-
-class Bottleneck(nn.Module):
-    # Standard bottleneck
-    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5, act=True):  # ch_in, ch_out, shortcut, groups, expansion
-        super().__init__()
-        c_ = int(c2 * e)  # hidden channels
-        self.cv1 = Conv(c1, c_, 1, 1, act=act)
-        self.cv2 = Conv(c_, c2, 3, 1, g=g, act=act)
-        self.add = shortcut and c1 == c2
-
-    def forward(self, x):
-        return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
-
-
-class BottleneckCSP(nn.Module):
-    # CSP Bottleneck https://github.com/WongKinYiu/CrossStagePartialNetworks
-    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
-        super().__init__()
-        c_ = int(c2 * e)  # hidden channels
-        self.cv1 = Conv(c1, c_, 1, 1)
-        self.cv2 = nn.Conv2d(c1, c_, 1, 1, bias=False)
-        self.cv3 = nn.Conv2d(c_, c_, 1, 1, bias=False)
-        self.cv4 = Conv(2 * c_, c2, 1, 1)
-        self.bn = nn.BatchNorm2d(2 * c_)  # applied to cat(cv2, cv3)
-        self.act = nn.SiLU()
-        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
-
-    def forward(self, x):
-        y1 = self.cv3(self.m(self.cv1(x)))
-        y2 = self.cv2(x)
-        return self.cv4(self.act(self.bn(torch.cat((y1, y2), dim=1))))
-
-
-class C3(nn.Module):
-    # CSP Bottleneck with 3 convolutions
-    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5, act=True):  # ch_in, ch_out, number, shortcut, groups, expansion
-        super().__init__()
-        c_ = int(c2 * e)  # hidden channels
-        self.cv1 = Conv(c1, c_, 1, 1, act=act)
-        self.cv2 = Conv(c1, c_, 1, 1, act=act)
-        self.cv3 = Conv(2 * c_, c2, 1, act=act)  # act=FReLU(c2)
-        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, e=1.0, act=act) for _ in range(n)))
-        # self.m = nn.Sequential(*[CrossConv(c_, c_, 3, 1, g, 1.0, shortcut) for _ in range(n)])
-
-    def forward(self, x):
-        return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
-
-
-class C3TR(C3):
-    # C3 module with TransformerBlock()
-    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
-        super().__init__(c1, c2, n, shortcut, g, e)
-        c_ = int(c2 * e)
-        self.m = TransformerBlock(c_, c_, 4, n)
-
-
-class C3SPP(C3):
-    # C3 module with SPP()
-    def __init__(self, c1, c2, k=(5, 9, 13), n=1, shortcut=True, g=1, e=0.5):
-        super().__init__(c1, c2, n, shortcut, g, e)
-        c_ = int(c2 * e)
-        self.m = SPP(c_, c_, k)
-
-
-class C3Ghost(C3):
-    # C3 module with GhostBottleneck()
-    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
-        super().__init__(c1, c2, n, shortcut, g, e)
-        c_ = int(c2 * e)  # hidden channels
-        self.m = nn.Sequential(*(GhostBottleneck(c_, c_) for _ in range(n)))
-
-
-class SPP(nn.Module):
-    # Spatial Pyramid Pooling (SPP) layer https://arxiv.org/abs/1406.4729
-    def __init__(self, c1, c2, k=(5, 9, 13)):
-        super().__init__()
-        c_ = c1 // 2  # hidden channels
-        self.cv1 = Conv(c1, c_, 1, 1)
-        self.cv2 = Conv(c_ * (len(k) + 1), c2, 1, 1)
-        self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in k])
-
-    def forward(self, x):
-        x = self.cv1(x)
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')  # suppress torch 1.9.0 max_pool2d() warning
-            return self.cv2(torch.cat([x] + [m(x) for m in self.m], 1))
-
-
-class SPPF(nn.Module):
-    # Spatial Pyramid Pooling - Fast (SPPF) layer for YOLOv5 by Glenn Jocher
-    def __init__(self, c1, c2, k=5):  # equivalent to SPP(k=(5, 9, 13))
-        super().__init__()
-        c_ = c1 // 2  # hidden channels
-        self.cv1 = Conv(c1, c_, 1, 1)
-        self.cv2 = Conv(c_ * 4, c2, 1, 1)
-        self.m = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
-
-    def forward(self, x):
-        x = self.cv1(x)
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')  # suppress torch 1.9.0 max_pool2d() warning
-            y1 = self.m(x)
-            y2 = self.m(y1)
-            return self.cv2(torch.cat([x, y1, y2, self.m(y2)], 1))
-
-
-class Focus(nn.Module):
-    # Focus wh information into c-space
-    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
-        super().__init__()
-        self.conv = Conv(c1 * 4, c2, k, s, p, g, act)
-        # self.contract = Contract(gain=2)
-
-    def forward(self, x):  # x(b,c,w,h) -> y(b,4c,w/2,h/2)
-        return self.conv(torch.cat([x[..., ::2, ::2], x[..., 1::2, ::2], x[..., ::2, 1::2], x[..., 1::2, 1::2]], 1))
-        # return self.conv(self.contract(x))
-
-
-class GhostConv(nn.Module):
-    # Ghost Convolution https://github.com/huawei-noah/ghostnet
-    def __init__(self, c1, c2, k=1, s=1, g=1, act=True):  # ch_in, ch_out, kernel, stride, groups
-        super().__init__()
-        c_ = c2 // 2  # hidden channels
-        self.cv1 = Conv(c1, c_, k, s, None, g, act)
-        self.cv2 = Conv(c_, c_, 5, 1, None, c_, act)
-
-    def forward(self, x):
-        y = self.cv1(x)
-        return torch.cat([y, self.cv2(y)], 1)
-
-
-class GhostBottleneck(nn.Module):
-    # Ghost Bottleneck https://github.com/huawei-noah/ghostnet
-    def __init__(self, c1, c2, k=3, s=1):  # ch_in, ch_out, kernel, stride
-        super().__init__()
-        c_ = c2 // 2
-        self.conv = nn.Sequential(GhostConv(c1, c_, 1, 1),  # pw
-                                  DWConv(c_, c_, k, s, act=False) if s == 2 else nn.Identity(),  # dw
-                                  GhostConv(c_, c2, 1, 1, act=False))  # pw-linear
-        self.shortcut = nn.Sequential(DWConv(c1, c1, k, s, act=False),
-                                      Conv(c1, c2, 1, 1, act=False)) if s == 2 else nn.Identity()
-
-    def forward(self, x):
-        return self.conv(x) + self.shortcut(x)
-
-
-class Contract(nn.Module):
-    # Contract width-height into channels, i.e. x(1,64,80,80) to x(1,256,40,40)
-    def __init__(self, gain=2):
-        super().__init__()
-        self.gain = gain
-
-    def forward(self, x):
-        b, c, h, w = x.size()  # assert (h / s == 0) and (W / s == 0), 'Indivisible gain'
-        s = self.gain
-        x = x.view(b, c, h // s, s, w // s, s)  # x(1,64,40,2,40,2)
-        x = x.permute(0, 3, 5, 1, 2, 4).contiguous()  # x(1,2,2,64,40,40)
-        return x.view(b, c * s * s, h // s, w // s)  # x(1,256,40,40)
-
-
-class Expand(nn.Module):
-    # Expand channels into width-height, i.e. x(1,64,80,80) to x(1,16,160,160)
-    def __init__(self, gain=2):
-        super().__init__()
-        self.gain = gain
-
-    def forward(self, x):
-        b, c, h, w = x.size()  # assert C / s ** 2 == 0, 'Indivisible gain'
-        s = self.gain
-        x = x.view(b, s, s, c // s ** 2, h, w)  # x(1,2,2,16,80,80)
-        x = x.permute(0, 3, 4, 1, 5, 2).contiguous()  # x(1,16,80,2,80,2)
-        return x.view(b, c // s ** 2, h * s, w * s)  # x(1,16,160,160)
-
-
-class Concat(nn.Module):
-    # Concatenate a list of tensors along dimension
-    def __init__(self, dimension=1):
-        super().__init__()
-        self.d = dimension
-
-    def forward(self, x):
-        return torch.cat(x, self.d)
-
-
-class Classify(nn.Module):
-    # Classification head, i.e. x(b,c1,20,20) to x(b,c2)
-    def __init__(self, c1, c2, k=1, s=1, p=None, g=1):  # ch_in, ch_out, kernel, stride, padding, groups
-        super().__init__()
-        self.aap = nn.AdaptiveAvgPool2d(1)  # to x(b,c1,1,1)
-        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g)  # to x(b,c2,1,1)
-        self.flat = nn.Flatten()
-
-    def forward(self, x):
-        z = torch.cat([self.aap(y) for y in (x if isinstance(x, list) else [x])], 1)  # cat if list
-        return self.flat(self.conv(z))  # flatten to x(b,c2)
-```
-
-#### `yolo.py`
-
-```py
-from operator import mod
-from cv2 import imshow
-from src.utils.yolov5_utils import scale_img  # 修复导入路径
-from copy import deepcopy
-from .common import *
-
-class Detect(nn.Module):
-    stride = None  # strides computed during build
-    onnx_dynamic = False  # ONNX export parameter
-
-    def __init__(self, nc=80, anchors=(), ch=(), inplace=True):  # detection layer
-        super().__init__()
-        self.nc = nc  # number of classes
-        self.no = nc + 5  # number of outputs per anchor
-        self.nl = len(anchors)  # number of detection layers
-        self.na = len(anchors[0]) // 2  # number of anchors
-        self.grid = [torch.zeros(1)] * self.nl  # init grid
-        self.anchor_grid = [torch.zeros(1)] * self.nl  # init anchor grid
-        self.register_buffer('anchors', torch.tensor(anchors).float().view(self.nl, -1, 2))  # shape(nl,na,2)
-        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
-        self.inplace = inplace  # use in-place ops (e.g. slice assignment)
-
-    def forward(self, x):
-        z = []  # inference output
-        for i in range(self.nl):
-            x[i] = self.m[i](x[i])  # conv
-            bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
-            x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
-
-            if not self.training:  # inference
-                if self.onnx_dynamic or self.grid[i].shape[2:4] != x[i].shape[2:4]:
-                    self.grid[i], self.anchor_grid[i] = self._make_grid(nx, ny, i)
-
-                y = x[i].sigmoid()
-                if self.inplace:
-                    y[..., 0:2] = (y[..., 0:2] * 2 - 0.5 + self.grid[i]) * self.stride[i]  # xy
-                    y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
-                else:  # for YOLOv5 on AWS Inferentia https://github.com/ultralytics/yolov5/pull/2953
-                    xy = (y[..., 0:2] * 2 - 0.5 + self.grid[i]) * self.stride[i]  # xy
-                    wh = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
-                    y = torch.cat((xy, wh, y[..., 4:]), -1)
-                z.append(y.view(bs, -1, self.no))
-
-        return x if self.training else (torch.cat(z, 1), x)
-
-    def _make_grid(self, nx=20, ny=20, i=0):
-        d = self.anchors[i].device
-        if check_version(torch.__version__, '1.10.0'):  # torch>=1.10.0 meshgrid workaround for torch>=0.7 compatibility
-            yv, xv = torch.meshgrid([torch.arange(ny, device=d), torch.arange(nx, device=d)], indexing='ij')
-        else:
-            yv, xv = torch.meshgrid([torch.arange(ny, device=d), torch.arange(nx, device=d)])
-        grid = torch.stack((xv, yv), 2).expand((1, self.na, ny, nx, 2)).float()
-        anchor_grid = (self.anchors[i].clone() * self.stride[i]) \
-            .view((1, self.na, 1, 1, 2)).expand((1, self.na, ny, nx, 2)).float()
-        return grid, anchor_grid
-
-class Model(nn.Module):
-    def __init__(self, cfg='yolov5s.yaml', ch=3, nc=None, anchors=None):  # model, input channels, number of classes
-        super().__init__()
-        self.out_indices = None
-        if isinstance(cfg, dict):
-            self.yaml = cfg  # model dict
-        else:  # is *.yaml
-            import yaml  # for torch hub
-            self.yaml_file = Path(cfg).name
-            with open(cfg, encoding='ascii', errors='ignore') as f:
-                self.yaml = yaml.safe_load(f)  # model dict
-
-        # Define model
-        ch = self.yaml['ch'] = self.yaml.get('ch', ch)  # input channels
-        if nc and nc != self.yaml['nc']:
-            # LOGGER.info(f"Overriding model.yaml nc={self.yaml['nc']} with nc={nc}")
-            self.yaml['nc'] = nc  # override yaml value
-        if anchors:
-            # LOGGER.info(f'Overriding model.yaml anchors with anchors={anchors}')
-            self.yaml['anchors'] = round(anchors)  # override yaml value
-        self.model, self.save = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
-        self.names = [str(i) for i in range(self.yaml['nc'])]  # default names
-        self.inplace = self.yaml.get('inplace', True)
-
-        # Build strides, anchors
-        m = self.model[-1]  # Detect()
-        # with torch.no_grad():
-        if isinstance(m, Detect):
-            s = 256  # 2x min stride
-            m.inplace = self.inplace
-            m.stride = torch.tensor([s / x.shape[-2] for x in self.forward(torch.zeros(1, ch, s, s))])  # forward
-            m.anchors /= m.stride.view(-1, 1, 1)
-            check_anchor_order(m)
-            self.stride = m.stride
-            self._initialize_biases()  # only run once
-
-        # Init weights, biases
-        initialize_weights(self)
-
-    def forward(self, x, augment=False, profile=False, visualize=False, detect=False):
-        if augment:
-            return self._forward_augment(x)  # augmented inference, None
-        return self._forward_once(x, profile, visualize, detect=detect)  # single-scale inference, train
-
-    def _forward_augment(self, x):
-        img_size = x.shape[-2:]  # height, width
-        s = [1, 0.83, 0.67]  # scales
-        f = [None, 3, None]  # flips (2-ud, 3-lr)
-        y = []  # outputs
-        for si, fi in zip(s, f):
-            xi = scale_img(x.flip(fi) if fi else x, si, gs=int(self.stride.max()))
-            yi = self._forward_once(xi)[0]  # forward
-            # cv2.imwrite(f'img_{si}.jpg', 255 * xi[0].cpu().numpy().transpose((1, 2, 0))[:, :, ::-1])  # save
-            yi = self._descale_pred(yi, fi, si, img_size)
-            y.append(yi)
-        y = self._clip_augmented(y)  # clip augmented tails
-        return torch.cat(y, 1), None  # augmented inference, train
-
-    def _forward_once(self, x, profile=False, visualize=False, detect=False):
-        y, dt = [], []  # outputs
-        z = []
-        for ii, m in enumerate(self.model):
-            if m.f != -1:  # if not from previous layer
-                x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
-            if profile:
-                self._profile_one_layer(m, x, dt)
-            x = m(x)  # run
-            y.append(x if m.i in self.save else None)  # save output
-            if self.out_indices is not None:
-                if m.i in self.out_indices:
-                    z.append(x)
-        if self.out_indices is not None:
-            if detect:
-                return x, z
-            else:
-                return z
-        else:
-            return x
-
-    def _descale_pred(self, p, flips, scale, img_size):
-        # de-scale predictions following augmented inference (inverse operation)
-        if self.inplace:
-            p[..., :4] /= scale  # de-scale
-            if flips == 2:
-                p[..., 1] = img_size[0] - p[..., 1]  # de-flip ud
-            elif flips == 3:
-                p[..., 0] = img_size[1] - p[..., 0]  # de-flip lr
-        else:
-            x, y, wh = p[..., 0:1] / scale, p[..., 1:2] / scale, p[..., 2:4] / scale  # de-scale
-            if flips == 2:
-                y = img_size[0] - y  # de-flip ud
-            elif flips == 3:
-                x = img_size[1] - x  # de-flip lr
-            p = torch.cat((x, y, wh, p[..., 4:]), -1)
-        return p
-
-    def _clip_augmented(self, y):
-        # Clip YOLOv5 augmented inference tails
-        nl = self.model[-1].nl  # number of detection layers (P3-P5)
-        g = sum(4 ** x for x in range(nl))  # grid points
-        e = 1  # exclude layer count
-        i = (y[0].shape[1] // g) * sum(4 ** x for x in range(e))  # indices
-        y[0] = y[0][:, :-i]  # large
-        i = (y[-1].shape[1] // g) * sum(4 ** (nl - 1 - x) for x in range(e))  # indices
-        y[-1] = y[-1][:, i:]  # small
-        return y
-
-    def _profile_one_layer(self, m, x, dt):
-        c = isinstance(m, Detect)  # is final layer, copy input as inplace fix
-        for _ in range(10):
-            m(x.copy() if c else x)
-
-
-    def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
-        # https://arxiv.org/abs/1708.02002 section 3.3
-        # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
-        m = self.model[-1]  # Detect() module
-        for mi, s in zip(m.m, m.stride):  # from
-            b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
-            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
-            b.data[:, 5:] += math.log(0.6 / (m.nc - 0.999999)) if cf is None else torch.log(cf / cf.sum())  # cls
-            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
-
-    def _print_biases(self):
-        m = self.model[-1]  # Detect() module
-        for mi in m.m:  # from
-            b = mi.bias.detach().view(m.na, -1).T  # conv.bias(255) to (3,85)
-
-    def fuse(self):  # fuse model Conv2d() + BatchNorm2d() layers
-        for m in self.model.modules():
-            if isinstance(m, (Conv, DWConv)) and hasattr(m, 'bn'):
-                m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
-                delattr(m, 'bn')  # remove batchnorm
-                m.forward = m.forward_fuse  # update forward
-        # self.info()
-        return self
-
-    # def info(self, verbose=False, img_size=640):  # print model information
-    #     model_info(self, verbose, img_size)
-
-    def _apply(self, fn):
-        # Apply to(), cpu(), cuda(), half() to model tensors that are not parameters or registered buffers
-        self = super()._apply(fn)
-        m = self.model[-1]  # Detect()
-        if isinstance(m, Detect):
-            m.stride = fn(m.stride)
-            m.grid = list(map(fn, m.grid))
-            if isinstance(m.anchor_grid, list):
-                m.anchor_grid = list(map(fn, m.anchor_grid))
-        return self
-
-def parse_model(d, ch):  # model_dict, input_channels(3)
-    # LOGGER.info(f"\n{'':>3}{'from':>18}{'n':>3}{'params':>10}  {'module':<40}{'arguments':<30}")
-    anchors, nc, gd, gw = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
-    na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
-    no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
-
-    layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
-    for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):  # from, number, module, args
-        m = eval(m) if isinstance(m, str) else m  # eval strings
-        for j, a in enumerate(args):
+# OCR相关导入
+try:
+    from paddlex import create_pipeline
+    PADDLEX_AVAILABLE = True
+except ImportError:
+    print("Warning: PaddleX not available. OCR功能将被禁用。")
+    print("请安装PaddleX: pip install paddlex")
+    PADDLEX_AVAILABLE = False
+
+
+class OCRProcessor:
+    """OCR处理器类"""
+    
+    def __init__(self, enable_ocr=True):
+        self.enable_ocr = enable_ocr and PADDLEX_AVAILABLE
+        self.ocr_pipeline = None
+        
+        if self.enable_ocr:
             try:
-                args[j] = eval(a) if isinstance(a, str) else a  # eval strings
-            except NameError:
-                pass
-
-        n = n_ = max(round(n * gd), 1) if n > 1 else n  # depth gain
-        if m in [Conv, GhostConv, Bottleneck, GhostBottleneck, SPP, SPPF, DWConv, Focus,
-                 BottleneckCSP, C3, C3TR, C3SPP, C3Ghost]:
-            c1, c2 = ch[f], args[0]
-            if c2 != no:  # if not output
-                c2 = make_divisible(c2 * gw, 8)
-
-            args = [c1, c2, *args[1:]]
-            if m in [BottleneckCSP, C3, C3TR, C3Ghost]:
-                args.insert(2, n)  # number of repeats
-                n = 1
-        elif m is nn.BatchNorm2d:
-            args = [ch[f]]
-        elif m is Concat:
-            c2 = sum(ch[x] for x in f)
-        elif m is Detect:
-            args.append([ch[x] for x in f])
-            if isinstance(args[1], int):  # number of anchors
-                args[1] = [list(range(args[1] * 2))] * len(f)
-        elif m is Contract:
-            c2 = ch[f] * args[0] ** 2
-        elif m is Expand:
-            c2 = ch[f] // args[0] ** 2
-        else:
-            c2 = ch[f]
-
-        m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-        t = str(m)[8:-2].replace('__main__.', '')  # module type
-        np = sum(x.numel() for x in m_.parameters())  # number params
-        m_.i, m_.f, m_.type, m_.np = i, f, t, np  # attach index, 'from' index, type, number params
-        # LOGGER.info(f'{i:>3}{str(f):>18}{n_:>3}{np:10.0f}  {t:<40}{str(args):<30}')  # print
-        save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
-        layers.append(m_)
-        if i == 0:
-            ch = []
-        ch.append(c2)
-    return nn.Sequential(*layers), sorted(save)
-
-def load_yolov5(weights, map_location='cuda', fuse=True, inplace=True, out_indices=[1, 3, 5, 7, 9]):
-    if isinstance(weights, str):
-        ckpt = torch.load(weights, map_location=map_location)  # load
-    else:
-        ckpt = weights
+                self.ocr_pipeline = create_pipeline(pipeline="OCR")
+                print("OCR pipeline 初始化成功")
+            except Exception as e:
+                print(f"OCR pipeline 初始化失败: {e}")
+                self.enable_ocr = False
     
-    if fuse:
-        model = ckpt['model'].float().fuse().eval()  # FP32 model
-    else:
-        model = ckpt['model'].float().eval()  # without layer fuse
-
-    # Compatibility updates
-    for m in model.modules():
-        if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Model]:
-            m.inplace = inplace  # pytorch 1.7.0 compatibility
-            if type(m) is Detect:
-                if not isinstance(m.anchor_grid, list):  # new Detect Layer compatibility
-                    delattr(m, 'anchor_grid')
-                    setattr(m, 'anchor_grid', [torch.zeros(1)] * m.nl)
-        elif type(m) is Conv:
-            m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility
-    model.out_indices = out_indices
-    return model
-
-@torch.no_grad()
-def load_yolov5_ckpt(weights, map_location='cpu', fuse=True, inplace=True, out_indices=[1, 3, 5, 7, 9]):
-    if isinstance(weights, str):
-        ckpt = torch.load(weights, map_location=map_location)  # load
-    else:
-        ckpt = weights
+    def extract_text_region(self, image: np.ndarray, bbox: List[int]) -> np.ndarray:
+        """从图像中提取文本区域"""
+        x1, y1, x2, y2 = bbox
+        # 确保坐标在图像范围内
+        h, w = image.shape[:2]
+        x1 = max(0, min(x1, w-1))
+        y1 = max(0, min(y1, h-1))
+        x2 = max(x1+1, min(x2, w))
+        y2 = max(y1+1, min(y2, h))
+        
+        region = image[y1:y2, x1:x2]
+        return region
     
-    model = Model(ckpt['cfg'])
-    model.load_state_dict(ckpt['weights'], strict=True)
+    def process_text_regions(self, image: np.ndarray, text_regions: List[Dict]) -> Dict[str, str]:
+        """处理所有文本区域并进行OCR识别"""
+        ocr_results = {}
+        
+        if not self.enable_ocr:
+            print("OCR功能未启用，跳过文本识别")
+            return ocr_results
+        
+        print(f"开始OCR处理，共有{len(text_regions)}个文本区域")
+        
+        for i, region in enumerate(text_regions):
+            try:
+                # 提取文本区域图像
+                bbox = region['bbox']
+                text_region = self.extract_text_region(image, bbox)
+                
+                if text_region.size == 0:
+                    print(f"区域{i}为空，跳过OCR")
+                    continue
+                
+                # 执行OCR
+                ocr_result = self.ocr_pipeline.predict(
+                    input=text_region,
+                    use_doc_orientation_classify=False,
+                    use_doc_unwarping=False,
+                    use_textline_orientation=True,
+                )
+                
+                # 处理OCR结果
+                recognized_text = self._parse_ocr_result(ocr_result, region.get('language', 'unknown'))
+                
+                # 存储结果
+                region_key = f"region_{i}"
+                ocr_results[region_key] = recognized_text
+                
+                # 更新region信息
+                region['ocr_text'] = recognized_text
+                region['ocr_confidence'] = self._calculate_average_confidence(ocr_result)
+                
+                print(f"区域{i}OCR结果: {recognized_text[:50]}...")
+                
+            except Exception as e:
+                print(f"区域{i}OCR处理失败: {e}")
+                region_key = f"region_{i}"
+                ocr_results[region_key] = ""
+                region['ocr_text'] = ""
+                region['ocr_confidence'] = 0.0
+        
+        return ocr_results
     
-    if fuse:
-        model = model.float().fuse().eval()  # FP32 model
-    else:
-        model = model.float().eval()  # without layer fuse
-
-    # Compatibility updates
-    for m in model.modules():
-        if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Model]:
-            m.inplace = inplace  # pytorch 1.7.0 compatibility
-            if type(m) is Detect:
-                if not isinstance(m.anchor_grid, list):  # new Detect Layer compatibility
-                    delattr(m, 'anchor_grid')
-                    setattr(m, 'anchor_grid', [torch.zeros(1)] * m.nl)
-        elif type(m) is Conv:
-            m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility
-    model.out_indices = out_indices
-    return model
-```
-
-#### `__init__.py`
-
-```py
-
+    def _parse_ocr_result(self, ocr_result, language='unknown') -> str:
+        """解析OCR结果"""
+        try:
+            texts = []
+            for result in ocr_result:
+                if 'rec_texts' in result:
+                    rec_texts = result['rec_texts']
+                    boxes = result.get('rec_boxes', [])
+                    
+                    # 安全检查：确保数据存在且不为空
+                    if (rec_texts is not None and len(rec_texts) > 0 and 
+                        boxes is not None and len(boxes) > 0):
+                        
+                        # 确保文本和框的数量匹配
+                        min_len = min(len(rec_texts), len(boxes))
+                        if min_len > 0:
+                            # 创建文本和坐标的配对列表
+                            text_box_pairs = list(zip(rec_texts[:min_len], boxes[:min_len]))
+                            
+                            # 根据语言类型排序
+                            if language == 'ja':  # 日文从右到左
+                                try:
+                                    sorted_pairs = sorted(text_box_pairs, 
+                                                        key=lambda pair: float(pair[1][0]) if len(pair[1]) > 0 else 0, 
+                                                        reverse=True)
+                                except (IndexError, TypeError, ValueError):
+                                    # 如果排序失败，使用原始顺序
+                                    sorted_pairs = text_box_pairs
+                            else:  # 其他语言从左到右
+                                try:
+                                    sorted_pairs = sorted(text_box_pairs, 
+                                                        key=lambda pair: float(pair[1][0]) if len(pair[1]) > 0 else 0)
+                                except (IndexError, TypeError, ValueError):
+                                    # 如果排序失败，使用原始顺序
+                                    sorted_pairs = text_box_pairs
+                            
+                            # 提取排序后的文本
+                            sorted_texts = [str(pair[0]) for pair in sorted_pairs if pair[0]]
+                            texts.extend(sorted_texts)
+            
+            return "".join(texts)
+            
+        except Exception as e:
+            print(f"解析OCR结果失败: {e}")
+            import traceback
+            print(f"详细错误信息: {traceback.format_exc()}")
+            return ""
+    
+    def _calculate_average_confidence(self, ocr_result) -> float:
+        """计算平均置信度"""
+        try:
+            confidences = []
+            for result in ocr_result:
+                if 'rec_scores' in result:
+                    confidences.extend(result['rec_scores'])
+            
+            return float(np.mean(confidences)) if confidences else 0.0
+            
+        except Exception:
+            return 0.0
 ```
 
 ### `__init__.py`
 
 ```py
+"""
+处理器模块
+"""
 
+from .ocr_processor import OCRProcessor
+
+__all__ = ['OCRProcessor']
 ```
 
 ## `ui`
@@ -5341,6 +4512,89 @@ class MakeBorderMap():
                       int(round(point_2[1] + (point_2[1] - point_1[1]) * (1 + self.shrink_ratio))))
         cv2.line(result, tuple(ex_point_2), tuple(point_2), 4096.0, 1, lineType=cv2.LINE_AA, shift=0)
         return ex_point_1, ex_point_2
+```
+
+### `detection_utils.py`
+
+```py
+"""
+检测相关的辅助函数
+"""
+
+import numpy as np
+from typing import List, Dict, Any
+
+def calculate_containment_ratio(box_small, box_large):
+    """计算小框在大框中的包含比例"""
+    x1, y1, x2, y2 = box_small
+    x1_2, y1_2, x2_2, y2_2 = box_large
+    
+    # 计算交集
+    inter_x1 = max(x1, x1_2)
+    inter_y1 = max(y1, y1_2)
+    inter_x2 = min(x2, x2_2)
+    inter_y2 = min(y2, y2_2)
+    
+    if inter_x1 >= inter_x2 or inter_y1 >= inter_y2:
+        return 0.0
+    
+    inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+    small_area = (x2 - x1) * (y2 - y1)
+    
+    return inter_area / small_area if small_area > 0 else 0.0
+
+
+def filter_and_merge_boxes(text_regions, config_params):
+    """过滤和合并检测框"""
+    if not config_params.get('enable_box_filter', True):
+        return text_regions
+    
+    min_box_width = config_params.get('min_box_width', 10)
+    min_box_height = config_params.get('min_box_height', 10)
+    containment_thresh = config_params.get('containment_thresh', 0.8)
+    
+    print(f"开始框处理，共有{len(text_regions)}个框")
+    
+    # 1. 过滤小框
+    filtered_regions = []
+    for i, region in enumerate(text_regions):
+        x1, y1, x2, y2 = region['bbox']
+        width = x2 - x1
+        height = y2 - y1
+        print(f"框{i}: 位置[{x1},{y1},{x2},{y2}], 尺寸{width}x{height}")
+        
+        if width >= min_box_width or height >= min_box_height:
+            filtered_regions.append(region)
+        else:
+            print(f"过滤掉小框{i}")
+    
+    if len(filtered_regions) <= 1:
+        print("框数量<=1，无需合并")
+        return filtered_regions
+    
+    # 2. 处理包含关系
+    to_remove = set()
+    for i in range(len(filtered_regions)):
+        if i in to_remove:
+            continue
+        for j in range(len(filtered_regions)):
+            if i == j or j in to_remove:
+                continue
+            
+            box_i = filtered_regions[i]['bbox']
+            box_j = filtered_regions[j]['bbox']
+            
+            containment_i_in_j = calculate_containment_ratio(box_i, box_j)
+            if containment_i_in_j > containment_thresh:
+                to_remove.add(i)
+                print(f"移除被包含的框{i}: 包含比例{containment_i_in_j:.3f}")
+                break
+    
+    # 移除被包含的框
+    filtered_regions = [region for i, region in enumerate(filtered_regions) if i not in to_remove]
+    print(f"包含关系处理后，剩余{len(filtered_regions)}个框")
+
+    return filtered_regions
 ```
 
 ### `general.py`
