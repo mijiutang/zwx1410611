@@ -62,22 +62,6 @@ class ImageViewer(QScrollArea):
         # 右键菜单
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
-        
-        # 默认显示
-        self.show_placeholder()
-    
-    def show_placeholder(self):
-        """显示占位符"""
-        pixmap = QPixmap(400, 300)
-        pixmap.fill(Qt.lightGray)
-        
-        painter = QPainter(pixmap)
-        painter.setPen(Qt.darkGray)
-        painter.setFont(QFont("Arial", 14))
-        painter.drawText(pixmap.rect(), Qt.AlignCenter, "点击打开图片\n或拖拽图片到此处")
-        painter.end()
-        
-        self.image_label.setPixmap(pixmap)
     
     def load_image(self, image_path: str):
         """加载图片"""
@@ -386,7 +370,6 @@ class ImageViewer(QScrollArea):
         self.current_pixmap = None
         self.detection_regions.clear()
         self.selected_region = None
-        self.show_placeholder()
 
 
 # 支持拖拽的图像查看器

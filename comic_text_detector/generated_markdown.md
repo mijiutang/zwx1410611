@@ -1306,7 +1306,7 @@ if __name__ == '__main__':
 
 ```py
 """
-检测结果管理模块
+检测结果管理模块 - 优化版，支持加载已有结果
 """
 
 import time
@@ -1366,17 +1366,133 @@ class DetectionResults:
 
 
 class ProjectResults:
-    """项目结果管理器"""
+    """项目结果管理器 - 优化版"""
     
     def __init__(self, project_name: str):
         self.project_name = project_name
         self.detection_results: List[DetectionResults] = []
         self.processing_start_time = time.time()
         self.total_processing_time = 0.0
+        self.is_loaded_from_existing = False  # 【新增】标记是否从已有结果加载
+        self.loaded_image_names = set()      # 【新增】已加载的图片名集合
     
     def add_result(self, result: DetectionResults):
         """添加单个检测结果"""
         self.detection_results.append(result)
+    
+    @classmethod
+    def load_from_existing_json(cls, project_dir: Union[str, Path], image_files: List[str]) -> 'ProjectResults':
+        """【新增】从已有的results.json加载项目结果"""
+        project_dir = Path(project_dir)
+        results_dir = project_dir / "results"
+        json_file = results_dir / "results.json"
+        
+        if not json_file.exists():
+            # 如果不存在results.json，返回空的项目结果
+            return cls("results")
+        
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # 创建项目结果对象
+            project_results = cls(data.get("project_name", "results"))
+            project_results.is_loaded_from_existing = True
+            project_results.total_processing_time = data.get("processing_time", 0.0)
+            
+            # 将图片文件路径映射为名称，便于查找
+            image_name_to_path = {Path(img_path).stem: img_path for img_path in image_files}
+            
+            # 重建DetectionResults对象
+            for img_data in data.get("images", []):
+                image_name = img_data["image_name"]
+                
+                # 查找对应的图片路径
+                if image_name not in image_name_to_path:
+                    print(f"警告：JSON中的图片 {image_name} 在当前项目文件夹中未找到")
+                    continue
+                
+                image_path = image_name_to_path[image_name]
+                
+                # 创建DetectionResults对象（使用虚拟图片数据）
+                fake_image = np.zeros((100, 100, 3), dtype=np.uint8)
+                result = DetectionResults(image_path, fake_image)
+                
+                # 填充检测数据
+                detection_data = img_data.get("detection_results")
+                if detection_data:
+                    result.text_regions = detection_data.get("text_regions", [])
+                    result.detection_time = detection_data.get("detection_time", 0.0)
+                
+                # 填充OCR数据
+                ocr_data = img_data.get("ocr_results")
+                if ocr_data and ocr_data.get("has_ocr", False):
+                    result.has_ocr_results = True
+                    result.ocr_time = ocr_data.get("ocr_time", 0.0)
+                    
+                    # 转换OCR结果格式：从 "区域1" -> "region_0"
+                    result.ocr_results = {}
+                    for region_key, text in ocr_data.get("regions", {}).items():
+                        if region_key.startswith("区域"):
+                            region_num = region_key.replace("区域", "")
+                            try:
+                                region_idx = int(region_num) - 1  # 转换为0开始的索引
+                                result.ocr_results[f"region_{region_idx}"] = text
+                            except ValueError:
+                                result.ocr_results[region_key] = text
+                        else:
+                            result.ocr_results[region_key] = text
+                    
+                    # 同时在text_regions中添加OCR文本
+                    for i, region in enumerate(result.text_regions):
+                        region_key = f"region_{i}"
+                        if region_key in result.ocr_results:
+                            region['ocr_text'] = result.ocr_results[region_key]
+                
+                project_results.add_result(result)
+                project_results.loaded_image_names.add(image_name)
+            
+            print(f"成功从JSON加载了 {len(project_results.detection_results)} 个图片的结果")
+            return project_results
+            
+        except Exception as e:
+            print(f"加载已有results.json失败: {e}")
+            return cls("results")
+    
+    def get_processing_status(self, image_files: List[str]) -> Dict[str, Any]:
+        """【新增】获取项目处理状态"""
+        total_images = len(image_files)
+        processed_images = len(self.loaded_image_names) if self.is_loaded_from_existing else len(self.detection_results)
+        
+        # 统计OCR处理状态
+        images_with_ocr = sum(1 for result in self.detection_results if result.has_ocr_results)
+        
+        # 找出未处理的图片
+        all_image_names = {Path(img_path).stem for img_path in image_files}
+        unprocessed_images = all_image_names - self.loaded_image_names
+        
+        return {
+            'total_images': total_images,
+            'processed_images': processed_images,
+            'images_with_ocr': images_with_ocr,
+            'unprocessed_images': list(unprocessed_images),
+            'is_fully_processed': len(unprocessed_images) == 0,
+            'is_loaded_from_existing': self.is_loaded_from_existing,
+            'completion_rate': processed_images / total_images if total_images > 0 else 0
+        }
+    
+    def get_unprocessed_image_files(self, image_files: List[str]) -> List[str]:
+        """【新增】获取未处理的图片文件列表"""
+        if not self.is_loaded_from_existing:
+            return image_files
+        
+        unprocessed_files = []
+        for img_path in image_files:
+            img_name = Path(img_path).stem
+            if img_name not in self.loaded_image_names:
+                unprocessed_files.append(img_path)
+        
+        return unprocessed_files
     
     def get_project_ocr_results(self) -> Dict[str, Dict[str, str]]:
         """获取整个项目的OCR结果 - 按区域分组格式"""
@@ -1387,10 +1503,13 @@ class ProjectResults:
                 image_ocr = {}
                 for region_key, text in result.ocr_results.items():
                     if text.strip():  # 只保存非空文本
-                        # 将 region_0 格式转换为 区域0 格式
+                        # 将 region_0 格式转换为 区域1 格式
                         if region_key.startswith("region_"):
                             region_num = region_key.split("_")[1]
-                            display_key = f"区域{region_num}"
+                            try:
+                                display_key = f"区域{int(region_num) + 1}"
+                            except ValueError:
+                                display_key = region_key
                         else:
                             display_key = region_key
                         
@@ -1410,6 +1529,7 @@ class ProjectResults:
             'total_images': len(self.detection_results),
             'processing_time': self.total_processing_time,
             'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'is_loaded_from_existing': self.is_loaded_from_existing,  # 【新增】
             'images': []
         }
         
@@ -1472,25 +1592,31 @@ class ProjectResults:
         # 创建初始的合并json文件
         if output_params.get('save_json', True):
             self.json_file_path = self.project_dir / "results.json"
-            initial_data = {
-                "project_name": self.project_name,
-                "total_images": len(self.detection_results) if self.detection_results else 0,
-                "processing_time": 0.0,
-                "created_at": time.strftime('%Y-%m-%d %H:%M:%S'),
-                "status": "processing",
-                "images": [],
-                "stats": {
-                    "total_regions": 0,
-                    "images_with_ocr": 0,
-                    "avg_regions_per_image": 0,
-                    "total_detection_time": 0,
-                    "total_ocr_time": 0,
-                    "languages_detected": []
-                }
-            }
             
-            with open(self.json_file_path, 'w', encoding='utf-8') as f:
-                json.dump(initial_data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
+            # 【优化】如果从已有结果加载且文件已存在，保留原有数据
+            if self.is_loaded_from_existing and self.json_file_path.exists():
+                print(f"保留已有的results.json文件: {self.json_file_path}")
+            else:
+                initial_data = {
+                    "project_name": self.project_name,
+                    "total_images": len(self.detection_results) if self.detection_results else 0,
+                    "processing_time": self.total_processing_time,
+                    "created_at": time.strftime('%Y-%m-%d %H:%M:%S'),
+                    "status": "processing",
+                    "is_loaded_from_existing": self.is_loaded_from_existing,
+                    "images": [],
+                    "stats": {
+                        "total_regions": 0,
+                        "images_with_ocr": 0,
+                        "avg_regions_per_image": 0,
+                        "total_detection_time": 0,
+                        "total_ocr_time": 0,
+                        "languages_detected": []
+                    }
+                }
+                
+                with open(self.json_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(initial_data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
         
         print(f"项目结构已创建: {self.project_dir}")
         return self.project_dir
@@ -1571,7 +1697,10 @@ class ProjectResults:
                     if text.strip():
                         if region_key.startswith("region_"):
                             region_num = region_key.split("_")[1]
-                            display_key = f"区域{region_num}"
+                            try:
+                                display_key = f"区域{int(region_num) + 1}"
+                            except ValueError:
+                                display_key = region_key
                         else:
                             display_key = region_key
                         ocr_regions[display_key] = text.strip()
@@ -1621,7 +1750,8 @@ class ProjectResults:
             data = json.load(f)
         
         data["status"] = "completed"
-        data["processing_time"] = time.time() - self.processing_start_time
+        if not self.is_loaded_from_existing:
+            data["processing_time"] = time.time() - self.processing_start_time
         
         with open(self.json_file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
@@ -1764,6 +1894,623 @@ __all__ = ['quick_detect_only', 'batch_process_project']
 ```
 
 ## `models`
+
+### `yolov5`
+
+#### `common.py`
+
+```py
+# YOLOv5 🚀 by Ultralytics, GPL-3.0 license
+"""
+Common modules
+"""
+
+import json
+import math
+import platform
+import warnings
+from collections import OrderedDict, namedtuple
+from copy import copy
+from pathlib import Path
+
+import cv2
+import numpy as np
+import requests
+import torch
+import torch.nn as nn
+from PIL import Image
+from torch.cuda import amp
+
+# 修复导入路径
+from utils.yolov5_utils import make_divisible, initialize_weights, check_anchor_order, check_version, fuse_conv_and_bn
+
+def autopad(k, p=None):  # kernel, padding
+    # Pad to 'same'
+    if p is None:
+        p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
+    return p
+
+class Conv(nn.Module):
+    # Standard convolution
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
+        super().__init__()
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        if isinstance(act, bool):
+            self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Module) else nn.Identity())
+        elif isinstance(act, str):
+            if act == 'leaky':
+                self.act = nn.LeakyReLU(0.1, inplace=True)
+            elif act == 'relu':
+                self.act = nn.ReLU(inplace=True)
+            else:
+                self.act = None
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))
+
+    def forward_fuse(self, x):
+        return self.act(self.conv(x))
+
+
+class DWConv(Conv):
+    # Depth-wise convolution class
+    def __init__(self, c1, c2, k=1, s=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
+        super().__init__(c1, c2, k, s, g=math.gcd(c1, c2), act=act)
+
+
+class TransformerLayer(nn.Module):
+    # Transformer layer https://arxiv.org/abs/2010.11929 (LayerNorm layers removed for better performance)
+    def __init__(self, c, num_heads):
+        super().__init__()
+        self.q = nn.Linear(c, c, bias=False)
+        self.k = nn.Linear(c, c, bias=False)
+        self.v = nn.Linear(c, c, bias=False)
+        self.ma = nn.MultiheadAttention(embed_dim=c, num_heads=num_heads)
+        self.fc1 = nn.Linear(c, c, bias=False)
+        self.fc2 = nn.Linear(c, c, bias=False)
+
+    def forward(self, x):
+        x = self.ma(self.q(x), self.k(x), self.v(x))[0] + x
+        x = self.fc2(self.fc1(x)) + x
+        return x
+
+
+class TransformerBlock(nn.Module):
+    # Vision Transformer https://arxiv.org/abs/2010.11929
+    def __init__(self, c1, c2, num_heads, num_layers):
+        super().__init__()
+        self.conv = None
+        if c1 != c2:
+            self.conv = Conv(c1, c2)
+        self.linear = nn.Linear(c2, c2)  # learnable position embedding
+        self.tr = nn.Sequential(*(TransformerLayer(c2, num_heads) for _ in range(num_layers)))
+        self.c2 = c2
+
+    def forward(self, x):
+        if self.conv is not None:
+            x = self.conv(x)
+        b, _, w, h = x.shape
+        p = x.flatten(2).permute(2, 0, 1)
+        return self.tr(p + self.linear(p)).permute(1, 2, 0).reshape(b, self.c2, w, h)
+
+
+class Bottleneck(nn.Module):
+    # Standard bottleneck
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5, act=True):  # ch_in, ch_out, shortcut, groups, expansion
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+        self.cv1 = Conv(c1, c_, 1, 1, act=act)
+        self.cv2 = Conv(c_, c2, 3, 1, g=g, act=act)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
+
+
+class BottleneckCSP(nn.Module):
+    # CSP Bottleneck https://github.com/WongKinYiu/CrossStagePartialNetworks
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = nn.Conv2d(c1, c_, 1, 1, bias=False)
+        self.cv3 = nn.Conv2d(c_, c_, 1, 1, bias=False)
+        self.cv4 = Conv(2 * c_, c2, 1, 1)
+        self.bn = nn.BatchNorm2d(2 * c_)  # applied to cat(cv2, cv3)
+        self.act = nn.SiLU()
+        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
+
+    def forward(self, x):
+        y1 = self.cv3(self.m(self.cv1(x)))
+        y2 = self.cv2(x)
+        return self.cv4(self.act(self.bn(torch.cat((y1, y2), dim=1))))
+
+
+class C3(nn.Module):
+    # CSP Bottleneck with 3 convolutions
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5, act=True):  # ch_in, ch_out, number, shortcut, groups, expansion
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+        self.cv1 = Conv(c1, c_, 1, 1, act=act)
+        self.cv2 = Conv(c1, c_, 1, 1, act=act)
+        self.cv3 = Conv(2 * c_, c2, 1, act=act)  # act=FReLU(c2)
+        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, e=1.0, act=act) for _ in range(n)))
+        # self.m = nn.Sequential(*[CrossConv(c_, c_, 3, 1, g, 1.0, shortcut) for _ in range(n)])
+
+    def forward(self, x):
+        return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
+
+
+class C3TR(C3):
+    # C3 module with TransformerBlock()
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)
+        self.m = TransformerBlock(c_, c_, 4, n)
+
+
+class C3SPP(C3):
+    # C3 module with SPP()
+    def __init__(self, c1, c2, k=(5, 9, 13), n=1, shortcut=True, g=1, e=0.5):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)
+        self.m = SPP(c_, c_, k)
+
+
+class C3Ghost(C3):
+    # C3 module with GhostBottleneck()
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)  # hidden channels
+        self.m = nn.Sequential(*(GhostBottleneck(c_, c_) for _ in range(n)))
+
+
+class SPP(nn.Module):
+    # Spatial Pyramid Pooling (SPP) layer https://arxiv.org/abs/1406.4729
+    def __init__(self, c1, c2, k=(5, 9, 13)):
+        super().__init__()
+        c_ = c1 // 2  # hidden channels
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c_ * (len(k) + 1), c2, 1, 1)
+        self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in k])
+
+    def forward(self, x):
+        x = self.cv1(x)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')  # suppress torch 1.9.0 max_pool2d() warning
+            return self.cv2(torch.cat([x] + [m(x) for m in self.m], 1))
+
+
+class SPPF(nn.Module):
+    # Spatial Pyramid Pooling - Fast (SPPF) layer for YOLOv5 by Glenn Jocher
+    def __init__(self, c1, c2, k=5):  # equivalent to SPP(k=(5, 9, 13))
+        super().__init__()
+        c_ = c1 // 2  # hidden channels
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c_ * 4, c2, 1, 1)
+        self.m = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
+
+    def forward(self, x):
+        x = self.cv1(x)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')  # suppress torch 1.9.0 max_pool2d() warning
+            y1 = self.m(x)
+            y2 = self.m(y1)
+            return self.cv2(torch.cat([x, y1, y2, self.m(y2)], 1))
+
+
+class Focus(nn.Module):
+    # Focus wh information into c-space
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
+        super().__init__()
+        self.conv = Conv(c1 * 4, c2, k, s, p, g, act)
+        # self.contract = Contract(gain=2)
+
+    def forward(self, x):  # x(b,c,w,h) -> y(b,4c,w/2,h/2)
+        return self.conv(torch.cat([x[..., ::2, ::2], x[..., 1::2, ::2], x[..., ::2, 1::2], x[..., 1::2, 1::2]], 1))
+        # return self.conv(self.contract(x))
+
+
+class GhostConv(nn.Module):
+    # Ghost Convolution https://github.com/huawei-noah/ghostnet
+    def __init__(self, c1, c2, k=1, s=1, g=1, act=True):  # ch_in, ch_out, kernel, stride, groups
+        super().__init__()
+        c_ = c2 // 2  # hidden channels
+        self.cv1 = Conv(c1, c_, k, s, None, g, act)
+        self.cv2 = Conv(c_, c_, 5, 1, None, c_, act)
+
+    def forward(self, x):
+        y = self.cv1(x)
+        return torch.cat([y, self.cv2(y)], 1)
+
+
+class GhostBottleneck(nn.Module):
+    # Ghost Bottleneck https://github.com/huawei-noah/ghostnet
+    def __init__(self, c1, c2, k=3, s=1):  # ch_in, ch_out, kernel, stride
+        super().__init__()
+        c_ = c2 // 2
+        self.conv = nn.Sequential(GhostConv(c1, c_, 1, 1),  # pw
+                                  DWConv(c_, c_, k, s, act=False) if s == 2 else nn.Identity(),  # dw
+                                  GhostConv(c_, c2, 1, 1, act=False))  # pw-linear
+        self.shortcut = nn.Sequential(DWConv(c1, c1, k, s, act=False),
+                                      Conv(c1, c2, 1, 1, act=False)) if s == 2 else nn.Identity()
+
+    def forward(self, x):
+        return self.conv(x) + self.shortcut(x)
+
+
+class Contract(nn.Module):
+    # Contract width-height into channels, i.e. x(1,64,80,80) to x(1,256,40,40)
+    def __init__(self, gain=2):
+        super().__init__()
+        self.gain = gain
+
+    def forward(self, x):
+        b, c, h, w = x.size()  # assert (h / s == 0) and (W / s == 0), 'Indivisible gain'
+        s = self.gain
+        x = x.view(b, c, h // s, s, w // s, s)  # x(1,64,40,2,40,2)
+        x = x.permute(0, 3, 5, 1, 2, 4).contiguous()  # x(1,2,2,64,40,40)
+        return x.view(b, c * s * s, h // s, w // s)  # x(1,256,40,40)
+
+
+class Expand(nn.Module):
+    # Expand channels into width-height, i.e. x(1,64,80,80) to x(1,16,160,160)
+    def __init__(self, gain=2):
+        super().__init__()
+        self.gain = gain
+
+    def forward(self, x):
+        b, c, h, w = x.size()  # assert C / s ** 2 == 0, 'Indivisible gain'
+        s = self.gain
+        x = x.view(b, s, s, c // s ** 2, h, w)  # x(1,2,2,16,80,80)
+        x = x.permute(0, 3, 4, 1, 5, 2).contiguous()  # x(1,16,80,2,80,2)
+        return x.view(b, c // s ** 2, h * s, w * s)  # x(1,16,160,160)
+
+
+class Concat(nn.Module):
+    # Concatenate a list of tensors along dimension
+    def __init__(self, dimension=1):
+        super().__init__()
+        self.d = dimension
+
+    def forward(self, x):
+        return torch.cat(x, self.d)
+
+
+class Classify(nn.Module):
+    # Classification head, i.e. x(b,c1,20,20) to x(b,c2)
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1):  # ch_in, ch_out, kernel, stride, padding, groups
+        super().__init__()
+        self.aap = nn.AdaptiveAvgPool2d(1)  # to x(b,c1,1,1)
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g)  # to x(b,c2,1,1)
+        self.flat = nn.Flatten()
+
+    def forward(self, x):
+        z = torch.cat([self.aap(y) for y in (x if isinstance(x, list) else [x])], 1)  # cat if list
+        return self.flat(self.conv(z))  # flatten to x(b,c2)
+```
+
+#### `yolo.py`
+
+```py
+from operator import mod
+from cv2 import imshow
+from utils.yolov5_utils import scale_img  # 修复导入路径
+from copy import deepcopy
+from .common import *
+
+class Detect(nn.Module):
+    stride = None  # strides computed during build
+    onnx_dynamic = False  # ONNX export parameter
+
+    def __init__(self, nc=80, anchors=(), ch=(), inplace=True):  # detection layer
+        super().__init__()
+        self.nc = nc  # number of classes
+        self.no = nc + 5  # number of outputs per anchor
+        self.nl = len(anchors)  # number of detection layers
+        self.na = len(anchors[0]) // 2  # number of anchors
+        self.grid = [torch.zeros(1)] * self.nl  # init grid
+        self.anchor_grid = [torch.zeros(1)] * self.nl  # init anchor grid
+        self.register_buffer('anchors', torch.tensor(anchors).float().view(self.nl, -1, 2))  # shape(nl,na,2)
+        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
+        self.inplace = inplace  # use in-place ops (e.g. slice assignment)
+
+    def forward(self, x):
+        z = []  # inference output
+        for i in range(self.nl):
+            x[i] = self.m[i](x[i])  # conv
+            bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
+            x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
+
+            if not self.training:  # inference
+                if self.onnx_dynamic or self.grid[i].shape[2:4] != x[i].shape[2:4]:
+                    self.grid[i], self.anchor_grid[i] = self._make_grid(nx, ny, i)
+
+                y = x[i].sigmoid()
+                if self.inplace:
+                    y[..., 0:2] = (y[..., 0:2] * 2 - 0.5 + self.grid[i]) * self.stride[i]  # xy
+                    y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+                else:  # for YOLOv5 on AWS Inferentia https://github.com/ultralytics/yolov5/pull/2953
+                    xy = (y[..., 0:2] * 2 - 0.5 + self.grid[i]) * self.stride[i]  # xy
+                    wh = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+                    y = torch.cat((xy, wh, y[..., 4:]), -1)
+                z.append(y.view(bs, -1, self.no))
+
+        return x if self.training else (torch.cat(z, 1), x)
+
+    def _make_grid(self, nx=20, ny=20, i=0):
+        d = self.anchors[i].device
+        if check_version(torch.__version__, '1.10.0'):  # torch>=1.10.0 meshgrid workaround for torch>=0.7 compatibility
+            yv, xv = torch.meshgrid([torch.arange(ny, device=d), torch.arange(nx, device=d)], indexing='ij')
+        else:
+            yv, xv = torch.meshgrid([torch.arange(ny, device=d), torch.arange(nx, device=d)])
+        grid = torch.stack((xv, yv), 2).expand((1, self.na, ny, nx, 2)).float()
+        anchor_grid = (self.anchors[i].clone() * self.stride[i]) \
+            .view((1, self.na, 1, 1, 2)).expand((1, self.na, ny, nx, 2)).float()
+        return grid, anchor_grid
+
+class Model(nn.Module):
+    def __init__(self, cfg='yolov5s.yaml', ch=3, nc=None, anchors=None):  # model, input channels, number of classes
+        super().__init__()
+        self.out_indices = None
+        if isinstance(cfg, dict):
+            self.yaml = cfg  # model dict
+        else:  # is *.yaml
+            import yaml  # for torch hub
+            self.yaml_file = Path(cfg).name
+            with open(cfg, encoding='ascii', errors='ignore') as f:
+                self.yaml = yaml.safe_load(f)  # model dict
+
+        # Define model
+        ch = self.yaml['ch'] = self.yaml.get('ch', ch)  # input channels
+        if nc and nc != self.yaml['nc']:
+            # LOGGER.info(f"Overriding model.yaml nc={self.yaml['nc']} with nc={nc}")
+            self.yaml['nc'] = nc  # override yaml value
+        if anchors:
+            # LOGGER.info(f'Overriding model.yaml anchors with anchors={anchors}')
+            self.yaml['anchors'] = round(anchors)  # override yaml value
+        self.model, self.save = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
+        self.names = [str(i) for i in range(self.yaml['nc'])]  # default names
+        self.inplace = self.yaml.get('inplace', True)
+
+        # Build strides, anchors
+        m = self.model[-1]  # Detect()
+        # with torch.no_grad():
+        if isinstance(m, Detect):
+            s = 256  # 2x min stride
+            m.inplace = self.inplace
+            m.stride = torch.tensor([s / x.shape[-2] for x in self.forward(torch.zeros(1, ch, s, s))])  # forward
+            m.anchors /= m.stride.view(-1, 1, 1)
+            check_anchor_order(m)
+            self.stride = m.stride
+            self._initialize_biases()  # only run once
+
+        # Init weights, biases
+        initialize_weights(self)
+
+    def forward(self, x, augment=False, profile=False, visualize=False, detect=False):
+        if augment:
+            return self._forward_augment(x)  # augmented inference, None
+        return self._forward_once(x, profile, visualize, detect=detect)  # single-scale inference, train
+
+    def _forward_augment(self, x):
+        img_size = x.shape[-2:]  # height, width
+        s = [1, 0.83, 0.67]  # scales
+        f = [None, 3, None]  # flips (2-ud, 3-lr)
+        y = []  # outputs
+        for si, fi in zip(s, f):
+            xi = scale_img(x.flip(fi) if fi else x, si, gs=int(self.stride.max()))
+            yi = self._forward_once(xi)[0]  # forward
+            # cv2.imwrite(f'img_{si}.jpg', 255 * xi[0].cpu().numpy().transpose((1, 2, 0))[:, :, ::-1])  # save
+            yi = self._descale_pred(yi, fi, si, img_size)
+            y.append(yi)
+        y = self._clip_augmented(y)  # clip augmented tails
+        return torch.cat(y, 1), None  # augmented inference, train
+
+    def _forward_once(self, x, profile=False, visualize=False, detect=False):
+        y, dt = [], []  # outputs
+        z = []
+        for ii, m in enumerate(self.model):
+            if m.f != -1:  # if not from previous layer
+                x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+            if profile:
+                self._profile_one_layer(m, x, dt)
+            x = m(x)  # run
+            y.append(x if m.i in self.save else None)  # save output
+            if self.out_indices is not None:
+                if m.i in self.out_indices:
+                    z.append(x)
+        if self.out_indices is not None:
+            if detect:
+                return x, z
+            else:
+                return z
+        else:
+            return x
+
+    def _descale_pred(self, p, flips, scale, img_size):
+        # de-scale predictions following augmented inference (inverse operation)
+        if self.inplace:
+            p[..., :4] /= scale  # de-scale
+            if flips == 2:
+                p[..., 1] = img_size[0] - p[..., 1]  # de-flip ud
+            elif flips == 3:
+                p[..., 0] = img_size[1] - p[..., 0]  # de-flip lr
+        else:
+            x, y, wh = p[..., 0:1] / scale, p[..., 1:2] / scale, p[..., 2:4] / scale  # de-scale
+            if flips == 2:
+                y = img_size[0] - y  # de-flip ud
+            elif flips == 3:
+                x = img_size[1] - x  # de-flip lr
+            p = torch.cat((x, y, wh, p[..., 4:]), -1)
+        return p
+
+    def _clip_augmented(self, y):
+        # Clip YOLOv5 augmented inference tails
+        nl = self.model[-1].nl  # number of detection layers (P3-P5)
+        g = sum(4 ** x for x in range(nl))  # grid points
+        e = 1  # exclude layer count
+        i = (y[0].shape[1] // g) * sum(4 ** x for x in range(e))  # indices
+        y[0] = y[0][:, :-i]  # large
+        i = (y[-1].shape[1] // g) * sum(4 ** (nl - 1 - x) for x in range(e))  # indices
+        y[-1] = y[-1][:, i:]  # small
+        return y
+
+    def _profile_one_layer(self, m, x, dt):
+        c = isinstance(m, Detect)  # is final layer, copy input as inplace fix
+        for _ in range(10):
+            m(x.copy() if c else x)
+
+
+    def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
+        # https://arxiv.org/abs/1708.02002 section 3.3
+        # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
+        m = self.model[-1]  # Detect() module
+        for mi, s in zip(m.m, m.stride):  # from
+            b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
+            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+            b.data[:, 5:] += math.log(0.6 / (m.nc - 0.999999)) if cf is None else torch.log(cf / cf.sum())  # cls
+            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+
+    def _print_biases(self):
+        m = self.model[-1]  # Detect() module
+        for mi in m.m:  # from
+            b = mi.bias.detach().view(m.na, -1).T  # conv.bias(255) to (3,85)
+
+    def fuse(self):  # fuse model Conv2d() + BatchNorm2d() layers
+        for m in self.model.modules():
+            if isinstance(m, (Conv, DWConv)) and hasattr(m, 'bn'):
+                m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
+                delattr(m, 'bn')  # remove batchnorm
+                m.forward = m.forward_fuse  # update forward
+        # self.info()
+        return self
+
+    # def info(self, verbose=False, img_size=640):  # print model information
+    #     model_info(self, verbose, img_size)
+
+    def _apply(self, fn):
+        # Apply to(), cpu(), cuda(), half() to model tensors that are not parameters or registered buffers
+        self = super()._apply(fn)
+        m = self.model[-1]  # Detect()
+        if isinstance(m, Detect):
+            m.stride = fn(m.stride)
+            m.grid = list(map(fn, m.grid))
+            if isinstance(m.anchor_grid, list):
+                m.anchor_grid = list(map(fn, m.anchor_grid))
+        return self
+
+def parse_model(d, ch):  # model_dict, input_channels(3)
+    # LOGGER.info(f"\n{'':>3}{'from':>18}{'n':>3}{'params':>10}  {'module':<40}{'arguments':<30}")
+    anchors, nc, gd, gw = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
+    na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
+    no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
+
+    layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
+    for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):  # from, number, module, args
+        m = eval(m) if isinstance(m, str) else m  # eval strings
+        for j, a in enumerate(args):
+            try:
+                args[j] = eval(a) if isinstance(a, str) else a  # eval strings
+            except NameError:
+                pass
+
+        n = n_ = max(round(n * gd), 1) if n > 1 else n  # depth gain
+        if m in [Conv, GhostConv, Bottleneck, GhostBottleneck, SPP, SPPF, DWConv, Focus,
+                 BottleneckCSP, C3, C3TR, C3SPP, C3Ghost]:
+            c1, c2 = ch[f], args[0]
+            if c2 != no:  # if not output
+                c2 = make_divisible(c2 * gw, 8)
+
+            args = [c1, c2, *args[1:]]
+            if m in [BottleneckCSP, C3, C3TR, C3Ghost]:
+                args.insert(2, n)  # number of repeats
+                n = 1
+        elif m is nn.BatchNorm2d:
+            args = [ch[f]]
+        elif m is Concat:
+            c2 = sum(ch[x] for x in f)
+        elif m is Detect:
+            args.append([ch[x] for x in f])
+            if isinstance(args[1], int):  # number of anchors
+                args[1] = [list(range(args[1] * 2))] * len(f)
+        elif m is Contract:
+            c2 = ch[f] * args[0] ** 2
+        elif m is Expand:
+            c2 = ch[f] // args[0] ** 2
+        else:
+            c2 = ch[f]
+
+        m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
+        t = str(m)[8:-2].replace('__main__.', '')  # module type
+        np = sum(x.numel() for x in m_.parameters())  # number params
+        m_.i, m_.f, m_.type, m_.np = i, f, t, np  # attach index, 'from' index, type, number params
+        # LOGGER.info(f'{i:>3}{str(f):>18}{n_:>3}{np:10.0f}  {t:<40}{str(args):<30}')  # print
+        save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
+        layers.append(m_)
+        if i == 0:
+            ch = []
+        ch.append(c2)
+    return nn.Sequential(*layers), sorted(save)
+
+def load_yolov5(weights, map_location='cuda', fuse=True, inplace=True, out_indices=[1, 3, 5, 7, 9]):
+    if isinstance(weights, str):
+        ckpt = torch.load(weights, map_location=map_location)  # load
+    else:
+        ckpt = weights
+    
+    if fuse:
+        model = ckpt['model'].float().fuse().eval()  # FP32 model
+    else:
+        model = ckpt['model'].float().eval()  # without layer fuse
+
+    # Compatibility updates
+    for m in model.modules():
+        if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Model]:
+            m.inplace = inplace  # pytorch 1.7.0 compatibility
+            if type(m) is Detect:
+                if not isinstance(m.anchor_grid, list):  # new Detect Layer compatibility
+                    delattr(m, 'anchor_grid')
+                    setattr(m, 'anchor_grid', [torch.zeros(1)] * m.nl)
+        elif type(m) is Conv:
+            m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility
+    model.out_indices = out_indices
+    return model
+
+@torch.no_grad()
+def load_yolov5_ckpt(weights, map_location='cpu', fuse=True, inplace=True, out_indices=[1, 3, 5, 7, 9]):
+    if isinstance(weights, str):
+        ckpt = torch.load(weights, map_location=map_location)  # load
+    else:
+        ckpt = weights
+    
+    model = Model(ckpt['cfg'])
+    model.load_state_dict(ckpt['weights'], strict=True)
+    
+    if fuse:
+        model = model.float().fuse().eval()  # FP32 model
+    else:
+        model = model.float().eval()  # without layer fuse
+
+    # Compatibility updates
+    for m in model.modules():
+        if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Model]:
+            m.inplace = inplace  # pytorch 1.7.0 compatibility
+            if type(m) is Detect:
+                if not isinstance(m.anchor_grid, list):  # new Detect Layer compatibility
+                    delattr(m, 'anchor_grid')
+                    setattr(m, 'anchor_grid', [torch.zeros(1)] * m.nl)
+        elif type(m) is Conv:
+            m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility
+    model.out_indices = out_indices
+    return model
+```
+
+#### `__init__.py`
+
+```py
+
+```
 
 ### `__init__.py`
 
@@ -2022,7 +2769,7 @@ __all__ = ['OCRProcessor']
 
 ```py
 """
-事件处理器 - 处理所有UI事件和业务逻辑（优化输出路径版本）
+事件处理器 - 优化版，支持自动加载已有结果
 """
 
 import os
@@ -2037,7 +2784,7 @@ from config.config import Config
 
 
 class EventHandlers(QObject):
-    """事件处理器类"""
+    """事件处理器类 - 优化版"""
     
     def __init__(self, main_window):
         super().__init__()
@@ -2054,7 +2801,7 @@ class EventHandlers(QObject):
             self.load_project_folder(folder_path)
 
     def load_project_folder(self, folder_path: str):
-        """加载项目文件夹"""
+        """【优化】加载项目文件夹 - 支持自动检测和加载已有结果"""
         try:
             from utils.io_utils import find_all_imgs
             
@@ -2069,39 +2816,157 @@ class EventHandlers(QObject):
             self.main_window.current_image_files = image_files
             self.main_window.current_image_index = 0
 
-            project_name = "results"  # 【修改】简化项目名称
-            self.main_window.current_project_results = ProjectResults(project_name)
+            project_name = "results"
+            
+            # 【新增】尝试从已有results.json加载项目结果
+            existing_project_results = ProjectResults.load_from_existing_json(folder_path, image_files)
+            self.main_window.current_project_results = existing_project_results
+            
+            # 【新增】检查处理状态并显示信息
+            status = existing_project_results.get_processing_status(image_files)
+            
+            if status['is_loaded_from_existing']:
+                # 显示加载状态信息
+                status_msg = (
+                    f"已加载现有结果！\n"
+                    f"总图片: {status['total_images']}\n"
+                    f"已处理: {status['processed_images']}\n"
+                    f"含OCR: {status['images_with_ocr']}\n"
+                    f"完成度: {status['completion_rate']:.1%}"
+                )
+                
+                if status['is_fully_processed']:
+                    status_msg += "\n\n✅ 所有图片都已处理完成！"
+                    QMessageBox.information(self.main_window, "项目状态", status_msg)
+                else:
+                    unprocessed_count = len(status['unprocessed_images'])
+                    status_msg += f"\n\n⚠️ 还有 {unprocessed_count} 个图片未处理"
+                    reply = QMessageBox.question(
+                        self.main_window, "项目状态", 
+                        status_msg + "\n\n是否继续处理未完成的图片？",
+                        QMessageBox.Yes | QMessageBox.No
+                    )
+                    # 用户选择取消时也会继续显示项目，只是不自动开始处理
             
             # 显示第一张图片
             self.main_window.image_viewer.load_image(image_files[0])
             self.main_window.current_image_path = image_files[0]
             
-            # 【修改】调整OCR结果加载路径 - 输出到项目内部
+            # 【修改】加载OCR结果 - 使用项目内部路径
             input_folder = Path(folder_path)
-            project_results_dir = input_folder / "results"  # 【修改】输出到项目内部
+            project_results_dir = input_folder / "results"
             first_image_name = Path(image_files[0]).stem
             
             self.main_window.parameter_panel.load_ocr_from_json(
                 str(project_results_dir), first_image_name)
+            
+            # 【新增】如果有已有结果，尝试加载第一张图片的检测结果到显示
+            self._load_existing_detection_for_current_image()
             
             # 更新按钮状态
             self.main_window.prev_button.setEnabled(False)
             self.main_window.next_button.setEnabled(len(image_files) > 1)
             self.main_window.detect_button.setEnabled(True)
             
-            # 清空之前的结果
-            self.main_window.current_results = None
-            self.main_window.ocr_button.setEnabled(False)
+            # 清空之前的结果（如果没有从现有数据加载）
+            if not status['is_loaded_from_existing']:
+                self.main_window.current_results = None
+                self.main_window.ocr_button.setEnabled(False)
             
             # 更新最近文件夹
             self.add_recent_folder(folder_path)
             
-            # 更新状态
-            self.main_window.statusBar().showMessage(f"项目已加载: {folder_path} ({len(image_files)} 个文件)")
-            self.main_window.status_label.setText(f"已加载 {len(image_files)} 个文件")
+            # 【优化】更新状态显示
+            if status['is_loaded_from_existing']:
+                status_text = f"项目已加载: {status['processed_images']}/{status['total_images']} 已处理"
+                if status['is_fully_processed']:
+                    status_text += " ✅"
+                self.main_window.statusBar().showMessage(
+                    f"项目已加载: {folder_path} ({status['processed_images']}/{status['total_images']} 已处理)")
+                self.main_window.status_label.setText(status_text)
+            else:
+                self.main_window.statusBar().showMessage(f"项目已加载: {folder_path} ({len(image_files)} 个文件)")
+                self.main_window.status_label.setText(f"已加载 {len(image_files)} 个文件")
             
         except Exception as e:
             QMessageBox.critical(self.main_window, "错误", f"无法加载项目文件夹: {e}")
+
+    def _load_existing_detection_for_current_image(self):
+        """【新增】为当前图片加载已有的检测结果（如果存在）"""
+        if not self.main_window.current_project_results.is_loaded_from_existing:
+            return
+        
+        current_image_name = Path(self.main_window.current_image_path).stem
+        
+        # 查找当前图片的检测结果
+        for result in self.main_window.current_project_results.detection_results:
+            if result.image_name == current_image_name:
+                # 创建虚拟的检测结果对象用于显示
+                from utils.io_utils import imread
+                try:
+                    original_image = imread(self.main_window.current_image_path)
+                    if original_image is not None:
+                        result.original_image = original_image
+                        
+                        # 生成可视化结果
+                        if result.text_regions:
+                            result_image = self._generate_visualization_for_loaded_result(original_image, result.text_regions)
+                            result.result_image = result_image
+                        
+                        # 设置为当前结果
+                        self.main_window.current_results = result
+                        
+                        # 更新显示
+                        if result.result_image is not None:
+                            self.main_window.image_viewer.set_result_image(result.result_image)
+                        self.main_window.image_viewer.set_detection_regions(result.text_regions)
+                        
+                        # 更新OCR按钮状态
+                        self.main_window.ocr_button.setEnabled(not result.has_ocr_results)
+                        
+                        print(f"已加载图片 {current_image_name} 的检测结果: {len(result.text_regions)} 个区域")
+                        break
+                except Exception as e:
+                    print(f"加载图片检测结果时出错: {e}")
+
+    def _generate_visualization_for_loaded_result(self, image, text_regions):
+        """【新增】为加载的结果生成可视化图片"""
+        import cv2
+        import numpy as np
+        
+        result = image.copy()
+        
+        for region in text_regions:
+            x1, y1, x2, y2 = region['bbox']
+            
+            # 根据置信度调整颜色
+            confidence = region.get('confidence', 1.0)
+            color_intensity = int(255 * min(confidence, 1.0))
+            color = (0, color_intensity, 0)
+            
+            # 绘制边界框
+            cv2.rectangle(result, (x1, y1), (x2, y2), color, 2)
+            
+            # 标签包含OCR结果
+            label = f"{region['id']}_{region.get('language', 'unknown')}"
+            if region.get('vertical', False):
+                label += "_V"
+            label += f"_{confidence:.3f}"
+            
+            # 如果有OCR结果，显示部分文字
+            if 'ocr_text' in region and region['ocr_text']:
+                ocr_preview = region['ocr_text'][:10] + "..." if len(region['ocr_text']) > 10 else region['ocr_text']
+                label += f"\n{ocr_preview}"
+            
+            # 绘制标签
+            label_lines = label.split('\n')
+            for i, line in enumerate(label_lines):
+                label_size = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+                y_offset = y1 - 25 + i * 20
+                cv2.rectangle(result, (x1, y_offset-15), (x1+label_size[0], y_offset), color, -1)
+                cv2.putText(result, line, (x1, y_offset-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        
+        return result
 
     def handle_prev_image(self):
         """切换到上一张图片"""
@@ -2118,7 +2983,7 @@ class EventHandlers(QObject):
             self.load_current_image()
 
     def load_current_image(self):
-        """加载当前索引的图片"""
+        """【优化】加载当前索引的图片 - 支持加载已有结果"""
         if not self.main_window.current_image_files:
             return
             
@@ -2128,21 +2993,7 @@ class EventHandlers(QObject):
         
         # 清空之前的结果
         self.main_window.current_results = None
-        self.main_window.ocr_button.setEnabled(False)
-        
-        # 【修改】调整OCR结果加载路径 - 项目内部
-        if self.main_window.current_project_folder:
-            input_folder = Path(self.main_window.current_project_folder)
-            project_results_dir = input_folder / "results"  # 【修改】输出到项目内部
-            image_name = Path(current_image).stem
-            
-            # 从JSON加载OCR结果到面板
-            self.main_window.parameter_panel.load_ocr_from_json(
-                str(project_results_dir), image_name)
-        else:
-            # 非项目模式，清空OCR面板
-            self.main_window.parameter_panel.clear_ocr_results()
-        
+         
         # 更新按钮状态
         self.main_window.prev_button.setEnabled(self.main_window.current_image_index > 0)
         self.main_window.next_button.setEnabled(
@@ -2151,16 +3002,38 @@ class EventHandlers(QObject):
         # 更新状态显示
         image_name = Path(current_image).name
         total_count = len(self.main_window.current_image_files)
+        
+        # 【新增】显示处理状态
+        status_suffix = ""
+        if (self.main_window.current_project_results and 
+            self.main_window.current_project_results.is_loaded_from_existing):
+            current_name = Path(current_image).stem
+            if current_name in self.main_window.current_project_results.loaded_image_names:
+                status_suffix = " ✅"
+        
         self.main_window.statusBar().showMessage(
-            f"图片: {image_name} ({self.main_window.current_image_index + 1}/{total_count})")
+            f"图片: {image_name} ({self.main_window.current_image_index + 1}/{total_count}){status_suffix}")
         self.main_window.status_label.setText(
-            f"图片 {self.main_window.current_image_index + 1}/{total_count}: {image_name}")
+            f"图片 {self.main_window.current_image_index + 1}/{total_count}: {image_name}{status_suffix}")
 
     def handle_start_detection(self):
         """开始文字检测"""
         if not self.main_window.current_image_path or not self.main_window.detector:
             QMessageBox.information(self.main_window, "提示", "请先选择图片并确保检测器已加载")
             return
+        
+        # 【新增】检查是否已经处理过
+        if (self.main_window.current_project_results and 
+            self.main_window.current_project_results.is_loaded_from_existing):
+            current_name = Path(self.main_window.current_image_path).stem
+            if current_name in self.main_window.current_project_results.loaded_image_names:
+                reply = QMessageBox.question(
+                    self.main_window, "确认重新检测", 
+                    "该图片已有检测结果，是否重新检测？\n（这将覆盖现有结果）",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                if reply == QMessageBox.No:
+                    return
         
         # 更新检测器参数
         params = self.main_window.parameter_panel.get_parameters()
@@ -2169,7 +3042,6 @@ class EventHandlers(QObject):
         # 禁用按钮
         self.main_window.detect_button.setEnabled(False)
         self.main_window.ocr_button.setEnabled(False)
-        
         
         # 显示进度
         self.main_window.progress_bar.setVisible(True)
@@ -2203,7 +3075,6 @@ class EventHandlers(QObject):
         self.main_window.detect_button.setEnabled(False)
         self.main_window.ocr_button.setEnabled(False)
         
-        
         # 显示进度
         self.main_window.progress_bar.setVisible(True)
         self.main_window.progress_bar.setRange(0, 0)
@@ -2227,7 +3098,7 @@ class EventHandlers(QObject):
         self._start_batch_processing(include_ocr=True)
 
     def _start_batch_processing(self, include_ocr: bool = True):
-        """开始批量处理 - 【修改】输出到项目内部"""
+        """【优化】开始批量处理 - 支持跳过已处理的图片"""
         if (not self.main_window.current_image_files or 
             not self.main_window.detector):
             QMessageBox.information(
@@ -2238,13 +3109,64 @@ class EventHandlers(QObject):
             QMessageBox.warning(self.main_window, "错误", "当前没有选择项目文件夹")
             return
         
-        # 【修改】输出到项目内部
-        input_folder = Path(self.main_window.current_project_folder)
-        project_name = "results"  # 简化项目名称
-        output_dir = str(input_folder)  # 【修改】输出到项目文件夹内部
+        # 【新增】智能处理：只处理未完成的图片
+        if (self.main_window.current_project_results and 
+            self.main_window.current_project_results.is_loaded_from_existing):
+            
+            unprocessed_files = self.main_window.current_project_results.get_unprocessed_image_files(
+                self.main_window.current_image_files)
+            
+            # 如果需要OCR，还要检查哪些图片没有OCR结果
+            if include_ocr:
+                files_needing_ocr = []
+                for img_file in self.main_window.current_image_files:
+                    img_name = Path(img_file).stem
+                    
+                    # 查找对应的检测结果
+                    found_result = None
+                    for result in self.main_window.current_project_results.detection_results:
+                        if result.image_name == img_name:
+                            found_result = result
+                            break
+                    
+                    # 如果没有检测结果或没有OCR结果，需要处理
+                    if found_result is None or not found_result.has_ocr_results:
+                        files_needing_ocr.append(img_file)
+                
+                processing_files = files_needing_ocr
+                operation_description = "批量处理（含OCR）"
+            else:
+                processing_files = unprocessed_files
+                operation_description = "批量检测"
+            
+            if not processing_files:
+                QMessageBox.information(
+                    self.main_window, "处理完成", 
+                    f"所有图片都已完成{operation_description}！")
+                return
+            
+            # 确认处理
+            reply = QMessageBox.question(
+                self.main_window, "确认批量处理",
+                f"找到 {len(processing_files)} 个图片需要{operation_description}\n"
+                f"（跳过 {len(self.main_window.current_image_files) - len(processing_files)} 个已处理的图片）\n\n"
+                f"是否开始处理？",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                return
+        else:
+            processing_files = self.main_window.current_image_files
         
-        # 【新增】创建项目结果对象并提前创建结构
-        self.main_window.current_project_results = ProjectResults(project_name)
+        # 输出路径
+        input_folder = Path(self.main_window.current_project_folder)
+        project_name = "results"
+        output_dir = str(input_folder)
+        
+        # 创建或使用现有的项目结果对象
+        if not self.main_window.current_project_results:
+            self.main_window.current_project_results = ProjectResults(project_name)
+        
         try:
             self.main_window.current_project_results.create_project_structure(
                 output_dir, self.main_window.config.output_params)
@@ -2264,25 +3186,29 @@ class EventHandlers(QObject):
         
         # 显示进度
         self.main_window.progress_bar.setVisible(True)
-        self.main_window.progress_bar.setRange(0, len(self.main_window.current_image_files))
+        self.main_window.progress_bar.setRange(0, len(processing_files))
         
         # 禁用控件
         self.main_window.detect_button.setEnabled(False)
         self.main_window.ocr_button.setEnabled(False)
         
-        
         operation_name = "批量处理（含OCR）" if include_ocr else "批量检测"
         self.main_window.status_label.setText(f"正在{operation_name}...")
         
-        # 【修改】显示新的输出路径信息
-        self.main_window.statusBar().showMessage(
-            f"开始{operation_name} -> 输出到: {Path(output_dir) / project_name}")
+        # 显示处理信息
+        if len(processing_files) < len(self.main_window.current_image_files):
+            skip_count = len(self.main_window.current_image_files) - len(processing_files)
+            self.main_window.statusBar().showMessage(
+                f"开始{operation_name} -> 处理 {len(processing_files)} 个图片（跳过 {skip_count} 个已处理）")
+        else:
+            self.main_window.statusBar().showMessage(
+                f"开始{operation_name} -> 输出到: {Path(output_dir) / project_name}")
         
         # 启动批量处理线程
         from ui.workers import BatchProcessWorker
         self.main_window.batch_worker = BatchProcessWorker(
             self.main_window.detector, 
-            self.main_window.current_image_files, 
+            processing_files,  # 【修改】只处理需要处理的文件
             project_name,
             output_dir,
             include_ocr=include_ocr
@@ -2305,11 +3231,14 @@ class EventHandlers(QObject):
         self.main_window.image_viewer.set_result_image(results.result_image)
         self.main_window.image_viewer.set_detection_regions(results.text_regions)
         
-        # 【修改】如果在项目模式下，立即保存检测结果
+        # 如果在项目模式下，立即保存检测结果
         if (self.main_window.current_project_folder and 
             self.main_window.current_project_results is not None):
             self.main_window.current_project_results.update_image_detection_result(
                 results, self.main_window.config.output_params)
+            
+            # 【新增】更新已处理图片集合
+            self.main_window.current_project_results.loaded_image_names.add(results.image_name)
         
         # 更新状态信息
         region_count = len(results.text_regions)
@@ -2348,7 +3277,7 @@ class EventHandlers(QObject):
         self.main_window.image_viewer.set_result_image(results.result_image)
         self.main_window.image_viewer.set_detection_regions(results.text_regions)
         
-        # 【修改】如果在项目模式下，立即保存OCR结果
+        # 如果在项目模式下，立即保存OCR结果
         if (self.main_window.current_project_folder and 
             self.main_window.current_project_results is not None):
             self.main_window.current_project_results.update_image_ocr_result(results)
@@ -2380,30 +3309,6 @@ class EventHandlers(QObject):
         
         self.main_window.progress_bar.setVisible(False)
 
-    def _auto_save_results(self, results: DetectionResults, operation_type: str):
-        """自动保存结果"""
-        try:
-            # 【修改】确定保存路径 - 输出到项目内部
-            if self.main_window.current_project_folder:
-                # 输出到项目文件夹内部
-                input_folder = Path(self.main_window.current_project_folder)
-                project_name = f"results_{operation_type}"
-                output_dir = str(input_folder)  # 【修改】输出到项目内部
-            else:
-                # 如果是单个文件，保存到图片同级目录
-                image_path = Path(results.image_path)
-                project_name = f"{image_path.stem}_{operation_type}"
-                output_dir = str(image_path.parent)
-            
-            # 使用检测器的保存方法
-            saved_dir = self.main_window.detector.save_results(results, output_dir)
-            
-            print(f"结果已自动保存到: {saved_dir}")
-            
-        except Exception as e:
-            print(f"自动保存失败: {e}")
-            # 可以选择显示错误提示，但不阻断流程
-
     def on_batch_progress(self, current, total, message):
         """批量处理进度回调"""
         self.main_window.progress_bar.setValue(current)
@@ -2412,36 +3317,62 @@ class EventHandlers(QObject):
         self.main_window.status_label.setText(f"处理中: {current}/{total}")
 
     def on_batch_finished(self, project_results: ProjectResults):
-        """批量处理完成回调 - 【修改】适配新的输出路径"""
+        """【优化】批量处理完成回调 - 显示增量处理信息"""
         total_files = len(project_results.detection_results)
         successful = sum(1 for result in project_results.detection_results if len(result.text_regions) > 0)
         
         self.main_window.statusBar().showMessage(f"批量处理完成: {successful}/{total_files} 成功")
         self.main_window.status_label.setText(f"批量完成: {successful}/{total_files}")
         
-        # 获取项目统计信息
-        project_stats = project_results.get_project_detection_results()['stats']
+        # 【新增】合并结果到主项目结果中
+        if self.main_window.current_project_results:
+            # 将新处理的结果合并到现有项目中
+            for new_result in project_results.detection_results:
+                # 检查是否已存在，如果存在则更新，否则添加
+                existing_found = False
+                for i, existing_result in enumerate(self.main_window.current_project_results.detection_results):
+                    if existing_result.image_name == new_result.image_name:
+                        # 更新现有结果
+                        self.main_window.current_project_results.detection_results[i] = new_result
+                        existing_found = True
+                        break
+                
+                if not existing_found:
+                    # 添加新结果
+                    self.main_window.current_project_results.add_result(new_result)
+                
+                # 更新已处理集合
+                self.main_window.current_project_results.loaded_image_names.add(new_result.image_name)
         
-        # 【修改】计算输出路径（用于显示） - 项目内部
+        # 获取完整项目统计信息
+        if self.main_window.current_project_results:
+            all_status = self.main_window.current_project_results.get_processing_status(
+                self.main_window.current_image_files)
+            project_stats = self.main_window.current_project_results.get_project_detection_results()['stats']
+        else:
+            project_stats = project_results.get_project_detection_results()['stats']
+            all_status = {'processed_images': total_files, 'images_with_ocr': project_stats['images_with_ocr']}
+        
+        # 计算输出路径
         if self.main_window.current_project_folder:
             input_folder = Path(self.main_window.current_project_folder)
-            expected_output_path = input_folder / "results"  # 【修改】输出路径
+            expected_output_path = input_folder / "results"
         else:
             expected_output_path = "未知路径"
         
-        completion_msg = f"项目 '{project_results.project_name}' 批量处理完成！\n\n"
+        completion_msg = f"批量处理完成！\n\n"
+        completion_msg += f"本次处理: {successful}/{total_files} 成功\n"
+        completion_msg += f"项目总计: {all_status['processed_images']}/{len(self.main_window.current_image_files)} 已处理\n"
+        completion_msg += f"OCR总计: {all_status['images_with_ocr']} 个图片\n"
         completion_msg += f"输出路径: {expected_output_path}\n\n"
         completion_msg += f"处理统计:\n"
-        completion_msg += f"• 总文件数: {total_files}\n"
-        completion_msg += f"• 检测成功: {successful}\n"
         completion_msg += f"• 总文字区域: {project_stats['total_regions']}\n"
-        completion_msg += f"• OCR处理: {project_stats['images_with_ocr']}/{total_files}\n"
         completion_msg += f"• 总处理时间: {project_stats['total_detection_time']:.1f}s\n"
         
         if project_stats['total_ocr_time'] > 0:
             completion_msg += f"• OCR总时间: {project_stats['total_ocr_time']:.1f}s\n"
         
-        completion_msg += f"\n结果已保存到项目文件夹内部！"  # 【修改】提示信息
+        completion_msg += f"\n✅ 结果已保存到项目文件夹内部！"
         
         QMessageBox.information(self.main_window, "批量处理完成", completion_msg)
         
@@ -2493,7 +3424,7 @@ class EventHandlers(QObject):
     def handle_show_about(self):
         """显示关于对话框"""
         about_text = """
-        <h3>漫画文本检测器 v1.0 (路径优化版)</h3>
+        <h3>漫画文本检测器 v1.0 (智能加载优化版)</h3>
         <p>基于深度学习的漫画文本检测工具</p>
         <p><b>特性:</b></p>
         <ul>
@@ -2503,18 +3434,25 @@ class EventHandlers(QObject):
         <li>可视化文本块和文本行预览</li>
         <li>友好的图形用户界面</li>
         <li>可配置的检测参数</li>
-        <li>项目内部输出结构</li>
+        <li>智能加载已有结果，避免重复处理</li>
+        <li>增量批量处理，只处理未完成的图片</li>
         </ul>
+        <p><b>智能处理特性:</b></p>
+        <p>• 自动检测项目文件夹中的results.json<br>
+        • 加载已有的检测和OCR结果<br>
+        • 显示处理进度和完成状态<br>
+        • 批量处理时跳过已完成的图片<br>
+        • 支持增量更新和部分重新处理</p>
         <p><b>项目输出结构:</b></p>
         <p>• 输出到项目文件夹内部/results/<br>
         • result_images/ - 检测结果图片<br>
         • masks/ - 文字掩码<br>
         • results.json - 检测和OCR结果</p>
         <p><b>使用流程:</b></p>
-        <p>1. 打开项目文件夹<br>
-        2. 点击"开始检测"预览文本区域<br>
-        3. 点击"OCR识别"进行文字识别<br>
-        4. 批量处理整个项目</p>
+        <p>1. 打开项目文件夹（自动加载已有结果）<br>
+        2. 查看处理状态和完成度<br>
+        3. 对单个图片：检测 → OCR识别<br>
+        4. 批量处理：自动跳过已完成的图片</p>
         <p><b>技术支持:</b> PyQt5, PyTorch, OpenCV, PaddleX</p>
         """
         QMessageBox.about(self.main_window, "关于", about_text)
@@ -2597,7 +3535,6 @@ class ComicTextDetectorGUI(QMainWindow):
         
         # 应用状态
         self.detector: Optional[ComicTextDetector] = None
-        self.current_results: Optional[DetectionResults] = None
         self.current_image_path: Optional[str] = None
         self.recent_files: List[str] = []
         
@@ -2608,8 +3545,6 @@ class ComicTextDetectorGUI(QMainWindow):
         self.current_project_results: Optional[ProjectResults] = None
 
         # 工作线程（由事件处理器管理）
-        self.detection_worker = None
-        self.ocr_worker = None
         self.batch_worker = None
         
         # 管理器和处理器
@@ -2679,18 +3614,6 @@ class ComicTextDetectorGUI(QMainWindow):
         control_widget = QWidget()
         control_layout = QHBoxLayout(control_widget)
         control_layout.setContentsMargins(5, 5, 5, 5)
-        
-        # 检测按钮
-        self.detect_button = QPushButton("🔍 开始检测")
-        self.detect_button.setStyleSheet(self.get_button_style("#2196F3", "#1976D2"))
-        self.detect_button.setEnabled(False)
-        control_layout.addWidget(self.detect_button)
-        
-        # OCR按钮
-        self.ocr_button = QPushButton("📝 OCR识别")
-        self.ocr_button.setStyleSheet(self.get_button_style("#4CAF50", "#45a049"))
-        self.ocr_button.setEnabled(False)
-        control_layout.addWidget(self.ocr_button)
         
         control_layout.addStretch()
         return control_widget
@@ -2770,19 +3693,8 @@ class ComicTextDetectorGUI(QMainWindow):
         self.menu_manager.toggle_blocks_requested.connect(
             self.event_handlers.handle_toggle_blocks)
         
-        self.menu_manager.start_detection_requested.connect(
-            self.event_handlers.handle_start_detection)
-        self.menu_manager.start_ocr_requested.connect(
-            self.event_handlers.handle_start_ocr)
-        
         self.menu_manager.about_requested.connect(
             self.event_handlers.handle_show_about)
-        
-        # 按钮信号
-        self.detect_button.clicked.connect(
-            self.event_handlers.handle_start_detection)
-        self.ocr_button.clicked.connect(
-            self.event_handlers.handle_start_ocr)
         
         # 导航按钮信号
         self.prev_button.clicked.connect(
@@ -2792,19 +3704,7 @@ class ComicTextDetectorGUI(QMainWindow):
         
         # 参数面板信号
         self.parameter_panel.parameters_changed.connect(self.on_parameters_changed)
-        self.parameter_panel.ocr_text_modified.connect(self.on_ocr_text_modified)
-        self.parameter_panel.refresh_requested.connect(self.on_refresh_ocr_requested) 
-    
-    def on_refresh_ocr_requested(self):
-        """处理刷新OCR请求"""
-        if self.current_image_path and self.current_project_folder:
-            input_folder = Path(self.current_project_folder)
-            project_results_dir = input_folder / "results"  # 【修改】输出到项目内部
-            image_name = Path(self.current_image_path).stem
-            
-            self.parameter_panel.load_ocr_from_json(str(project_results_dir), image_name)
-            self.statusBar().showMessage("OCR结果已刷新")
-
+     
     def init_detector(self):
         """初始化检测器"""
         try:
@@ -2842,32 +3742,7 @@ class ComicTextDetectorGUI(QMainWindow):
                     self.detector.update_parameters(**params)
             except Exception as e:
                 QMessageBox.warning(self, "警告", f"参数更新失败: {e}")
-
-    def on_ocr_text_modified(self, region_idx: int, new_text: str):
-        """【优化】OCR文本修改回调 - 使用项目内部路径"""
-        if self.current_results:
-            try:
-                # 更新可视化（如果需要重新生成带OCR文本的结果图）
-                self.image_viewer.set_detection_regions(self.current_results.text_regions)
-                
-                # 【修改】如果在项目模式下，同步到JSON文件 - 使用项目内部路径
-                if (self.current_project_folder and 
-                    self.current_project_results):
-                    
-                    input_folder = Path(self.current_project_folder)
-                    project_results_dir = input_folder / "results"  # 【修改】输出到项目内部
-                    image_name = self.current_results.image_name
-                    
-                    # 同步到JSON
-                    self.parameter_panel.sync_ocr_to_json(
-                        str(project_results_dir), image_name, region_idx, new_text)
-                
-                # 更新状态栏
-                self.statusBar().showMessage(f"区域{region_idx+1}的OCR文本已修改并保存")
-                
-            except Exception as e:
-                print(f"保存OCR修改时出错: {e}")
-    
+  
     def closeEvent(self, event):
         """关闭事件处理"""
         # 停止所有工作线程
@@ -2948,9 +3823,6 @@ class MenuManager(QObject):
     toggle_regions_requested = pyqtSignal()
     toggle_lines_requested = pyqtSignal()
     toggle_blocks_requested = pyqtSignal()
-    
-    start_detection_requested = pyqtSignal()
-    start_ocr_requested = pyqtSignal()
     
     about_requested = pyqtSignal()
     
@@ -3045,18 +3917,6 @@ class MenuManager(QObject):
         """创建处理菜单"""
         process_menu = menubar.addMenu('处理(&P)')
         
-        # 开始检测
-        detect_action = QAction('开始检测(&D)', self.main_window)
-        detect_action.setShortcut('F5')
-        detect_action.triggered.connect(self.start_detection_requested.emit)
-        process_menu.addAction(detect_action)
-        
-        # OCR识别
-        ocr_action = QAction('OCR识别(&O)', self.main_window)
-        ocr_action.setShortcut('F6')
-        ocr_action.triggered.connect(self.start_ocr_requested.emit)
-        process_menu.addAction(ocr_action)
-
     def _create_help_menu(self, menubar):
         """创建帮助菜单"""
         help_menu = menubar.addMenu('帮助(&H)')
@@ -3171,22 +4031,6 @@ class ImageViewer(QScrollArea):
         # 右键菜单
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
-        
-        # 默认显示
-        self.show_placeholder()
-    
-    def show_placeholder(self):
-        """显示占位符"""
-        pixmap = QPixmap(400, 300)
-        pixmap.fill(Qt.lightGray)
-        
-        painter = QPainter(pixmap)
-        painter.setPen(Qt.darkGray)
-        painter.setFont(QFont("Arial", 14))
-        painter.drawText(pixmap.rect(), Qt.AlignCenter, "点击打开图片\n或拖拽图片到此处")
-        painter.end()
-        
-        self.image_label.setPixmap(pixmap)
     
     def load_image(self, image_path: str):
         """加载图片"""
@@ -3495,7 +4339,6 @@ class ImageViewer(QScrollArea):
         self.current_pixmap = None
         self.detection_regions.clear()
         self.selected_region = None
-        self.show_placeholder()
 
 
 # 支持拖拽的图像查看器
@@ -3547,8 +4390,6 @@ class ParameterPanel(QWidget):
     """参数控制面板"""
     
     parameters_changed = pyqtSignal()
-    ocr_text_modified = pyqtSignal(int, str)
-    refresh_requested = pyqtSignal()
 
     def __init__(self, config: Config):
         super().__init__()
@@ -3565,15 +4406,7 @@ class ParameterPanel(QWidget):
         self.min_box_height_spin = None
         self.enable_filter_checkbox = None
         self.lang_checkboxes = {}
-        self.ocr_results_widgets = {}  # 存储OCR结果编辑控件
-        self.current_detection_results = None  # 当前检测结果对象
         
-        # 【新增】OCR结果管理相关
-        self.current_project_dir = None
-        self.current_image_name = None
-        self.ocr_auto_save_timer = QTimer()  # 自动保存定时器
-        self.ocr_auto_save_timer.setSingleShot(True)
-        self.ocr_auto_save_timer.timeout.connect(self._auto_save_ocr_results)
         
         # 初始化UI
         self.init_ui()
@@ -3605,9 +4438,6 @@ class ParameterPanel(QWidget):
         language_group = self.create_language_group()
         layout.addWidget(language_group)
         
-        # OCR结果组
-        ocr_group = self.create_ocr_group()
-        layout.addWidget(ocr_group)
         
         # 弹簧，将控件推到顶部
         layout.addStretch()
@@ -3948,167 +4778,7 @@ class ParameterPanel(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"更新默认配置时发生错误：{e}")
 
-    def create_ocr_group(self) -> QGroupBox:
-        """创建OCR结果显示组"""
-        group = QGroupBox("OCR结果")
-        self.ocr_layout = QVBoxLayout(group)
-        
-        # 【优化】刷新和状态栏
-        control_layout = QHBoxLayout()
-        refresh_button = QPushButton("刷新")
-        refresh_button.setToolTip("从JSON文件重新加载OCR结果")
-        refresh_button.clicked.connect(self.refresh_ocr_from_json)
-        control_layout.addWidget(refresh_button)
-        
-        # 【新增】保存状态标签
-        self.ocr_status_label = QLabel("就绪")
-        self.ocr_status_label.setStyleSheet("color: #666666; font-size: 10px;")
-        control_layout.addWidget(self.ocr_status_label)
-        control_layout.addStretch()
-        self.ocr_layout.addLayout(control_layout)
-        
-        # 滚动区域用于显示多个OCR结果
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setMinimumHeight(300)
-        scroll_area.setMaximumHeight(400)
-        
-        # 创建OCR结果容器
-        self.ocr_container = QWidget()
-        self.ocr_container_layout = QVBoxLayout(self.ocr_container)
-        self.ocr_container_layout.setContentsMargins(5, 5, 5, 5)
-        
-        scroll_area.setWidget(self.ocr_container)
-        self.ocr_layout.addWidget(scroll_area)
-        
-        # 提示标签
-        self.ocr_hint_label = QLabel("请先完成检测和OCR识别")
-        self.ocr_hint_label.setAlignment(Qt.AlignCenter)
-        self.ocr_hint_label.setStyleSheet("color: #888888; font-style: italic;")
-        self.ocr_container_layout.addWidget(self.ocr_hint_label)
-        
-        return group
-
-    def refresh_ocr_from_json(self):
-        """手动刷新OCR结果"""
-        self.refresh_requested.emit()
-
-    def update_ocr_results(self, detection_results):
-        """更新OCR结果显示"""
-        from core.detector import DetectionResults
-        
-        self.current_detection_results = detection_results
-        
-        # 【新增】更新当前图片信息用于保存
-        if hasattr(detection_results, 'image_name'):
-            self.current_image_name = detection_results.image_name
-        
-        # 清空现有的OCR控件
-        self.clear_ocr_results()
-        
-        if not isinstance(detection_results, DetectionResults) or not detection_results.has_ocr_results:
-            self.ocr_hint_label.setText("暂无OCR结果")
-            self.ocr_hint_label.setVisible(True)
-            self.ocr_status_label.setText("无OCR结果")
-            return
-        
-        self.ocr_hint_label.setVisible(False)
-        
-        # 根据text_regions创建OCR结果编辑控件
-        for i, region in enumerate(detection_results.text_regions):
-            ocr_text = region.get('ocr_text', '')
-            
-            # 创建每个OCR结果的控件组
-            result_widget = QWidget()
-            result_layout = QVBoxLayout(result_widget)
-            result_layout.setContentsMargins(5, 5, 5, 5)
-            
-            # 次序标签（从1开始，不显示置信度）
-            sequence_label = QLabel(f"区域 {i+1}")
-            sequence_label.setFont(QFont("Arial", 10, QFont.Bold))
-            sequence_label.setStyleSheet("color: #333333; padding: 2px 0px;")
-            result_layout.addWidget(sequence_label)
-            
-            # 文本编辑框
-            text_edit = QTextEdit()
-            text_edit.setPlainText(ocr_text)
-            text_edit.setMaximumHeight(80)
-            text_edit.setMinimumHeight(50)
-            
-            # 【优化】连接文本变化信号到延迟保存
-            text_edit.textChanged.connect(
-                lambda region_idx=i: self.on_ocr_text_changed(region_idx)
-            )
-            
-            result_layout.addWidget(text_edit)
-            
-            # 分隔线
-            if i < len(detection_results.text_regions) - 1:
-                line = QFrame()
-                line.setFrameShape(QFrame.HLine)
-                line.setFrameShadow(QFrame.Sunken)
-                line.setStyleSheet("color: #cccccc;")
-                result_layout.addWidget(line)
-            
-            # 保存控件引用
-            self.ocr_results_widgets[i] = text_edit
-            
-            # 添加到容器
-            self.ocr_container_layout.addWidget(result_widget)
-        
-        self.ocr_status_label.setText(f"已加载 {len(detection_results.text_regions)} 个区域")
-
-    def on_ocr_text_changed(self, region_idx: int):
-        """OCR文本变化时的回调 - 【优化】延迟自动保存"""
-        if (self.current_detection_results and 
-            region_idx < len(self.current_detection_results.text_regions)):
-            
-            # 获取修改后的文本
-            if region_idx in self.ocr_results_widgets:
-                new_text = self.ocr_results_widgets[region_idx].toPlainText()
-                
-                # 更新检测结果中的OCR文本
-                self.current_detection_results.text_regions[region_idx]['ocr_text'] = new_text
-                
-                # 更新OCR结果字典
-                region_key = f"region_{region_idx}"
-                self.current_detection_results.ocr_results[region_key] = new_text
-                
-                # 发射信号通知主窗口保存更改
-                self.ocr_text_modified.emit(region_idx, new_text)
-                
-                # 【新增】启动延迟自动保存
-                self.ocr_status_label.setText("编辑中...")
-                self.ocr_auto_save_timer.stop()
-                self.ocr_auto_save_timer.start(2000)  # 2秒后自动保存
-
-    def _auto_save_ocr_results(self):
-        """【新增】自动保存OCR结果到JSON"""
-        if self.current_project_dir and self.current_image_name:
-            try:
-                self._save_current_ocr_to_json()
-                self.ocr_status_label.setText("已自动保存")
-            except Exception as e:
-                self.ocr_status_label.setText("保存失败")
-                print(f"自动保存OCR结果失败: {e}")
-
-    def clear_ocr_results(self):
-        """清空OCR结果显示"""
-        # 清空控件引用
-        self.ocr_results_widgets.clear()
-        
-        # 清空布局中的所有控件
-        while self.ocr_container_layout.count():
-            child = self.ocr_container_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-        
-        # 重新添加提示标签
-        self.ocr_hint_label = QLabel("请先完成检测和OCR识别")
-        self.ocr_hint_label.setAlignment(Qt.AlignCenter)
-        self.ocr_hint_label.setStyleSheet("color: #888888; font-style: italic;")
-        self.ocr_container_layout.addWidget(self.ocr_hint_label)
-     
+ 
     def validate_parameters(self) -> tuple[bool, str]:
         """验证参数有效性"""
         # 检查模型文件
@@ -4141,155 +4811,6 @@ class ParameterPanel(QWidget):
 框过滤: {'启用' if params['enable_box_filter'] else '禁用'}"""
         
         return summary
-    
-    def load_ocr_from_json(self, project_results_dir: str, image_name: str):
-        """【优化】从JSON文件加载OCR结果到面板"""
-        # 【新增】更新当前项目信息
-        self.current_project_dir = project_results_dir
-        self.current_image_name = image_name
-        
-        if not project_results_dir or not image_name:
-            self.clear_ocr_results()
-            self.ocr_status_label.setText("无项目信息")
-            return
-            
-        json_path = Path(project_results_dir) / "results.json"
-        if not json_path.exists():
-            self.clear_ocr_results()
-            self.ocr_status_label.setText("无JSON文件")
-            return
-            
-        try:
-            with open(json_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            # 查找对应图片的OCR结果
-            image_data = None
-            for img in data.get("images", []):
-                if img["image_name"] == image_name:
-                    image_data = img
-                    break
-            
-            if not image_data or not image_data.get("ocr_results") or not image_data["ocr_results"]["has_ocr"]:
-                self.clear_ocr_results()
-                self.ocr_status_label.setText("无OCR数据")
-                return
-            
-            # 重建DetectionResults对象用于面板显示
-            fake_results = type('FakeResults', (), {})()
-            fake_results.has_ocr_results = True
-            fake_results.text_regions = []
-            fake_results.ocr_results = {}
-            fake_results.image_name = image_name  # 【新增】设置图片名
-            
-            # 从JSON重建text_regions
-            if image_data.get("detection_results") and image_data["detection_results"].get("text_regions"):
-                for i, region in enumerate(image_data["detection_results"]["text_regions"]):
-                    # 添加OCR文本到区域
-                    region_key = f"区域{i+1}"
-                    if region_key in image_data["ocr_results"]["regions"]:
-                        region["ocr_text"] = image_data["ocr_results"]["regions"][region_key]
-                        fake_results.ocr_results[f"region_{i}"] = region["ocr_text"]
-                    fake_results.text_regions.append(region)
-            
-            # 更新面板显示
-            self.update_ocr_results(fake_results)
-            self.ocr_status_label.setText(f"已加载来自JSON")
-            
-        except Exception as e:
-            print(f"从JSON加载OCR结果失败: {e}")
-            self.clear_ocr_results()
-            self.ocr_status_label.setText("加载失败")
-
-    def sync_ocr_to_json(self, project_results_dir: str, image_name: str, region_idx: int, new_text: str):
-        """【优化】将OCR文本更改同步到JSON文件"""
-        if not project_results_dir or not image_name:
-            return
-            
-        json_path = Path(project_results_dir) / "results.json"
-        if not json_path.exists():
-            return
-        
-        try:
-            # 读取现有JSON
-            with open(json_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            # 查找并更新对应图片的OCR结果
-            for img in data.get("images", []):
-                if img["image_name"] == image_name:
-                    if img.get("ocr_results") and img["ocr_results"]["has_ocr"]:
-                        region_key = f"区域{region_idx+1}"
-                        img["ocr_results"]["regions"][region_key] = new_text
-                        
-                        # 写回文件
-                        with open(json_path, 'w', encoding='utf-8') as f:
-                            json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
-                        
-                        print(f"OCR文本已同步到JSON: {region_key} -> {new_text[:20]}...")
-                    break
-                    
-        except Exception as e:
-            print(f"同步OCR到JSON失败: {e}")
-
-    def _save_current_ocr_to_json(self):
-        """【新增】保存当前所有OCR结果到JSON"""
-        if not self.current_project_dir or not self.current_image_name:
-            return
-        
-        json_path = Path(self.current_project_dir) / "results.json"
-        if not json_path.exists():
-            return
-            
-        try:
-            # 读取现有JSON
-            with open(json_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            # 查找并更新对应图片的所有OCR结果
-            for img in data.get("images", []):
-                if img["image_name"] == self.current_image_name:
-                    if img.get("ocr_results") and img["ocr_results"]["has_ocr"]:
-                        # 更新所有区域的OCR结果
-                        for region_idx, text_edit in self.ocr_results_widgets.items():
-                            region_key = f"区域{region_idx+1}"
-                            current_text = text_edit.toPlainText()
-                            img["ocr_results"]["regions"][region_key] = current_text
-                        
-                        # 写回文件
-                        with open(json_path, 'w', encoding='utf-8') as f:
-                            json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
-                        
-                        print(f"已保存所有OCR结果到JSON: {self.current_image_name}")
-                    break
-                    
-        except Exception as e:
-            print(f"保存OCR结果到JSON失败: {e}")
-            raise
-
-    def set_project_context(self, project_dir: str, image_name: str):
-        """【新增】设置项目上下文信息"""
-        self.current_project_dir = project_dir
-        self.current_image_name = image_name
-
-    def clear_ocr_results(self):
-        """清空OCR结果显示并重置状态"""
-        # 清空控件引用
-        self.ocr_results_widgets.clear()
-        self.current_detection_results = None
-        
-        # 清空布局中的所有控件
-        while self.ocr_container_layout.count():
-            child = self.ocr_container_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-        
-        # 重新添加提示标签
-        self.ocr_hint_label = QLabel("请先完成检测和OCR识别")
-        self.ocr_hint_label.setAlignment(Qt.AlignCenter)
-        self.ocr_hint_label.setStyleSheet("color: #888888; font-style: italic;")
-        self.ocr_container_layout.addWidget(self.ocr_hint_label)
-
 
 if __name__ == "__main__":
     # 测试参数面板

@@ -21,9 +21,6 @@ class MenuManager(QObject):
     toggle_lines_requested = pyqtSignal()
     toggle_blocks_requested = pyqtSignal()
     
-    start_detection_requested = pyqtSignal()
-    start_ocr_requested = pyqtSignal()
-    
     about_requested = pyqtSignal()
     
     def __init__(self, main_window):
@@ -117,18 +114,6 @@ class MenuManager(QObject):
         """创建处理菜单"""
         process_menu = menubar.addMenu('处理(&P)')
         
-        # 开始检测
-        detect_action = QAction('开始检测(&D)', self.main_window)
-        detect_action.setShortcut('F5')
-        detect_action.triggered.connect(self.start_detection_requested.emit)
-        process_menu.addAction(detect_action)
-        
-        # OCR识别
-        ocr_action = QAction('OCR识别(&O)', self.main_window)
-        ocr_action.setShortcut('F6')
-        ocr_action.triggered.connect(self.start_ocr_requested.emit)
-        process_menu.addAction(ocr_action)
-
     def _create_help_menu(self, menubar):
         """创建帮助菜单"""
         help_menu = menubar.addMenu('帮助(&H)')

@@ -33,7 +33,6 @@ class ComicTextDetectorGUI(QMainWindow):
         
         # 应用状态
         self.detector: Optional[ComicTextDetector] = None
-        self.current_results: Optional[DetectionResults] = None
         self.current_image_path: Optional[str] = None
         self.recent_files: List[str] = []
         
@@ -44,8 +43,6 @@ class ComicTextDetectorGUI(QMainWindow):
         self.current_project_results: Optional[ProjectResults] = None
 
         # 工作线程（由事件处理器管理）
-        self.detection_worker = None
-        self.ocr_worker = None
         self.batch_worker = None
         
         # 管理器和处理器
@@ -115,18 +112,6 @@ class ComicTextDetectorGUI(QMainWindow):
         control_widget = QWidget()
         control_layout = QHBoxLayout(control_widget)
         control_layout.setContentsMargins(5, 5, 5, 5)
-        
-        # 检测按钮
-        self.detect_button = QPushButton("🔍 开始检测")
-        self.detect_button.setStyleSheet(self.get_button_style("#2196F3", "#1976D2"))
-        self.detect_button.setEnabled(False)
-        control_layout.addWidget(self.detect_button)
-        
-        # OCR按钮
-        self.ocr_button = QPushButton("📝 OCR识别")
-        self.ocr_button.setStyleSheet(self.get_button_style("#4CAF50", "#45a049"))
-        self.ocr_button.setEnabled(False)
-        control_layout.addWidget(self.ocr_button)
         
         control_layout.addStretch()
         return control_widget
@@ -206,19 +191,8 @@ class ComicTextDetectorGUI(QMainWindow):
         self.menu_manager.toggle_blocks_requested.connect(
             self.event_handlers.handle_toggle_blocks)
         
-        self.menu_manager.start_detection_requested.connect(
-            self.event_handlers.handle_start_detection)
-        self.menu_manager.start_ocr_requested.connect(
-            self.event_handlers.handle_start_ocr)
-        
         self.menu_manager.about_requested.connect(
             self.event_handlers.handle_show_about)
-        
-        # 按钮信号
-        self.detect_button.clicked.connect(
-            self.event_handlers.handle_start_detection)
-        self.ocr_button.clicked.connect(
-            self.event_handlers.handle_start_ocr)
         
         # 导航按钮信号
         self.prev_button.clicked.connect(
@@ -228,19 +202,7 @@ class ComicTextDetectorGUI(QMainWindow):
         
         # 参数面板信号
         self.parameter_panel.parameters_changed.connect(self.on_parameters_changed)
-        self.parameter_panel.ocr_text_modified.connect(self.on_ocr_text_modified)
-        self.parameter_panel.refresh_requested.connect(self.on_refresh_ocr_requested) 
-    
-    def on_refresh_ocr_requested(self):
-        """处理刷新OCR请求"""
-        if self.current_image_path and self.current_project_folder:
-            input_folder = Path(self.current_project_folder)
-            project_results_dir = input_folder / "results"  # 【修改】输出到项目内部
-            image_name = Path(self.current_image_path).stem
-            
-            self.parameter_panel.load_ocr_from_json(str(project_results_dir), image_name)
-            self.statusBar().showMessage("OCR结果已刷新")
-
+     
     def init_detector(self):
         """初始化检测器"""
         try:
@@ -278,32 +240,7 @@ class ComicTextDetectorGUI(QMainWindow):
                     self.detector.update_parameters(**params)
             except Exception as e:
                 QMessageBox.warning(self, "警告", f"参数更新失败: {e}")
-
-    def on_ocr_text_modified(self, region_idx: int, new_text: str):
-        """【优化】OCR文本修改回调 - 使用项目内部路径"""
-        if self.current_results:
-            try:
-                # 更新可视化（如果需要重新生成带OCR文本的结果图）
-                self.image_viewer.set_detection_regions(self.current_results.text_regions)
-                
-                # 【修改】如果在项目模式下，同步到JSON文件 - 使用项目内部路径
-                if (self.current_project_folder and 
-                    self.current_project_results):
-                    
-                    input_folder = Path(self.current_project_folder)
-                    project_results_dir = input_folder / "results"  # 【修改】输出到项目内部
-                    image_name = self.current_results.image_name
-                    
-                    # 同步到JSON
-                    self.parameter_panel.sync_ocr_to_json(
-                        str(project_results_dir), image_name, region_idx, new_text)
-                
-                # 更新状态栏
-                self.statusBar().showMessage(f"区域{region_idx+1}的OCR文本已修改并保存")
-                
-            except Exception as e:
-                print(f"保存OCR修改时出错: {e}")
-    
+  
     def closeEvent(self, event):
         """关闭事件处理"""
         # 停止所有工作线程

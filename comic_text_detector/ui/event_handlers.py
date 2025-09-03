@@ -223,22 +223,7 @@ class EventHandlers(QObject):
         
         # 清空之前的结果
         self.main_window.current_results = None
-        self.main_window.ocr_button.setEnabled(False)
-        
-        # 加载OCR结果到面板
-        if self.main_window.current_project_folder:
-            input_folder = Path(self.main_window.current_project_folder)
-            project_results_dir = input_folder / "results"
-            image_name = Path(current_image).stem
-            
-            self.main_window.parameter_panel.load_ocr_from_json(
-                str(project_results_dir), image_name)
-        else:
-            self.main_window.parameter_panel.clear_ocr_results()
-        
-        # 【新增】尝试加载已有的检测结果
-        self._load_existing_detection_for_current_image()
-        
+         
         # 更新按钮状态
         self.main_window.prev_button.setEnabled(self.main_window.current_image_index > 0)
         self.main_window.next_button.setEnabled(
