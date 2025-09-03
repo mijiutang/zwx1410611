@@ -699,7 +699,7 @@ if __name__ == '__main__':
 
 ```py
 """
-增强版核心检测器类 - 集成OCR文本识别功能
+分离版核心检测器类 - 优化输出文件结构
 """
 
 import cv2
@@ -708,6 +708,7 @@ import numpy as np
 import torch
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Union
+import time
 
 from src.core.inference import TextDetector
 from src.utils.textmask import refine_mask, refine_undetected_mask, REFINEMASK_ANNOTATION
@@ -951,6 +952,7 @@ class DetectionResults:
         
         # OCR结果
         self.ocr_results: Dict[str, str] = {}
+        self.has_ocr_results: bool = False
         
         # 元数据
         self.detection_time: float = 0.0
@@ -965,6 +967,7 @@ class DetectionResults:
             'image_name': self.image_name,
             'text_regions': self.text_regions,
             'ocr_results': self.ocr_results,
+            'has_ocr_results': self.has_ocr_results,
             'detection_time': self.detection_time,
             'ocr_time': self.ocr_time,
             'model_info': self.model_info,
@@ -977,8 +980,132 @@ class DetectionResults:
             }
         }
 
+class ProjectResults:
+    """项目结果管理器"""
+    
+    def __init__(self, project_name: str):
+        self.project_name = project_name
+        self.detection_results: List[DetectionResults] = []
+        self.processing_start_time = time.time()
+        self.total_processing_time = 0.0
+    
+    def add_result(self, result: DetectionResults):
+        """添加单个检测结果"""
+        self.detection_results.append(result)
+    
+    def get_project_ocr_results(self) -> Dict[str, str]:
+        """获取整个项目的OCR结果"""
+        project_ocr = {}
+        for result in self.detection_results:
+            if result.has_ocr_results:
+                # 合并每张图片的OCR文本
+                all_texts = []
+                for region_key, text in result.ocr_results.items():
+                    if text.strip():
+                        all_texts.append(text.strip())
+                combined_text = " ".join(all_texts)
+                project_ocr[result.image_name] = combined_text
+            else:
+                project_ocr[result.image_name] = ""
+        return project_ocr
+    
+    def get_project_detection_results(self) -> Dict[str, Any]:
+        """获取整个项目的检测结果摘要"""
+        project_results = {
+            'project_name': self.project_name,
+            'total_images': len(self.detection_results),
+            'processing_time': self.total_processing_time,
+            'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'images': []
+        }
+        
+        for result in self.detection_results:
+            image_summary = {
+                'image_name': result.image_name,
+                'image_path': result.image_path,
+                'text_regions_count': len(result.text_regions),
+                'detection_time': result.detection_time,
+                'ocr_time': result.ocr_time,
+                'has_ocr': result.has_ocr_results,
+                'languages': list(set(r.get('language', 'unknown') for r in result.text_regions)),
+                'avg_confidence': np.mean([r.get('confidence', 0) for r in result.text_regions]) if result.text_regions else 0
+            }
+            project_results['images'].append(image_summary)
+        
+        # 计算项目统计信息
+        project_results['stats'] = {
+            'total_regions': sum(len(r.text_regions) for r in self.detection_results),
+            'images_with_ocr': sum(1 for r in self.detection_results if r.has_ocr_results),
+            'avg_regions_per_image': np.mean([len(r.text_regions) for r in self.detection_results]) if self.detection_results else 0,
+            'total_detection_time': sum(r.detection_time for r in self.detection_results),
+            'total_ocr_time': sum(r.ocr_time for r in self.detection_results),
+            'languages_detected': list(set(lang for r in self.detection_results for region in r.text_regions for lang in [region.get('language', 'unknown')]))
+        }
+        
+        return project_results
+    
+    def save_to_directory(self, base_output_dir: Union[str, Path], output_params: Dict[str, Any]):
+        """保存整个项目的结果到指定目录"""
+        base_output_dir = Path(base_output_dir)
+        project_dir = base_output_dir / self.project_name
+        project_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 创建子文件夹
+        if output_params.get('save_image', True):
+            result_images_dir = project_dir / "result_images"
+            result_images_dir.mkdir(exist_ok=True)
+        
+        if output_params.get('save_mask', True):
+            masks_dir = project_dir / "masks"
+            masks_dir.mkdir(exist_ok=True)
+        
+        saved_files = []
+        
+        # 保存每张图片的结果
+        for result in self.detection_results:
+            base_name = result.image_name
+            
+            # 保存结果图片
+            if output_params.get('save_image', True) and result.result_image is not None:
+                result_path = result_images_dir / f"{base_name}_result.{output_params.get('image_format', 'jpg')}"
+                imwrite(str(result_path), result.result_image)
+                saved_files.append(str(result_path))
+            
+            # 保存掩码
+            if output_params.get('save_mask', True) and result.refined_mask is not None:
+                mask_path = masks_dir / f"{base_name}_mask.{output_params.get('mask_format', 'png')}"
+                imwrite(str(mask_path), result.refined_mask)
+                saved_files.append(str(mask_path))
+        
+        # 保存项目级别的JSON结果
+        if output_params.get('save_json', True):
+            # 保存检测结果摘要
+            project_results = self.get_project_detection_results()
+            result_json_path = project_dir / "detection_results.json"
+            with open(result_json_path, 'w', encoding='utf-8') as f:
+                json.dump(project_results, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
+            saved_files.append(str(result_json_path))
+            
+            # 保存OCR结果（如果有）
+            project_ocr = self.get_project_ocr_results()
+            if any(text.strip() for text in project_ocr.values()):
+                ocr_json_path = project_dir / "ocr_results.json"
+                with open(ocr_json_path, 'w', encoding='utf-8') as f:
+                    json.dump(project_ocr, f, ensure_ascii=False, indent=2)
+                saved_files.append(str(ocr_json_path))
+        
+        self.total_processing_time = time.time() - self.processing_start_time
+        
+        print(f"\n项目 '{self.project_name}' 处理完成:")
+        print(f"- 处理图片数: {len(self.detection_results)}")
+        print(f"- 总处理时间: {self.total_processing_time:.2f}s")
+        print(f"- 输出目录: {project_dir}")
+        print(f"- 保存文件数: {len(saved_files)}")
+        
+        return project_dir
+
 class ComicTextDetector:
-    """漫画文本检测器主类 - 集成OCR功能"""
+    """漫画文本检测器主类 - 分离的检测和OCR功能"""
     
     def __init__(self, 
                  model_path: Optional[str] = None,
@@ -1066,20 +1193,17 @@ class ComicTextDetector:
         except Exception as e:
             raise RuntimeError(f"检测器初始化失败: {e}")
     
-    def detect(self, image_path: Union[str, Path], enable_ocr: Optional[bool] = None, **kwargs) -> DetectionResults:
+    def detect_only(self, image_path: Union[str, Path], **kwargs) -> DetectionResults:
         """
-        执行文本检测和OCR识别
+        仅执行文本检测，不进行OCR识别
         
         Args:
             image_path: 图片路径
-            enable_ocr: 是否启用OCR（覆盖初始化设置）
             **kwargs: 临时覆盖的参数
             
         Returns:
-            DetectionResults: 检测结果对象
+            DetectionResults: 仅包含检测结果的对象
         """
-        import time
-        
         image_path = str(image_path)
         if not Path(image_path).exists():
             raise FileNotFoundError(f"图片文件不存在: {image_path}")
@@ -1107,16 +1231,6 @@ class ComicTextDetector:
             # 处理检测结果
             text_regions = self._process_detection_results(blk_list, img.shape)
             
-            # OCR处理
-            ocr_start_time = time.time()
-            should_do_ocr = enable_ocr if enable_ocr is not None else self.ocr_processor.enable_ocr
-            
-            if should_do_ocr:
-                ocr_results = self.ocr_processor.process_text_regions(img, text_regions)
-                results.ocr_results = ocr_results
-            
-            ocr_time = time.time() - ocr_start_time
-            
             # 生成可视化结果
             result_image = self._visualize_results(img.copy(), text_regions)
             
@@ -1127,22 +1241,151 @@ class ComicTextDetector:
             results.refined_mask = mask_refined
             results.result_image = result_image
             results.detection_time = detection_time
-            results.ocr_time = ocr_time
+            results.ocr_time = 0.0
+            results.has_ocr_results = False
             results.model_info = self._get_model_info()
             results.parameters = self._get_current_parameters(**kwargs)
             
             # 更新统计
             self.detection_count += 1
             self.total_time += detection_time
-            self.total_ocr_time += ocr_time
             
-            print(f"检测完成: 找到 {len(text_regions)} 个文字区域, 检测耗时: {detection_time:.3f}s, OCR耗时: {ocr_time:.3f}s")
+            print(f"检测完成: 找到 {len(text_regions)} 个文字区域, 检测耗时: {detection_time:.3f}s")
             
             return results
             
         except Exception as e:
             print(f"检测失败: {e}")
             raise
+    
+    def run_ocr_on_results(self, results: DetectionResults) -> DetectionResults:
+        """
+        对现有检测结果进行OCR识别
+        
+        Args:
+            results: 检测结果对象
+            
+        Returns:
+            DetectionResults: 更新了OCR结果的对象
+        """
+        if not self.ocr_processor.enable_ocr:
+            print("OCR功能未启用，跳过文本识别")
+            return results
+        
+        if results.has_ocr_results:
+            print("该结果已包含OCR结果，跳过重复处理")
+            return results
+        
+        ocr_start_time = time.time()
+        
+        try:
+            # 进行OCR处理
+            ocr_results = self.ocr_processor.process_text_regions(
+                results.original_image, 
+                results.text_regions
+            )
+            
+            ocr_time = time.time() - ocr_start_time
+            
+            # 更新结果对象
+            results.ocr_results = ocr_results
+            results.ocr_time = ocr_time
+            results.has_ocr_results = True
+            
+            # 重新生成可视化结果（包含OCR文本）
+            results.result_image = self._visualize_results(results.original_image.copy(), results.text_regions)
+            
+            # 更新统计
+            self.total_ocr_time += ocr_time
+            
+            print(f"OCR完成: 处理 {len(results.text_regions)} 个文字区域, OCR耗时: {ocr_time:.3f}s")
+            
+            return results
+            
+        except Exception as e:
+            print(f"OCR处理失败: {e}")
+            raise
+    
+    def detect(self, image_path: Union[str, Path], enable_ocr: Optional[bool] = None, **kwargs) -> DetectionResults:
+        """
+        执行文本检测，可选择是否进行OCR识别（保持兼容性）
+        
+        Args:
+            image_path: 图片路径
+            enable_ocr: 是否启用OCR（覆盖初始化设置）
+            **kwargs: 临时覆盖的参数
+            
+        Returns:
+            DetectionResults: 检测结果对象
+        """
+        # 先进行检测
+        results = self.detect_only(image_path, **kwargs)
+        
+        # 如果需要OCR，则进行OCR处理
+        should_do_ocr = enable_ocr if enable_ocr is not None else self.ocr_processor.enable_ocr
+        if should_do_ocr:
+            results = self.run_ocr_on_results(results)
+        
+        return results
+    
+    def batch_process_project(self, 
+                            image_files: List[str], 
+                            project_name: str,
+                            output_dir: Union[str, Path],
+                            include_ocr: bool = True,
+                            progress_callback=None) -> ProjectResults:
+        """
+        批量处理项目，返回项目结果对象
+        
+        Args:
+            image_files: 图片文件路径列表
+            project_name: 项目名称
+            output_dir: 输出目录
+            include_ocr: 是否包含OCR处理
+            progress_callback: 进度回调函数 (current, total, message) -> None
+            
+        Returns:
+            ProjectResults: 项目结果对象
+        """
+        project_results = ProjectResults(project_name)
+        total_files = len(image_files)
+        
+        print(f"开始批量处理项目: {project_name} ({total_files} 个文件)")
+        
+        for i, image_path in enumerate(image_files, 1):
+            try:
+                file_name = Path(image_path).name
+                
+                if progress_callback:
+                    progress_callback(i, total_files, f"正在检测: {file_name}")
+                
+                # 执行检测
+                results = self.detect_only(image_path)
+                
+                # 如果需要OCR，执行OCR
+                if include_ocr:
+                    if progress_callback:
+                        progress_callback(i, total_files, f"正在OCR: {file_name}")
+                    results = self.run_ocr_on_results(results)
+                
+                # 添加到项目结果
+                project_results.add_result(results)
+                
+                print(f"完成 ({i}/{total_files}): {file_name} - {len(results.text_regions)} 个区域")
+                
+            except Exception as e:
+                print(f"处理文件 {image_path} 时出错: {e}")
+                # 创建空结果占位
+                empty_result = DetectionResults(image_path, np.zeros((100, 100, 3), dtype=np.uint8))
+                empty_result.detection_time = 0.0
+                empty_result.ocr_time = 0.0
+                project_results.add_result(empty_result)
+        
+        # 保存项目结果
+        output_project_dir = project_results.save_to_directory(output_dir, self.config.output_params)
+        
+        print(f"项目 '{project_name}' 批量处理完成！")
+        return project_results
     
     def _process_detection_results(self, blk_list: List[TextBlock], img_shape: Tuple) -> List[Dict]:
         """处理检测结果，转换为标准格式"""
@@ -1214,50 +1457,15 @@ class ComicTextDetector:
     
     def save_results(self, results: DetectionResults, output_dir: Union[str, Path]):
         """
-        保存检测结果（包含OCR结果）
+        保存单个检测结果（兼容方法，建议使用 batch_process_project）
         
         Args:
             results: 检测结果对象
             output_dir: 输出目录
         """
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        base_name = results.image_name
-        output_params = self.config.output_params
-        
-        try:
-            # 保存结果图片
-            if output_params.get('save_image', True):
-                result_path = output_dir / f"{base_name}_result.{output_params.get('image_format', 'jpg')}"
-                imwrite(str(result_path), results.result_image)
-                print(f"结果图片已保存: {result_path}")
-            
-            # 保存文字掩码
-            if output_params.get('save_mask', True) and results.refined_mask is not None:
-                mask_path = output_dir / f"{base_name}_mask.{output_params.get('mask_format', 'png')}"
-                imwrite(str(mask_path), results.refined_mask)
-                print(f"文字掩码已保存: {mask_path}")
-            
-            # 保存JSON结果（包含OCR）
-            if output_params.get('save_json', True):
-                json_path = output_dir / f"{base_name}_result.json"
-                with open(json_path, 'w', encoding='utf-8') as f:
-                    json.dump(results.to_dict(), f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
-                print(f"JSON结果已保存: {json_path}")
-            
-            # 单独保存OCR结果
-            if results.ocr_results:
-                ocr_path = output_dir / f"{base_name}_ocr.json"
-                with open(ocr_path, 'w', encoding='utf-8') as f:
-                    json.dump({results.image_name: results.ocr_results}, f, ensure_ascii=False, indent=2)
-                print(f"OCR结果已保存: {ocr_path}")
-            
-            return output_dir
-            
-        except Exception as e:
-            print(f"保存结果失败: {e}")
-            raise
+        project_results = ProjectResults("single_image")
+        project_results.add_result(results)
+        return project_results.save_to_directory(output_dir, self.config.output_params)
     
     def _get_model_info(self) -> Dict[str, Any]:
         """获取模型信息"""
@@ -1275,7 +1483,11 @@ class ComicTextDetector:
             'conf_thresh': self.conf_thresh,
             'nms_thresh': self.nms_thresh,
             'mask_thresh': self.mask_thresh,
-            'allowed_languages': self.allowed_languages
+            'allowed_languages': self.allowed_languages,
+            'containment_thresh': self.config.detector_params.get('containment_thresh', 0.8),
+            'enable_box_filter': self.config.detector_params.get('enable_box_filter', True),
+            'min_box_width': self.config.detector_params.get('min_box_width', 10),
+            'min_box_height': self.config.detector_params.get('min_box_height', 10)
         }
         params.update(kwargs)
         return params
@@ -1313,58 +1525,6 @@ class ComicTextDetector:
             'model_info': self._get_model_info()
         }
     
-    def batch_process_with_ocr(self, image_paths: List[Union[str, Path]], 
-                              output_dir: Union[str, Path]) -> Dict[str, str]:
-        """
-        批量处理图片并进行OCR识别
-        
-        Args:
-            image_paths: 图片路径列表
-            output_dir: 输出目录
-            
-        Returns:
-            Dict[str, str]: 图片名到OCR文本的映射
-        """
-        batch_results = {}
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        print(f"开始批量处理{len(image_paths)}张图片")
-        
-        for i, image_path in enumerate(image_paths, 1):
-            try:
-                print(f"处理第{i}/{len(image_paths)}张图片: {image_path}")
-                
-                # 执行检测和OCR
-                results = self.detect(image_path, enable_ocr=True)
-                
-                # 保存结果
-                self.save_results(results, output_dir)
-                
-                # 汇总OCR文本
-                all_texts = []
-                for region_key, text in results.ocr_results.items():
-                    if text.strip():
-                        all_texts.append(text.strip())
-                
-                combined_text = " ".join(all_texts)
-                batch_results[results.image_name] = combined_text
-                
-                print(f"完成处理: {results.image_name}, 识别文本: {combined_text[:100]}...")
-                
-            except Exception as e:
-                print(f"处理图片{image_path}时出错: {e}")
-                image_name = Path(image_path).stem
-                batch_results[image_name] = ""
-        
-        # 保存批量OCR结果
-        batch_ocr_path = output_dir / "batch_ocr_results.json"
-        with open(batch_ocr_path, 'w', encoding='utf-8') as f:
-            json.dump(batch_results, f, ensure_ascii=False, indent=2)
-        
-        print(f"批量处理完成，结果已保存到: {batch_ocr_path}")
-        return batch_results
-    
     def __del__(self):
         """清理资源"""
         if hasattr(self, 'detector'):
@@ -1373,50 +1533,92 @@ class ComicTextDetector:
             torch.cuda.empty_cache()
 
 # 便捷函数
-def quick_detect_with_ocr(image_path: Union[str, Path], 
-                         model_path: Optional[str] = None,
-                         output_dir: Optional[str] = None,
-                         enable_ocr: bool = True,
-                         **kwargs) -> DetectionResults:
+def quick_detect_only(image_path: Union[str, Path], 
+                     model_path: Optional[str] = None,
+                     output_dir: Optional[str] = None,
+                     **kwargs) -> DetectionResults:
     """
-    快速检测和OCR函数
+    快速检测函数（仅检测，不OCR）
     
     Args:
         image_path: 图片路径
         model_path: 模型路径
         output_dir: 输出目录
-        enable_ocr: 是否启用OCR
         **kwargs: 检测参数
         
     Returns:
         DetectionResults: 检测结果
     """
-    detector = ComicTextDetector(model_path=model_path, enable_ocr=enable_ocr, **kwargs)
-    results = detector.detect(image_path, enable_ocr=enable_ocr)
+    detector = ComicTextDetector(model_path=model_path, enable_ocr=False, **kwargs)
+    results = detector.detect_only(image_path)
     
     if output_dir:
         detector.save_results(results, output_dir)
     
     return results
 
+def batch_process_project(image_files: List[str], 
+                         project_name: str,
+                         output_dir: str,
+                         model_path: Optional[str] = None,
+                         include_ocr: bool = True,
+                         **kwargs) -> ProjectResults:
+    """
+    批量处理项目的便捷函数
+    
+    Args:
+        image_files: 图片文件列表
+        project_name: 项目名称
+        output_dir: 输出目录
+        model_path: 模型路径
+        include_ocr: 是否包含OCR
+        **kwargs: 其他检测参数
+        
+    Returns:
+        ProjectResults: 项目结果对象
+    """
+    detector = ComicTextDetector(model_path=model_path, enable_ocr=include_ocr, **kwargs)
+    return detector.batch_process_project(image_files, project_name, output_dir, include_ocr)
+
 if __name__ == "__main__":
     # 测试检测器
     import sys
     
-    if len(sys.argv) < 2:
-        print("用法: python detector.py <image_path> [output_dir]")
+    if len(sys.argv) < 3:
+        print("用法: python detector.py <image_dir> <project_name> [output_dir]")
         sys.exit(1)
     
-    image_path = sys.argv[1]
-    output_dir = sys.argv[2] if len(sys.argv) > 2 else "test_results"
+    image_dir = Path(sys.argv[1])
+    project_name = sys.argv[2]
+    output_dir = sys.argv[3] if len(sys.argv) > 3 else "test_results"
+    
+    if not image_dir.exists():
+        print(f"图片目录不存在: {image_dir}")
+        sys.exit(1)
     
     try:
-        results = quick_detect_with_ocr(image_path, output_dir=output_dir, enable_ocr=True)
-        print(f"检测完成! 找到 {len(results.text_regions)} 个文字区域")
-        print(f"OCR结果: {results.ocr_results}")
+        # 获取图片文件列表
+        from src.utils.io_utils import find_all_imgs
+        image_files = find_all_imgs(str(image_dir), abs_path=True)
+        
+        if not image_files:
+            print(f"目录中没有找到图片文件: {image_dir}")
+            sys.exit(1)
+        
+        print(f"找到 {len(image_files)} 个图片文件")
+        
+        # 批量处理
+        project_results = batch_process_project(
+            image_files=image_files,
+            project_name=project_name,
+            output_dir=output_dir,
+            include_ocr=True
+        )
+        
+        print(f"处理完成！项目结果保存在: {project_results}")
         
     except Exception as e:
-        print(f"检测失败: {e}")
+        print(f"处理失败: {e}")
         sys.exit(1)
 ```
 
@@ -1646,7 +1848,7 @@ if __name__ == '__main__':
 
 ```py
 """
-GUI应用主类 - 清理版本
+GUI应用主类 - 分离版本（检测和OCR独立）- 适配新的项目结构
 """
 
 import sys
@@ -1661,14 +1863,14 @@ try:
 except ImportError:
     raise ImportError("PyQt5未安装，请运行：pip install PyQt5")
 
-from src.core.detector import ComicTextDetector, DetectionResults
+from src.core.detector import ComicTextDetector, DetectionResults, ProjectResults
 from src.ui.widgets.image_viewer import ImageViewer
 from src.ui.widgets.parameter_panel import ParameterPanel
 from config.config import Config
 
 
 class DetectionWorker(QThread):
-    """检测工作线程"""
+    """仅检测工作线程"""
     
     finished = pyqtSignal(object)  # DetectionResults
     error = pyqtSignal(str)
@@ -1682,63 +1884,72 @@ class DetectionWorker(QThread):
     def run(self):
         try:
             self.progress.emit("正在执行文字检测...")
-            results = self.detector.detect(self.image_path)
+            results = self.detector.detect_only(self.image_path)
+            self.finished.emit(results)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class OCRWorker(QThread):
+    """OCR工作线程"""
+    
+    finished = pyqtSignal(object)  # DetectionResults with OCR
+    error = pyqtSignal(str)
+    progress = pyqtSignal(str)
+    
+    def __init__(self, detector: ComicTextDetector, detection_results: DetectionResults):
+        super().__init__()
+        self.detector = detector
+        self.detection_results = detection_results
+    
+    def run(self):
+        try:
+            self.progress.emit("正在进行OCR识别...")
+            results = self.detector.run_ocr_on_results(self.detection_results)
             self.finished.emit(results)
         except Exception as e:
             self.error.emit(str(e))
 
 
 class BatchProcessWorker(QThread):
-    """批量处理工作线程"""
+    """批量处理工作线程 - 使用新的项目结构"""
     
-    finished = pyqtSignal(dict)  # 返回处理结果摘要
+    finished = pyqtSignal(object)  # ProjectResults
     error = pyqtSignal(str)
     progress = pyqtSignal(int, int, str)  # current, total, message
     
-    def __init__(self, detector: ComicTextDetector, image_files: List[str], output_dir: str):
+    def __init__(self, detector: ComicTextDetector, image_files: List[str], 
+                 project_name: str, output_dir: str, include_ocr: bool = True):
         super().__init__()
         self.detector = detector
         self.image_files = image_files
+        self.project_name = project_name
         self.output_dir = output_dir
+        self.include_ocr = include_ocr
     
     def run(self):
         try:
-            results_summary = {}
-            total_files = len(self.image_files)
+            def progress_callback(current, total, message):
+                """进度回调函数"""
+                self.progress.emit(current, total, message)
             
-            for i, image_path in enumerate(self.image_files, 1):
-                try:
-                    file_name = Path(image_path).name
-                    self.progress.emit(i, total_files, f"正在处理: {file_name}")
-                    
-                    # 执行检测和OCR
-                    results = self.detector.detect(image_path, enable_ocr=True)
-                    
-                    # 保存结果
-                    self.detector.save_results(results, self.output_dir)
-                    
-                    # 汇总OCR文本
-                    all_texts = []
-                    for region_key, text in results.ocr_results.items():
-                        if text.strip():
-                            all_texts.append(text.strip())
-                    
-                    combined_text = " ".join(all_texts)
-                    results_summary[results.image_name] = combined_text
-                    
-                except Exception as e:
-                    print(f"处理文件 {image_path} 时出错: {e}")
-                    image_name = Path(image_path).stem
-                    results_summary[image_name] = ""
+            # 使用新的批量处理方法
+            project_results = self.detector.batch_process_project(
+                image_files=self.image_files,
+                project_name=self.project_name,
+                output_dir=self.output_dir,
+                include_ocr=self.include_ocr,
+                progress_callback=progress_callback
+            )
             
-            self.finished.emit(results_summary)
+            self.finished.emit(project_results)
             
         except Exception as e:
             self.error.emit(str(e))
 
 
 class ComicTextDetectorGUI(QMainWindow):
-    """漫画文本检测器GUI主窗口"""
+    """漫画文本检测器GUI主窗口 - 分离版本"""
     
     def __init__(self):
         super().__init__()
@@ -1759,6 +1970,7 @@ class ComicTextDetectorGUI(QMainWindow):
         
         # 工作线程
         self.detection_worker: Optional[DetectionWorker] = None
+        self.ocr_worker: Optional[OCRWorker] = None
         self.batch_worker: Optional[BatchProcessWorker] = None
         
         # 初始化UI
@@ -1768,7 +1980,7 @@ class ComicTextDetectorGUI(QMainWindow):
     
     def init_ui(self):
         """初始化用户界面"""
-        self.setWindowTitle("漫画文本检测器 v1.0")
+        self.setWindowTitle("漫画文本检测器 v1.0 (项目结构优化版)")
         self.setMinimumSize(1000, 700)
         
         # 设置窗口大小
@@ -1788,46 +2000,123 @@ class ComicTextDetectorGUI(QMainWindow):
         self.parameter_panel.parameters_changed.connect(self.on_parameters_changed)
         main_layout.addWidget(self.parameter_panel, stretch=0)
         
-        # 右侧面板 - 图像显示
+        # 右侧面板 - 图像显示和控制
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
+        
+        # 控制按钮区域
+        control_widget = QWidget()
+        control_layout = QHBoxLayout(control_widget)
+        control_layout.setContentsMargins(5, 5, 5, 5)
+        
+        # 检测按钮
+        self.detect_button = QPushButton("🔍 开始检测")
+        self.detect_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
+        self.detect_button.clicked.connect(self.start_detection)
+        self.detect_button.setEnabled(False)
+        control_layout.addWidget(self.detect_button)
+        
+        # OCR按钮
+        self.ocr_button = QPushButton("📝 OCR识别")
+        self.ocr_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
+        self.ocr_button.clicked.connect(self.start_ocr)
+        self.ocr_button.setEnabled(False)
+        control_layout.addWidget(self.ocr_button)
+        
+        # 保存按钮
+        self.save_button = QPushButton("💾 保存结果")
+        self.save_button.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
+        self.save_button.clicked.connect(self.save_results)
+        self.save_button.setEnabled(False)
+        control_layout.addWidget(self.save_button)
+        
+        control_layout.addStretch()
+        right_layout.addWidget(control_widget)
+        
+        # 进度条
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        right_layout.addWidget(self.progress_bar)
         
         # 图像查看器
         self.image_viewer = ImageViewer()
         right_layout.addWidget(self.image_viewer, stretch=1)
         
-        # 状态和控制栏 - 简化版，仅保留导航按钮
-        status_widget = QWidget()
-        status_layout = QHBoxLayout(status_widget)
-        status_layout.setContentsMargins(0, 5, 0, 5)
+        # 导航和状态栏
+        nav_status_widget = QWidget()
+        nav_status_layout = QHBoxLayout(nav_status_widget)
+        nav_status_layout.setContentsMargins(0, 5, 0, 5)
 
-        # 添加弹簧，让按钮居中显示
-        status_layout.addStretch()
-
-        self.prev_button = QPushButton("上一张")
+        # 导航按钮
+        self.prev_button = QPushButton("⬅️ 上一张")
         self.prev_button.clicked.connect(self.prev_image)
         self.prev_button.setEnabled(False)
-        status_layout.addWidget(self.prev_button)
+        nav_status_layout.addWidget(self.prev_button)
 
-        self.next_button = QPushButton("下一张")
+        self.next_button = QPushButton("下一张 ➡️")
         self.next_button.clicked.connect(self.next_image)
         self.next_button.setEnabled(False)
-        status_layout.addWidget(self.next_button)
-
-        # 添加弹簧，让按钮居中显示
-        status_layout.addStretch()
-
-        right_layout.addWidget(status_widget)
+        nav_status_layout.addWidget(self.next_button)
         
-        # 为了避免代码错误，创建隐藏的占位组件
-        self.batch_button = QPushButton()
-        self.batch_button.hide()
-        self.progress_bar = QProgressBar()
-        self.progress_bar.hide()
-        self.status_label = QLabel()
-        self.status_label.hide()
-        self.save_button = QPushButton()
-        self.save_button.hide()
+        nav_status_layout.addStretch()
+        
+        # 状态标签
+        self.status_label = QLabel("就绪")
+        self.status_label.setStyleSheet("color: #666666; font-size: 12px;")
+        nav_status_layout.addWidget(self.status_label)
+
+        right_layout.addWidget(nav_status_widget)
         
         main_layout.addWidget(right_widget, stretch=1)
         
@@ -1857,10 +2146,14 @@ class ComicTextDetectorGUI(QMainWindow):
         file_menu.addSeparator()
         
         # 批量处理
-        batch_action = QAction('开始批量处理(&B)', self)
-        batch_action.setShortcut('Ctrl+B')
-        batch_action.triggered.connect(self.start_batch_processing)
+        batch_action = QAction('批量处理（仅检测）(&B)', self)
+        batch_action.triggered.connect(self.start_batch_detection)
         file_menu.addAction(batch_action)
+        
+        # 批量处理（包含OCR）
+        batch_ocr_action = QAction('批量处理（含OCR）(&M)', self)
+        batch_ocr_action.triggered.connect(self.start_batch_with_ocr)
+        file_menu.addAction(batch_ocr_action)
         
         # 保存结果
         save_action = QAction('保存结果(&S)', self)
@@ -1897,11 +2190,26 @@ class ComicTextDetectorGUI(QMainWindow):
 
         # 显示文本块
         self.toggle_blocks_action = QAction('显示文本块(&B)', self)
-        self.toggle_blocks_action.setShortcut('Ctrl+B')
+        self.toggle_blocks_action.setShortcut('Ctrl+Shift+B')
         self.toggle_blocks_action.setCheckable(True)
         self.toggle_blocks_action.setChecked(True)
         self.toggle_blocks_action.triggered.connect(self.toggle_text_blocks)
         view_menu.addAction(self.toggle_blocks_action)
+
+        # 处理菜单
+        process_menu = menubar.addMenu('处理(&P)')
+        
+        # 开始检测
+        detect_action = QAction('开始检测(&D)', self)
+        detect_action.setShortcut('F5')
+        detect_action.triggered.connect(self.start_detection)
+        process_menu.addAction(detect_action)
+        
+        # OCR识别
+        ocr_action = QAction('OCR识别(&O)', self)
+        ocr_action.setShortcut('F6')
+        ocr_action.triggered.connect(self.start_ocr)
+        process_menu.addAction(ocr_action)
 
         # 帮助菜单
         help_menu = menubar.addMenu('帮助(&H)')
@@ -1943,12 +2251,19 @@ class ComicTextDetectorGUI(QMainWindow):
             # 更新按钮状态
             self.prev_button.setEnabled(False)
             self.next_button.setEnabled(len(image_files) > 1)
+            self.detect_button.setEnabled(True)
+            
+            # 清空之前的结果
+            self.current_results = None
+            self.ocr_button.setEnabled(False)
+            self.save_button.setEnabled(False)
             
             # 更新最近文件夹
             self.add_recent_folder(folder_path)
             
             # 更新状态
             self.statusBar().showMessage(f"项目已加载: {folder_path} ({len(image_files)} 个文件)")
+            self.status_label.setText(f"已加载 {len(image_files)} 个文件")
             
         except Exception as e:
             QMessageBox.critical(self, "错误", f"无法加载项目文件夹: {e}")
@@ -1974,6 +2289,11 @@ class ComicTextDetectorGUI(QMainWindow):
         self.image_viewer.load_image(current_image)
         self.current_image_path = current_image
         
+        # 清空之前的结果
+        self.current_results = None
+        self.ocr_button.setEnabled(False)
+        self.save_button.setEnabled(False)
+        
         # 更新按钮状态
         self.prev_button.setEnabled(self.current_image_index > 0)
         self.next_button.setEnabled(self.current_image_index < len(self.current_image_files) - 1)
@@ -1982,7 +2302,171 @@ class ComicTextDetectorGUI(QMainWindow):
         image_name = Path(current_image).name
         total_count = len(self.current_image_files)
         self.statusBar().showMessage(f"图片: {image_name} ({self.current_image_index + 1}/{total_count})")
+        self.status_label.setText(f"图片 {self.current_image_index + 1}/{total_count}: {image_name}")
 
+    def start_detection(self):
+        """开始文字检测"""
+        if not self.current_image_path or not self.detector:
+            QMessageBox.information(self, "提示", "请先选择图片并确保检测器已加载")
+            return
+        
+        # 更新检测器参数
+        params = self.parameter_panel.get_parameters()
+        self.detector.update_parameters(**params)
+        
+        # 禁用按钮
+        self.detect_button.setEnabled(False)
+        self.ocr_button.setEnabled(False)
+        self.save_button.setEnabled(False)
+        
+        # 显示进度
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)  # 不确定进度
+        self.status_label.setText("正在检测...")
+        
+        # 启动检测线程
+        self.detection_worker = DetectionWorker(self.detector, self.current_image_path)
+        self.detection_worker.finished.connect(self.on_detection_finished)
+        self.detection_worker.error.connect(self.on_detection_error)
+        self.detection_worker.progress.connect(self.on_detection_progress)
+        self.detection_worker.start()
+
+    def start_ocr(self):
+        """开始OCR识别"""
+        if not self.current_results or not self.detector:
+            QMessageBox.information(self, "提示", "请先完成文字检测")
+            return
+        
+        if self.current_results.has_ocr_results:
+            reply = QMessageBox.question(
+                self, "确认", "该图片已有OCR结果，是否重新识别？",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                return
+        
+        # 禁用按钮
+        self.detect_button.setEnabled(False)
+        self.ocr_button.setEnabled(False)
+        self.save_button.setEnabled(False)
+        
+        # 显示进度
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)
+        self.status_label.setText("正在OCR识别...")
+        
+        # 启动OCR线程
+        self.ocr_worker = OCRWorker(self.detector, self.current_results)
+        self.ocr_worker.finished.connect(self.on_ocr_finished)
+        self.ocr_worker.error.connect(self.on_ocr_error)
+        self.ocr_worker.progress.connect(self.on_ocr_progress)
+        self.ocr_worker.start()
+
+    def on_detection_progress(self, message: str):
+        """检测进度更新"""
+        self.status_label.setText(message)
+
+    def on_detection_finished(self, results: DetectionResults):
+        """检测完成回调"""
+        self.current_results = results
+        
+        # 显示结果图片
+        self.image_viewer.set_result_image(results.result_image)
+        self.image_viewer.set_detection_regions(results.text_regions)
+        
+        # 更新状态信息
+        region_count = len(results.text_regions)
+        detection_time = results.detection_time
+        self.statusBar().showMessage(f"检测完成: 找到 {region_count} 个文字区域, 耗时 {detection_time:.2f}s")
+        self.status_label.setText(f"检测完成: {region_count} 个区域")
+        
+        # 更新参数面板统计信息
+        self.parameter_panel.update_stats(results.to_dict())
+        
+        # 恢复按钮状态
+        self.detect_button.setEnabled(True)
+        self.ocr_button.setEnabled(True)
+        self.save_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+
+    def on_detection_error(self, error_msg: str):
+        """检测错误回调"""
+        self.statusBar().showMessage("检测失败")
+        self.status_label.setText("检测失败")
+        QMessageBox.critical(self, "检测失败", f"检测过程中发生错误: {error_msg}")
+        
+        # 恢复按钮状态
+        self.detect_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+
+    def on_ocr_progress(self, message: str):
+        """OCR进度更新"""
+        self.status_label.setText(message)
+
+    def on_ocr_finished(self, results: DetectionResults):
+        """OCR完成回调"""
+        self.current_results = results
+        
+        # 更新显示（现在包含OCR文本）
+        self.image_viewer.set_result_image(results.result_image)
+        self.image_viewer.set_detection_regions(results.text_regions)
+        
+        # 更新状态信息
+        ocr_time = results.ocr_time
+        total_text_length = sum(len(text) for text in results.ocr_results.values())
+        self.statusBar().showMessage(f"OCR完成: 识别了 {total_text_length} 个字符, 耗时 {ocr_time:.2f}s")
+        self.status_label.setText(f"OCR完成: {total_text_length} 个字符")
+        
+        # 更新参数面板统计信息
+        self.parameter_panel.update_stats(results.to_dict())
+        
+        # 恢复按钮状态
+        self.detect_button.setEnabled(True)
+        self.ocr_button.setEnabled(True)
+        self.save_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+
+    def on_ocr_error(self, error_msg: str):
+        """OCR错误回调"""
+        self.statusBar().showMessage("OCR识别失败")
+        self.status_label.setText("OCR失败")
+        QMessageBox.critical(self, "OCR失败", f"OCR过程中发生错误: {error_msg}")
+        
+        # 恢复按钮状态
+        self.detect_button.setEnabled(True)
+        self.ocr_button.setEnabled(True)
+        self.save_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+    
+    def save_results(self):
+        """保存检测结果"""
+        if not self.current_results:
+            QMessageBox.information(self, "提示", "没有检测结果可保存")
+            return
+        
+        # 选择保存目录
+        output_dir = QFileDialog.getExistingDirectory(
+            self, "选择保存目录", str(self.config.results_dir)
+        )
+        
+        if output_dir:
+            try:
+                saved_dir = self.detector.save_results(self.current_results, output_dir)
+                
+                # 构建保存信息
+                save_info = f"结果已保存到: {saved_dir}\n\n包含内容:\n"
+                save_info += f"- 检测结果图片\n"
+                save_info += f"- 文字掩码\n" 
+                save_info += f"- JSON格式结果\n"
+                if self.current_results.has_ocr_results:
+                    save_info += f"- OCR识别结果"
+                
+                QMessageBox.information(self, "成功", save_info)
+                self.statusBar().showMessage(f"结果已保存: {saved_dir}")
+                
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"保存失败: {e}")
+    
     def toggle_text_lines(self):
         """切换文本行显示"""
         self.image_viewer.toggle_lines()
@@ -2016,6 +2500,7 @@ class ComicTextDetectorGUI(QMainWindow):
                 self.detector = ComicTextDetector(
                     model_path=model_path,
                     config=self.config,
+                    enable_ocr=True,  # 总是启用OCR，但分离执行
                     **params
                 )
                 device_info = f"({self.detector.device})" if hasattr(self.detector, 'device') else ""
@@ -2025,46 +2510,6 @@ class ComicTextDetectorGUI(QMainWindow):
         except Exception as e:
             QMessageBox.warning(self, "警告", f"检测器初始化失败: {e}")
             self.statusBar().showMessage("检测器初始化失败")
-    
-    def on_detection_finished(self, results: DetectionResults):
-        """检测完成回调"""
-        self.current_results = results
-        
-        # 显示结果图片
-        self.image_viewer.set_result_image(results.result_image)
-        self.image_viewer.set_detection_regions(results.text_regions)
-        
-        # 更新状态信息
-        region_count = len(results.text_regions)
-        detection_time = results.detection_time
-        self.statusBar().showMessage(f"检测完成: 找到 {region_count} 个文字区域, 耗时 {detection_time:.2f}s")
-        
-        # 更新参数面板统计信息
-        self.parameter_panel.update_stats(results.to_dict())
-    
-    def on_detection_error(self, error_msg: str):
-        """检测错误回调"""
-        self.statusBar().showMessage("检测失败")
-        QMessageBox.critical(self, "检测失败", f"检测过程中发生错误: {error_msg}")
-    
-    def save_results(self):
-        """保存检测结果"""
-        if not self.current_results:
-            QMessageBox.information(self, "提示", "没有检测结果可保存")
-            return
-        
-        # 选择保存目录
-        output_dir = QFileDialog.getExistingDirectory(
-            self, "选择保存目录", str(self.config.results_dir)
-        )
-        
-        if output_dir:
-            try:
-                saved_dir = self.detector.save_results(self.current_results, output_dir)
-                QMessageBox.information(self, "成功", f"结果已保存到: {saved_dir}")
-                self.statusBar().showMessage(f"结果已保存: {saved_dir}")
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"保存失败: {e}")
     
     def on_parameters_changed(self):
         """参数变化回调"""
@@ -2120,11 +2565,36 @@ class ComicTextDetectorGUI(QMainWindow):
             action.setEnabled(False)
             self.recent_menu.addAction(action)
 
-    def start_batch_processing(self):
-        """开始批量处理"""
+    def start_batch_detection(self):
+        """开始批量检测（不含OCR）"""
+        self._start_batch_processing(include_ocr=False)
+
+    def start_batch_with_ocr(self):
+        """开始批量处理（含OCR）"""
+        self._start_batch_processing(include_ocr=True)
+
+    def _start_batch_processing(self, include_ocr: bool = True):
+        """开始批量处理 - 使用新的项目结构"""
         if not self.current_image_files or not self.detector:
             QMessageBox.information(self, "提示", "请先选择项目文件夹并确保检测器已加载")
             return
+        
+        # 获取项目名称
+        if self.current_project_folder:
+            default_project_name = Path(self.current_project_folder).name
+        else:
+            default_project_name = f"project_{int(time.time())}"
+        
+        project_name, ok = QInputDialog.getText(
+            self, '项目名称', 
+            f'请输入项目名称（用于创建输出文件夹）:',
+            text=default_project_name
+        )
+        
+        if not ok or not project_name.strip():
+            return
+        
+        project_name = project_name.strip()
         
         # 选择输出目录
         output_dir = QFileDialog.getExistingDirectory(
@@ -2138,8 +2608,26 @@ class ComicTextDetectorGUI(QMainWindow):
         params = self.parameter_panel.get_parameters()
         self.detector.update_parameters(**params)
         
+        # 显示进度
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, len(self.current_image_files))
+        
+        # 禁用控件
+        self.detect_button.setEnabled(False)
+        self.ocr_button.setEnabled(False)
+        self.save_button.setEnabled(False)
+        
+        operation_name = "批量处理（含OCR）" if include_ocr else "批量检测"
+        self.status_label.setText(f"正在{operation_name}...")
+        
         # 启动批量处理线程
-        self.batch_worker = BatchProcessWorker(self.detector, self.current_image_files, output_dir)
+        self.batch_worker = BatchProcessWorker(
+            self.detector, 
+            self.current_image_files, 
+            project_name,
+            output_dir,
+            include_ocr=include_ocr
+        )
         self.batch_worker.finished.connect(self.on_batch_finished)
         self.batch_worker.error.connect(self.on_batch_error)
         self.batch_worker.progress.connect(self.on_batch_progress)
@@ -2147,41 +2635,81 @@ class ComicTextDetectorGUI(QMainWindow):
 
     def on_batch_progress(self, current, total, message):
         """批量处理进度回调"""
+        self.progress_bar.setValue(current)
         self.statusBar().showMessage(f"批量处理进度: {current}/{total} - {message}")
+        self.status_label.setText(f"处理中: {current}/{total}")
 
-    def on_batch_finished(self, results_summary):
-        """批量处理完成回调"""
-        total_files = len(results_summary)
-        successful = sum(1 for text in results_summary.values() if text.strip())
+    def on_batch_finished(self, project_results: ProjectResults):
+        """批量处理完成回调 - 适配新的ProjectResults"""
+        total_files = len(project_results.detection_results)
+        successful = sum(1 for result in project_results.detection_results if len(result.text_regions) > 0)
         
         self.statusBar().showMessage(f"批量处理完成: {successful}/{total_files} 成功")
+        self.status_label.setText(f"批量完成: {successful}/{total_files}")
         
-        QMessageBox.information(
-            self, "完成", 
-            f"批量处理完成！\n"
-            f"总文件数: {total_files}\n"
-            f"成功处理: {successful}\n"
-            f"失败: {total_files - successful}"
-        )
+        # 获取项目统计信息
+        project_stats = project_results.get_project_detection_results()['stats']
+        
+        completion_msg = f"项目 '{project_results.project_name}' 批量处理完成！\n\n"
+        completion_msg += f"处理统计:\n"
+        completion_msg += f"• 总文件数: {total_files}\n"
+        completion_msg += f"• 检测成功: {successful}\n"
+        completion_msg += f"• 总文字区域: {project_stats['total_regions']}\n"
+        completion_msg += f"• OCR处理: {project_stats['images_with_ocr']}/{total_files}\n"
+        completion_msg += f"• 总处理时间: {project_stats['total_detection_time']:.1f}s\n"
+        
+        if project_stats['total_ocr_time'] > 0:
+            completion_msg += f"• OCR总时间: {project_stats['total_ocr_time']:.1f}s\n"
+        
+        completion_msg += f"\n输出目录已按项目结构组织，便于管理。"
+        
+        QMessageBox.information(self, "批量处理完成", completion_msg)
+        
+        # 恢复控件状态
+        self.detect_button.setEnabled(True)
+        self.ocr_button.setEnabled(self.current_results is not None)
+        self.save_button.setEnabled(self.current_results is not None)
+        self.progress_bar.setVisible(False)
 
     def on_batch_error(self, error_msg: str):
         """批量处理错误回调"""
         self.statusBar().showMessage("批量处理失败")
+        self.status_label.setText("批量处理失败")
         QMessageBox.critical(self, "批量处理失败", f"处理过程中发生错误: {error_msg}")
+        
+        # 恢复控件状态
+        self.detect_button.setEnabled(True)
+        self.ocr_button.setEnabled(self.current_results is not None)
+        self.save_button.setEnabled(self.current_results is not None)
+        self.progress_bar.setVisible(False)
 
     def show_about(self):
         """显示关于对话框"""
         about_text = """
-        <h3>漫画文本检测器 v1.0</h3>
+        <h3>漫画文本检测器 v1.0 (项目结构优化版)</h3>
         <p>基于深度学习的漫画文本检测工具</p>
         <p><b>特性:</b></p>
         <ul>
         <li>支持中文和日文文本检测</li>
         <li>高精度的文本区域定位</li>
+        <li>分离的检测和OCR流程</li>
+        <li>可视化文本块和文本行预览</li>
         <li>友好的图形用户界面</li>
         <li>可配置的检测参数</li>
+        <li>优化的项目结构输出</li>
         </ul>
-        <p><b>技术支持:</b> PyQt5, PyTorch, OpenCV</p>
+        <p><b>项目输出结构:</b></p>
+        <p>• 按项目名称创建输出文件夹<br>
+        • result_images/ - 检测结果图片<br>
+        • masks/ - 文字掩码<br>
+        • detection_results.json - 检测结果摘要<br>
+        • ocr_results.json - OCR识别结果</p>
+        <p><b>使用流程:</b></p>
+        <p>1. 打开项目文件夹<br>
+        2. 点击"开始检测"预览文本区域<br>
+        3. 点击"OCR识别"进行文字识别<br>
+        4. 批量处理整个项目</p>
+        <p><b>技术支持:</b> PyQt5, PyTorch, OpenCV, PaddleX</p>
         """
         QMessageBox.about(self, "关于", about_text)
     
@@ -2208,18 +2736,37 @@ class ComicTextDetectorGUI(QMainWindow):
     
     def closeEvent(self, event):
         """关闭事件处理"""
-        # 停止批量处理线程
-        if hasattr(self, 'batch_worker') and self.batch_worker and self.batch_worker.isRunning():
+        # 停止所有工作线程
+        workers = [
+            ('detection_worker', "检测"),
+            ('ocr_worker', "OCR识别"), 
+            ('batch_worker', "批量处理")
+        ]
+        
+        running_workers = []
+        for worker_name, worker_desc in workers:
+            if hasattr(self, worker_name):
+                worker = getattr(self, worker_name)
+                if worker and worker.isRunning():
+                    running_workers.append(worker_desc)
+        
+        if running_workers:
             reply = QMessageBox.question(
-                self, "确认退出", "批量处理正在进行中，确定要退出吗？",
+                self, "确认退出", 
+                f"以下任务正在进行中：{', '.join(running_workers)}\n确定要退出吗？",
                 QMessageBox.Yes | QMessageBox.No
             )
             if reply == QMessageBox.No:
                 event.ignore()
                 return
             
-            self.batch_worker.quit()
-            self.batch_worker.wait()
+            # 停止所有线程
+            for worker_name, _ in workers:
+                if hasattr(self, worker_name):
+                    worker = getattr(self, worker_name)
+                    if worker and worker.isRunning():
+                        worker.quit()
+                        worker.wait()
         
         # 保存设置并清理资源
         self.save_settings()
@@ -2231,6 +2778,8 @@ class ComicTextDetectorGUI(QMainWindow):
 
 
 if __name__ == "__main__":
+    import time  # 添加import
+    
     app = QApplication(sys.argv)
     app.setApplicationName("漫画文本检测器")
     app.setApplicationVersion("1.0")

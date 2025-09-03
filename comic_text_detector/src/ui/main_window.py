@@ -1,5 +1,5 @@
 """
-GUI应用主类 - 分离版本（检测和OCR独立）
+GUI应用主类 - 分离版本（检测和OCR独立）- 适配新的项目结构
 """
 
 import sys
@@ -14,7 +14,7 @@ try:
 except ImportError:
     raise ImportError("PyQt5未安装，请运行：pip install PyQt5")
 
-from src.core.detector import ComicTextDetector, DetectionResults
+from src.core.detector import ComicTextDetector, DetectionResults, ProjectResults
 from src.ui.widgets.image_viewer import ImageViewer
 from src.ui.widgets.parameter_panel import ParameterPanel
 from config.config import Config
@@ -63,57 +63,37 @@ class OCRWorker(QThread):
 
 
 class BatchProcessWorker(QThread):
-    """批量处理工作线程"""
+    """批量处理工作线程 - 使用新的项目结构"""
     
-    finished = pyqtSignal(dict)  # 返回处理结果摘要
+    finished = pyqtSignal(object)  # ProjectResults
     error = pyqtSignal(str)
     progress = pyqtSignal(int, int, str)  # current, total, message
     
-    def __init__(self, detector: ComicTextDetector, image_files: List[str], output_dir: str, include_ocr: bool = True):
+    def __init__(self, detector: ComicTextDetector, image_files: List[str], 
+                 project_name: str, output_dir: str, include_ocr: bool = True):
         super().__init__()
         self.detector = detector
         self.image_files = image_files
+        self.project_name = project_name
         self.output_dir = output_dir
         self.include_ocr = include_ocr
     
     def run(self):
         try:
-            results_summary = {}
-            total_files = len(self.image_files)
+            def progress_callback(current, total, message):
+                """进度回调函数"""
+                self.progress.emit(current, total, message)
             
-            for i, image_path in enumerate(self.image_files, 1):
-                try:
-                    file_name = Path(image_path).name
-                    self.progress.emit(i, total_files, f"正在检测: {file_name}")
-                    
-                    # 执行检测
-                    results = self.detector.detect_only(image_path)
-                    
-                    # 如果需要OCR，执行OCR
-                    if self.include_ocr:
-                        self.progress.emit(i, total_files, f"正在OCR: {file_name}")
-                        results = self.detector.run_ocr_on_results(results)
-                    
-                    # 保存结果
-                    self.detector.save_results(results, self.output_dir)
-                    
-                    # 汇总OCR文本
-                    if results.has_ocr_results:
-                        all_texts = []
-                        for region_key, text in results.ocr_results.items():
-                            if text.strip():
-                                all_texts.append(text.strip())
-                        combined_text = " ".join(all_texts)
-                        results_summary[results.image_name] = combined_text
-                    else:
-                        results_summary[results.image_name] = f"检测到{len(results.text_regions)}个区域"
-                    
-                except Exception as e:
-                    print(f"处理文件 {image_path} 时出错: {e}")
-                    image_name = Path(image_path).stem
-                    results_summary[image_name] = ""
+            # 使用新的批量处理方法
+            project_results = self.detector.batch_process_project(
+                image_files=self.image_files,
+                project_name=self.project_name,
+                output_dir=self.output_dir,
+                include_ocr=self.include_ocr,
+                progress_callback=progress_callback
+            )
             
-            self.finished.emit(results_summary)
+            self.finished.emit(project_results)
             
         except Exception as e:
             self.error.emit(str(e))
@@ -151,7 +131,7 @@ class ComicTextDetectorGUI(QMainWindow):
     
     def init_ui(self):
         """初始化用户界面"""
-        self.setWindowTitle("漫画文本检测器 v1.0 (分离版)")
+        self.setWindowTitle("漫画文本检测器 v1.0 (项目结构优化版)")
         self.setMinimumSize(1000, 700)
         
         # 设置窗口大小
@@ -745,10 +725,27 @@ class ComicTextDetectorGUI(QMainWindow):
         self._start_batch_processing(include_ocr=True)
 
     def _start_batch_processing(self, include_ocr: bool = True):
-        """开始批量处理"""
+        """开始批量处理 - 使用新的项目结构"""
         if not self.current_image_files or not self.detector:
             QMessageBox.information(self, "提示", "请先选择项目文件夹并确保检测器已加载")
             return
+        
+        # 获取项目名称
+        if self.current_project_folder:
+            default_project_name = Path(self.current_project_folder).name
+        else:
+            default_project_name = f"project_{int(time.time())}"
+        
+        project_name, ok = QInputDialog.getText(
+            self, '项目名称', 
+            f'请输入项目名称（用于创建输出文件夹）:',
+            text=default_project_name
+        )
+        
+        if not ok or not project_name.strip():
+            return
+        
+        project_name = project_name.strip()
         
         # 选择输出目录
         output_dir = QFileDialog.getExistingDirectory(
@@ -778,6 +775,7 @@ class ComicTextDetectorGUI(QMainWindow):
         self.batch_worker = BatchProcessWorker(
             self.detector, 
             self.current_image_files, 
+            project_name,
             output_dir,
             include_ocr=include_ocr
         )
@@ -792,21 +790,31 @@ class ComicTextDetectorGUI(QMainWindow):
         self.statusBar().showMessage(f"批量处理进度: {current}/{total} - {message}")
         self.status_label.setText(f"处理中: {current}/{total}")
 
-    def on_batch_finished(self, results_summary):
-        """批量处理完成回调"""
-        total_files = len(results_summary)
-        successful = sum(1 for result in results_summary.values() if result.strip())
+    def on_batch_finished(self, project_results: ProjectResults):
+        """批量处理完成回调 - 适配新的ProjectResults"""
+        total_files = len(project_results.detection_results)
+        successful = sum(1 for result in project_results.detection_results if len(result.text_regions) > 0)
         
         self.statusBar().showMessage(f"批量处理完成: {successful}/{total_files} 成功")
         self.status_label.setText(f"批量完成: {successful}/{total_files}")
         
-        QMessageBox.information(
-            self, "完成", 
-            f"批量处理完成！\n"
-            f"总文件数: {total_files}\n"
-            f"成功处理: {successful}\n"
-            f"失败: {total_files - successful}"
-        )
+        # 获取项目统计信息
+        project_stats = project_results.get_project_detection_results()['stats']
+        
+        completion_msg = f"项目 '{project_results.project_name}' 批量处理完成！\n\n"
+        completion_msg += f"处理统计:\n"
+        completion_msg += f"• 总文件数: {total_files}\n"
+        completion_msg += f"• 检测成功: {successful}\n"
+        completion_msg += f"• 总文字区域: {project_stats['total_regions']}\n"
+        completion_msg += f"• OCR处理: {project_stats['images_with_ocr']}/{total_files}\n"
+        completion_msg += f"• 总处理时间: {project_stats['total_detection_time']:.1f}s\n"
+        
+        if project_stats['total_ocr_time'] > 0:
+            completion_msg += f"• OCR总时间: {project_stats['total_ocr_time']:.1f}s\n"
+        
+        completion_msg += f"\n输出目录已按项目结构组织，便于管理。"
+        
+        QMessageBox.information(self, "批量处理完成", completion_msg)
         
         # 恢复控件状态
         self.detect_button.setEnabled(True)
@@ -829,7 +837,7 @@ class ComicTextDetectorGUI(QMainWindow):
     def show_about(self):
         """显示关于对话框"""
         about_text = """
-        <h3>漫画文本检测器 v1.0 (分离版)</h3>
+        <h3>漫画文本检测器 v1.0 (项目结构优化版)</h3>
         <p>基于深度学习的漫画文本检测工具</p>
         <p><b>特性:</b></p>
         <ul>
@@ -839,12 +847,19 @@ class ComicTextDetectorGUI(QMainWindow):
         <li>可视化文本块和文本行预览</li>
         <li>友好的图形用户界面</li>
         <li>可配置的检测参数</li>
+        <li>优化的项目结构输出</li>
         </ul>
+        <p><b>项目输出结构:</b></p>
+        <p>• 按项目名称创建输出文件夹<br>
+        • result_images/ - 检测结果图片<br>
+        • masks/ - 文字掩码<br>
+        • detection_results.json - 检测结果摘要<br>
+        • ocr_results.json - OCR识别结果</p>
         <p><b>使用流程:</b></p>
         <p>1. 打开项目文件夹<br>
         2. 点击"开始检测"预览文本区域<br>
         3. 点击"OCR识别"进行文字识别<br>
-        4. 保存结果</p>
+        4. 批量处理整个项目</p>
         <p><b>技术支持:</b> PyQt5, PyTorch, OpenCV, PaddleX</p>
         """
         QMessageBox.about(self, "关于", about_text)
@@ -914,6 +929,8 @@ class ComicTextDetectorGUI(QMainWindow):
 
 
 if __name__ == "__main__":
+    import time  # 添加import
+    
     app = QApplication(sys.argv)
     app.setApplicationName("漫画文本检测器")
     app.setApplicationVersion("1.0")
