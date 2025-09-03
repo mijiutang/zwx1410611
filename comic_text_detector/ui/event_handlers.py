@@ -45,6 +45,9 @@ class EventHandlers(QObject):
             self.main_window.current_project_folder = folder_path
             self.main_window.current_image_files = image_files
             self.main_window.current_image_index = 0
+
+            project_name = f"{Path(folder_path).name}_single"
+            self.main_window.current_project_results = ProjectResults(project_name)
             
             # 显示第一张图片
             self.main_window.image_viewer.load_image(image_files[0])
@@ -260,9 +263,9 @@ class EventHandlers(QObject):
         self.main_window.image_viewer.set_result_image(results.result_image)
         self.main_window.image_viewer.set_detection_regions(results.text_regions)
         
-        # 【新增】如果在项目模式下，立即保存检测结果
+        # 【修复】如果在项目模式下，立即保存检测结果
         if (self.main_window.current_project_folder and 
-            hasattr(self.main_window, 'current_project_results')):
+            self.main_window.current_project_results is not None):  # 修改这里
             self.main_window.current_project_results.update_image_detection_result(
                 results, self.main_window.config.output_params)
         
@@ -305,7 +308,7 @@ class EventHandlers(QObject):
         
         # 【新增】如果在项目模式下，立即保存OCR结果
         if (self.main_window.current_project_folder and 
-            hasattr(self.main_window, 'current_project_results')):
+            self.main_window.current_project_results is not None):  # 修改这里
             self.main_window.current_project_results.update_image_ocr_result(results)
         
         # 更新状态信息

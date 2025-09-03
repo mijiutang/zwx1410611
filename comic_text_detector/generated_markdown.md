@@ -810,18 +810,12 @@ class ComicTextDetector:
                             progress_callback=None) -> ProjectResults:
         """
         批量处理项目，返回项目结果对象
-        
-        Args:
-            image_files: 图片文件路径列表
-            project_name: 项目名称
-            output_dir: 输出目录
-            include_ocr: 是否包含OCR处理
-            progress_callback: 进度回调函数 (current, total, message) -> None
-            
-        Returns:
-            ProjectResults: 项目结果对象
         """
         project_results = ProjectResults(project_name)
+        
+        # 【新增】提前创建项目结构
+        project_results.create_project_structure(output_dir, self.config.output_params)
+        
         total_files = len(image_files)
         
         print(f"开始批量处理项目: {project_name} ({total_files} 个文件)")
@@ -836,11 +830,17 @@ class ComicTextDetector:
                 # 执行检测
                 results = self.detect_only(image_path)
                 
+                # 【新增】立即保存检测结果
+                project_results.update_image_detection_result(results, self.config.output_params)
+                
                 # 如果需要OCR，执行OCR
                 if include_ocr:
                     if progress_callback:
                         progress_callback(i, total_files, f"正在OCR: {file_name}")
                     results = self.run_ocr_on_results(results)
+                    
+                    # 【新增】立即保存OCR结果
+                    project_results.update_image_ocr_result(results)
                 
                 # 添加到项目结果
                 project_results.add_result(results)
@@ -855,12 +855,12 @@ class ComicTextDetector:
                 empty_result.ocr_time = 0.0
                 project_results.add_result(empty_result)
         
-        # 保存项目结果
-        output_project_dir = project_results.save_to_directory(output_dir, self.config.output_params)
+        # 【新增】完成项目处理
+        project_results.finalize_project()
         
         print(f"项目 '{project_name}' 批量处理完成！")
         return project_results
-    
+
     def _process_detection_results(self, blk_list: List[TextBlock], img_shape: Tuple) -> List[Dict]:
         """处理检测结果，转换为标准格式"""
         text_regions = []
@@ -1439,71 +1439,194 @@ class ProjectResults:
         return project_results
     
     def save_to_directory(self, base_output_dir: Union[str, Path], output_params: Dict[str, Any]):
-        """保存整个项目的结果到指定目录"""
+        """保存整个项目的结果到指定目录（兼容方法，建议使用新的增量方法）"""
+        # 创建项目结构
+        self.create_project_structure(base_output_dir, output_params)
+        
+        # 保存所有结果
+        for result in self.detection_results:
+            self.update_image_detection_result(result, output_params)
+            if result.has_ocr_results:
+                self.update_image_ocr_result(result)
+        
+        # 完成项目
+        self.finalize_project()
+        
+        return self.project_dir
+
+    def create_project_structure(self, base_output_dir: Union[str, Path], output_params: Dict[str, Any]):
+        """提前创建项目结构和初始json文件"""
         base_output_dir = Path(base_output_dir)
-        project_dir = base_output_dir / self.project_name
-        project_dir.mkdir(parents=True, exist_ok=True)
+        self.project_dir = base_output_dir / self.project_name
+        self.project_dir.mkdir(parents=True, exist_ok=True)
         
         # 创建子文件夹
         if output_params.get('save_image', True):
-            result_images_dir = project_dir / "result_images"
-            result_images_dir.mkdir(exist_ok=True)
+            self.result_images_dir = self.project_dir / "result_images"
+            self.result_images_dir.mkdir(exist_ok=True)
         
         if output_params.get('save_mask', True):
-            masks_dir = project_dir / "masks"
-            masks_dir.mkdir(exist_ok=True)
+            self.masks_dir = self.project_dir / "masks"
+            self.masks_dir.mkdir(exist_ok=True)
         
-        saved_files = []
-        
-        # 保存每张图片的结果
-        for result in self.detection_results:
-            base_name = result.image_name
-            
-            # 保存结果图片
-            if output_params.get('save_image', True) and result.result_image is not None:
-                result_path = result_images_dir / f"{base_name}_result.{output_params.get('image_format', 'jpg')}"
-                imwrite(str(result_path), result.result_image)
-                saved_files.append(str(result_path))
-            
-            # 保存掩码
-            if output_params.get('save_mask', True) and result.refined_mask is not None:
-                mask_path = masks_dir / f"{base_name}_mask.{output_params.get('mask_format', 'png')}"
-                imwrite(str(mask_path), result.refined_mask)
-                saved_files.append(str(mask_path))
-        
-        # 保存项目级别的JSON结果
+        # 创建初始的合并json文件
         if output_params.get('save_json', True):
-            # 保存检测结果摘要
-            project_results = self.get_project_detection_results()
-            result_json_path = project_dir / "detection_results.json"
-            with open(result_json_path, 'w', encoding='utf-8') as f:
-                json.dump(project_results, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
-            saved_files.append(str(result_json_path))
+            self.json_file_path = self.project_dir / "results.json"
+            initial_data = {
+                "project_name": self.project_name,
+                "total_images": len(self.detection_results) if self.detection_results else 0,
+                "processing_time": 0.0,
+                "created_at": time.strftime('%Y-%m-%d %H:%M:%S'),
+                "status": "processing",
+                "images": [],
+                "stats": {
+                    "total_regions": 0,
+                    "images_with_ocr": 0,
+                    "avg_regions_per_image": 0,
+                    "total_detection_time": 0,
+                    "total_ocr_time": 0,
+                    "languages_detected": []
+                }
+            }
+            
+            with open(self.json_file_path, 'w', encoding='utf-8') as f:
+                json.dump(initial_data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
+        
+        print(f"项目结构已创建: {self.project_dir}")
+        return self.project_dir
 
-            # 保存OCR结果（如果有）
-            project_ocr = self.get_project_ocr_results()
-            # 检查是否有任何图片包含OCR文本
-            has_ocr_results = any(
-                any(text.strip() for text in image_regions.values()) 
-                for image_regions in project_ocr.values() 
-                if image_regions
-            )
+    def update_image_detection_result(self, result: DetectionResults, output_params: Dict[str, Any]):
+        """更新单个图片的检测结果到json文件"""
+        if not hasattr(self, 'json_file_path') or not self.json_file_path.exists():
+            return
+        
+        # 保存图片和掩码文件
+        base_name = result.image_name
+        
+        if output_params.get('save_image', True) and result.result_image is not None:
+            result_path = self.result_images_dir / f"{base_name}_result.{output_params.get('image_format', 'jpg')}"
+            imwrite(str(result_path), result.result_image)
+        
+        if output_params.get('save_mask', True) and result.refined_mask is not None:
+            mask_path = self.masks_dir / f"{base_name}_mask.{output_params.get('mask_format', 'png')}"
+            imwrite(str(mask_path), result.refined_mask)
+        
+        # 读取现有json
+        with open(self.json_file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # 构建图片检测结果
+        image_data = {
+            "image_name": result.image_name,
+            "image_path": result.image_path,
+            "detection_results": {
+                "text_regions_count": len(result.text_regions),
+                "detection_time": result.detection_time,
+                "languages": list(set(r.get('language', 'unknown') for r in result.text_regions)),
+                "avg_confidence": np.mean([r.get('confidence', 0) for r in result.text_regions]) if result.text_regions else 0,
+                "text_regions": result.text_regions
+            },
+            "ocr_results": None  # 初始为None，后续OCR时更新
+        }
+        
+        # 查找是否已存在该图片的数据
+        existing_index = None
+        for i, img in enumerate(data["images"]):
+            if img["image_name"] == result.image_name:
+                existing_index = i
+                break
+        
+        if existing_index is not None:
+            # 更新现有数据，保留OCR结果
+            data["images"][existing_index]["detection_results"] = image_data["detection_results"]
+        else:
+            # 添加新数据
+            data["images"].append(image_data)
+        
+        # 更新统计信息
+        self._update_stats(data)
+        
+        # 写回文件
+        with open(self.json_file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
 
-            if has_ocr_results:
-                ocr_json_path = project_dir / "ocr_results.json"
-                with open(ocr_json_path, 'w', encoding='utf-8') as f:
-                    json.dump(project_ocr, f, ensure_ascii=False, indent=2)
-                saved_files.append(str(ocr_json_path))           
+    def update_image_ocr_result(self, result: DetectionResults):
+        """更新单个图片的OCR结果到json文件"""
+        if not hasattr(self, 'json_file_path') or not self.json_file_path.exists():
+            return
         
-        self.total_processing_time = time.time() - self.processing_start_time
+        if not result.has_ocr_results:
+            return
         
-        print(f"\n项目 '{self.project_name}' 处理完成:")
-        print(f"- 处理图片数: {len(self.detection_results)}")
-        print(f"- 总处理时间: {self.total_processing_time:.2f}s")
-        print(f"- 输出目录: {project_dir}")
-        print(f"- 保存文件数: {len(saved_files)}")
+        # 读取现有json
+        with open(self.json_file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
         
-        return project_dir
+        # 查找对应图片数据
+        for img_data in data["images"]:
+            if img_data["image_name"] == result.image_name:
+                # 构建OCR结果，格式化为区域形式
+                ocr_regions = {}
+                for region_key, text in result.ocr_results.items():
+                    if text.strip():
+                        if region_key.startswith("region_"):
+                            region_num = region_key.split("_")[1]
+                            display_key = f"区域{region_num}"
+                        else:
+                            display_key = region_key
+                        ocr_regions[display_key] = text.strip()
+                
+                img_data["ocr_results"] = {
+                    "ocr_time": result.ocr_time,
+                    "has_ocr": True,
+                    "avg_ocr_confidence": np.mean([r.get('ocr_confidence', 0) for r in result.text_regions if 'ocr_confidence' in r]) if result.text_regions else 0,
+                    "regions": ocr_regions
+                }
+                break
+        
+        # 更新统计信息
+        self._update_stats(data)
+        
+        # 写回文件
+        with open(self.json_file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
+
+    def _update_stats(self, data):
+        """更新统计信息"""
+        total_regions = sum(img["detection_results"]["text_regions_count"] for img in data["images"] if img["detection_results"])
+        images_with_ocr = sum(1 for img in data["images"] if img["ocr_results"] and img["ocr_results"]["has_ocr"])
+        total_detection_time = sum(img["detection_results"]["detection_time"] for img in data["images"] if img["detection_results"])
+        total_ocr_time = sum(img["ocr_results"]["ocr_time"] for img in data["images"] if img["ocr_results"] and img["ocr_results"]["has_ocr"])
+        
+        all_languages = set()
+        for img in data["images"]:
+            if img["detection_results"]:
+                all_languages.update(img["detection_results"]["languages"])
+        
+        data["stats"].update({
+            "total_regions": total_regions,
+            "images_with_ocr": images_with_ocr,
+            "avg_regions_per_image": total_regions / len(data["images"]) if data["images"] else 0,
+            "total_detection_time": total_detection_time,
+            "total_ocr_time": total_ocr_time,
+            "languages_detected": list(all_languages)
+        })
+
+    def finalize_project(self):
+        """完成项目处理，更新最终状态"""
+        if not hasattr(self, 'json_file_path') or not self.json_file_path.exists():
+            return
+        
+        with open(self.json_file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        data["status"] = "completed"
+        data["processing_time"] = time.time() - self.processing_start_time
+        
+        with open(self.json_file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2, cls=NumpyEncoder)
+        
+        print(f"项目处理完成: {self.project_dir}")
 ```
 
 ## `__init__.py`
@@ -1559,338 +1682,6 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-```
-
-# `src`
-
-## `api`
-
-### `convenience.py`
-
-```py
-"""
-便捷函数和API接口
-"""
-
-from typing import List, Optional, Union
-from pathlib import Path
-
-from core.detector import ComicTextDetector
-from core.results import DetectionResults, ProjectResults
-
-
-def quick_detect_only(image_path: Union[str, Path], 
-                     model_path: Optional[str] = None,
-                     output_dir: Optional[str] = None,
-                     **kwargs) -> DetectionResults:
-    """
-    快速检测函数（仅检测，不OCR）
-    
-    Args:
-        image_path: 图片路径
-        model_path: 模型路径
-        output_dir: 输出目录
-        **kwargs: 检测参数
-        
-    Returns:
-        DetectionResults: 检测结果
-    """
-    detector = ComicTextDetector(model_path=model_path, enable_ocr=False, **kwargs)
-    results = detector.detect_only(image_path)
-    
-    if output_dir:
-        detector.save_results(results, output_dir)
-    
-    return results
-
-
-def batch_process_project(image_files: List[str], 
-                         project_name: str,
-                         output_dir: str,
-                         model_path: Optional[str] = None,
-                         include_ocr: bool = True,
-                         **kwargs) -> ProjectResults:
-    """
-    批量处理项目的便捷函数
-    
-    Args:
-        image_files: 图片文件列表
-        project_name: 项目名称
-        output_dir: 输出目录
-        model_path: 模型路径
-        include_ocr: 是否包含OCR
-        **kwargs: 其他检测参数
-        
-    Returns:
-        ProjectResults: 项目结果对象
-    """
-    detector = ComicTextDetector(model_path=model_path, enable_ocr=include_ocr, **kwargs)
-    return detector.batch_process_project(image_files, project_name, output_dir, include_ocr)
-```
-
-### `__init__.py`
-
-```py
-"""
-API接口模块
-"""
-
-from .convenience import quick_detect_only, batch_process_project
-
-__all__ = ['quick_detect_only', 'batch_process_project']
-```
-
-## `models`
-
-### `__init__.py`
-
-```py
-
-```
-
-## `processors`
-
-### `ocr_processor.py`
-
-```py
-"""
-OCR处理器模块 - 修复数组比较问题
-"""
-
-import numpy as np
-from typing import List, Dict, Any
-from pathlib import Path
-
-# OCR相关导入
-try:
-    from paddlex import create_pipeline
-    PADDLEX_AVAILABLE = True
-except ImportError:
-    print("Warning: PaddleX not available. OCR功能将被禁用。")
-    print("请安装PaddleX: pip install paddlex")
-    PADDLEX_AVAILABLE = False
-
-
-class OCRProcessor:
-    """OCR处理器类 - 修复数组比较问题"""
-    
-    def __init__(self, enable_ocr=True):
-        self.enable_ocr = enable_ocr and PADDLEX_AVAILABLE
-        self.ocr_pipeline = None
-        
-        if self.enable_ocr:
-            try:
-                self.ocr_pipeline = create_pipeline(pipeline="OCR")
-                print("OCR pipeline 初始化成功")
-            except Exception as e:
-                print(f"OCR pipeline 初始化失败: {e}")
-                self.enable_ocr = False
-    
-    def extract_text_region(self, image: np.ndarray, bbox: List[int]) -> np.ndarray:
-        """从图像中提取文本区域"""
-        x1, y1, x2, y2 = bbox
-        # 确保坐标在图像范围内
-        h, w = image.shape[:2]
-        x1 = max(0, min(x1, w-1))
-        y1 = max(0, min(y1, h-1))
-        x2 = max(x1+1, min(x2, w))
-        y2 = max(y1+1, min(y2, h))
-        
-        region = image[y1:y2, x1:x2]
-        return region
-    
-    def process_text_regions(self, image: np.ndarray, text_regions: List[Dict]) -> Dict[str, str]:
-        """处理所有文本区域并进行OCR识别"""
-        ocr_results = {}
-        
-        if not self.enable_ocr:
-            print("OCR功能未启用，跳过文本识别")
-            return ocr_results
-        
-        print(f"开始OCR处理，共有{len(text_regions)}个文本区域")
-        
-        for i, region in enumerate(text_regions):
-            try:
-                # 提取文本区域图像
-                bbox = region['bbox']
-                text_region = self.extract_text_region(image, bbox)
-                
-                if text_region.size == 0:
-                    print(f"区域{i}为空，跳过OCR")
-                    continue
-                
-                # 执行OCR
-                ocr_result = self.ocr_pipeline.predict(
-                    input=text_region,
-                    use_doc_orientation_classify=False,
-                    use_doc_unwarping=False,
-                    use_textline_orientation=True,
-                )
-                
-                # 处理OCR结果
-                recognized_text = self._parse_ocr_result(ocr_result, region.get('language', 'unknown'))
-                
-                # 存储结果
-                region_key = f"region_{i}"
-                ocr_results[region_key] = recognized_text
-                
-                # 更新region信息
-                region['ocr_text'] = recognized_text
-                region['ocr_confidence'] = self._calculate_average_confidence(ocr_result)
-                
-                print(f"区域{i}OCR结果: {recognized_text[:50]}...")
-                
-            except Exception as e:
-                print(f"区域{i}OCR处理失败: {e}")
-                region_key = f"region_{i}"
-                ocr_results[region_key] = ""
-                region['ocr_text'] = ""
-                region['ocr_confidence'] = 0.0
-        
-        return ocr_results
-    
-    def _parse_ocr_result(self, ocr_result, language='unknown') -> str:
-        """解析OCR结果 - 修复数组比较问题"""
-        try:
-            texts = []
-            
-            # 检查 ocr_result 是否为空或None
-            if not ocr_result:
-                return ""
-            
-            for result in ocr_result:
-                # 安全获取识别文本和位置框
-                rec_texts = result.get('rec_texts', [])
-                rec_boxes = result.get('rec_boxes', [])
-                
-                # 修复：安全检查数组内容
-                if self._is_empty_or_none(rec_texts) or self._is_empty_or_none(rec_boxes):
-                    continue
-                
-                # 确保文本和框的数量匹配
-                min_len = min(len(rec_texts), len(rec_boxes))
-                if min_len <= 0:
-                    continue
-                
-                # 创建文本和坐标的配对列表
-                text_box_pairs = []
-                for idx in range(min_len):
-                    text = rec_texts[idx]
-                    box = rec_boxes[idx]
-                    
-                    # 检查文本和框是否有效
-                    if text and self._is_valid_box(box):
-                        text_box_pairs.append((text, box))
-                
-                if not text_box_pairs:
-                    continue
-                
-                # 根据语言类型排序
-                try:
-                    if language == 'ja':  # 日文从右到左
-                        sorted_pairs = sorted(text_box_pairs, 
-                                            key=lambda pair: self._safe_get_x_coord(pair[1]), 
-                                            reverse=True)
-                    else:  # 其他语言从左到右
-                        sorted_pairs = sorted(text_box_pairs, 
-                                            key=lambda pair: self._safe_get_x_coord(pair[1]))
-                except Exception as sort_error:
-                    print(f"排序失败，使用原始顺序: {sort_error}")
-                    sorted_pairs = text_box_pairs
-                
-                # 提取排序后的文本
-                sorted_texts = [str(pair[0]) for pair in sorted_pairs if pair[0]]
-                texts.extend(sorted_texts)
-            
-            return "".join(texts)
-            
-        except Exception as e:
-            print(f"解析OCR结果失败: {e}")
-            import traceback
-            print(f"详细错误信息: {traceback.format_exc()}")
-            return ""
-    
-    def _is_empty_or_none(self, data) -> bool:
-        """安全检查数据是否为空或None"""
-        if data is None:
-            return True
-        if isinstance(data, (list, tuple, np.ndarray)):
-            return len(data) == 0
-        return False
-    
-    def _is_valid_box(self, box) -> bool:
-        """检查边界框是否有效"""
-        try:
-            if self._is_empty_or_none(box):
-                return False
-            
-            # 转换为列表以安全访问
-            if isinstance(box, np.ndarray):
-                box_list = box.tolist() if box.size > 0 else []
-            else:
-                box_list = list(box) if box else []
-            
-            return len(box_list) > 0
-        except Exception:
-            return False
-    
-    def _safe_get_x_coord(self, box) -> float:
-        """安全获取边界框的x坐标"""
-        try:
-            if self._is_empty_or_none(box):
-                return 0.0
-            
-            # 转换为列表以安全访问
-            if isinstance(box, np.ndarray):
-                box_list = box.tolist() if box.size > 0 else []
-            else:
-                box_list = list(box) if box else []
-            
-            if len(box_list) > 0:
-                first_element = box_list[0]
-                # 如果第一个元素是列表或数组，取其第一个元素
-                if isinstance(first_element, (list, tuple, np.ndarray)):
-                    return float(first_element[0]) if len(first_element) > 0 else 0.0
-                else:
-                    return float(first_element)
-            
-            return 0.0
-            
-        except (IndexError, TypeError, ValueError):
-            return 0.0
-    
-    def _calculate_average_confidence(self, ocr_result) -> float:
-        """计算平均置信度"""
-        try:
-            confidences = []
-            for result in ocr_result:
-                if 'rec_scores' in result:
-                    scores = result['rec_scores']
-                    if scores and len(scores) > 0:
-                        confidences.extend([float(score) for score in scores if score is not None])
-            
-            return float(np.mean(confidences)) if confidences else 0.0
-            
-        except Exception:
-            return 0.0
-```
-
-### `__init__.py`
-
-```py
-"""
-处理器模块
-"""
-
-from .ocr_processor import OCRProcessor
-
-__all__ = ['OCRProcessor']
-```
-
-## `__init__.py`
-
-```py
-
 ```
 
 # `ui`
@@ -2096,7 +1887,16 @@ class EventHandlers(QObject):
         # 自动生成项目名称和输出路径
         input_folder = Path(self.main_window.current_project_folder)
         project_name = f"{input_folder.name}_out"
-        output_dir = str(input_folder.parent)  # 输出到输入文件夹的父目录
+        output_dir = str(input_folder.parent)
+        
+        # 【新增】创建项目结果对象并提前创建结构
+        self.main_window.current_project_results = ProjectResults(project_name)
+        try:
+            self.main_window.current_project_results.create_project_structure(
+                output_dir, self.main_window.config.output_params)
+        except Exception as e:
+            QMessageBox.warning(self.main_window, "错误", f"创建项目结构失败：{e}")
+            return
         
         # 检查输出目录是否可写
         if not os.access(output_dir, os.W_OK):
@@ -2151,6 +1951,12 @@ class EventHandlers(QObject):
         self.main_window.image_viewer.set_result_image(results.result_image)
         self.main_window.image_viewer.set_detection_regions(results.text_regions)
         
+        # 【新增】如果在项目模式下，立即保存检测结果
+        if (self.main_window.current_project_folder and 
+            hasattr(self.main_window, 'current_project_results')):
+            self.main_window.current_project_results.update_image_detection_result(
+                results, self.main_window.config.output_params)
+        
         # 更新状态信息
         region_count = len(results.text_regions)
         detection_time = results.detection_time
@@ -2187,6 +1993,11 @@ class EventHandlers(QObject):
         # 更新显示（现在包含OCR文本）
         self.main_window.image_viewer.set_result_image(results.result_image)
         self.main_window.image_viewer.set_detection_regions(results.text_regions)
+        
+        # 【新增】如果在项目模式下，立即保存OCR结果
+        if (self.main_window.current_project_folder and 
+            hasattr(self.main_window, 'current_project_results')):
+            self.main_window.current_project_results.update_image_ocr_result(results)
         
         # 更新状态信息
         ocr_time = results.ocr_time
@@ -2414,6 +2225,7 @@ except ImportError:
     raise ImportError("PyQt5未安装，请运行：pip install PyQt5")
 
 from core.detector import ComicTextDetector, DetectionResults
+from core.results import ProjectResults
 from ui.widgets.image_viewer import ImageViewer
 from ui.widgets.parameter_panel import ParameterPanel
 from ui.menu_manager import MenuManager
@@ -2440,7 +2252,8 @@ class ComicTextDetectorGUI(QMainWindow):
         self.current_project_folder: Optional[str] = None
         self.current_image_files: List[str] = []
         self.current_image_index: int = 0
-        
+        self.current_project_results: Optional[ProjectResults] = None
+
         # 工作线程（由事件处理器管理）
         self.detection_worker = None
         self.ocr_worker = None
