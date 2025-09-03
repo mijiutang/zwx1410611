@@ -637,8 +637,8 @@
     "region_8": "你這番話很失禮耶！",
     "region_9": "之所以沒交活動報告，就是因為我們真的什麼活動都沒做啦！"
   },
-  "detection_time": 0.6842703819274902,
-  "ocr_time": 5.2410008907318115,
+  "detection_time": 0.5207536220550537,
+  "ocr_time": 5.327064275741577,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

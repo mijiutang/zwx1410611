@@ -639,8 +639,8 @@
     "region_9": "為了真正掌握全世界的…",
     "region_10": "比起小家子氣的心靈控制或集團心態……"
   },
-  "detection_time": 0.45087242126464844,
-  "ocr_time": 5.287009000778198,
+  "detection_time": 0.6906290054321289,
+  "ocr_time": 5.215784311294556,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

@@ -423,8 +423,8 @@ if __name__ == "__main__":
 ```py
 # 修复后的 basemodel.py - 更新所有导入路径
 
-from src.utils.general import CUDA, DEVICE  # 修复导入路径
-from src.models.yolov5.yolo import Model  # 修复导入路径
+from ..utils.general import CUDA, DEVICE
+from ..models.yolov5.yolo import Model
 import torch
 import cv2
 import numpy as np
@@ -1474,15 +1474,6 @@ def model2annotations(model_path, img_dir_list, save_dir, save_json=False):
         with open(osp.join(save_dir, imname+'.txt'), 'w', encoding='utf8') as f:
             f.write(yolo_label)
 
-        # num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask)
-        # _, mask = cv2.threshold(mask, 50, 255, cv2.THRESH_BINARY)
-        # draw_connected_labels(num_labels, labels, stats, centroids)
-        # visualize_textblocks(img, blk_list)
-        # cv2.imshow('rst', img)
-        # cv2.imshow('mask', mask)
-        # cv2.imshow('mask_refined', mask_refined)
-        # cv2.waitKey(0)
-
         if len(polys) != 0:
             if isinstance(polys, list):
                 polys = np.array(polys)
@@ -1867,9 +1858,6 @@ class ComicTextDetectorGUI(QMainWindow):
         # 创建菜单栏
         self.create_menu_bar()
         
-        # 创建工具栏
-        self.create_toolbar()
-        
         # 创建状态栏
         self.statusBar().showMessage("就绪")
     
@@ -2015,37 +2003,6 @@ class ComicTextDetectorGUI(QMainWindow):
             total_count = len(self.current_image_files)
             self.status_label.setText(f"图片: {image_name} ({self.current_image_index + 1}/{total_count})")
 
-    def start_batch_processing(self):
-        """开始批量处理"""
-        if not hasattr(self, 'current_image_files') or not self.current_image_files or not self.detector:
-            QMessageBox.information(self, "提示", "请先选择项目文件夹")
-            return
-        
-        # 选择输出目录
-        output_dir = QFileDialog.getExistingDirectory(
-            self, "选择输出目录", str(self.config.results_dir)
-        )
-        
-        if not output_dir:
-            return
-        
-        # 更新检测器参数
-        params = self.parameter_panel.get_parameters()
-        self.detector.update_parameters(**params)
-        
-        # 禁用按钮，显示进度
-        self.batch_button.setEnabled(False)
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setMaximum(len(self.current_image_files))
-        self.progress_bar.setValue(0)
-        
-        # 启动批量处理线程
-        self.batch_worker = BatchProcessWorker(self.detector, self.current_image_files, output_dir)
-        self.batch_worker.finished.connect(self.on_batch_finished)
-        self.batch_worker.error.connect(self.on_batch_error)
-        self.batch_worker.progress.connect(self.on_batch_progress)
-        self.batch_worker.start()
-
     def on_batch_progress(self, current, total, message):
         """批量处理进度回调"""
         self.progress_bar.setValue(current)
@@ -2100,27 +2057,6 @@ class ComicTextDetectorGUI(QMainWindow):
             self.toggle_blocks_action.setText('隐藏文本块(&B)')
         else:
             self.toggle_blocks_action.setText('显示文本块(&B)')
-    
-    def create_toolbar(self):
-        """创建工具栏"""
-        toolbar = self.addToolBar('主工具栏')
-        
-        # 打开项目文件夹
-        open_action = QAction(QIcon(), '打开项目', self)
-        open_action.triggered.connect(self.open_project_folder)
-        toolbar.addAction(open_action)
-        
-        toolbar.addSeparator()
-    
-        # 批量处理
-        batch_action = QAction(QIcon(), '批量处理', self)
-        batch_action.triggered.connect(self.start_batch_processing)
-        toolbar.addAction(batch_action)
-        
-        # 保存
-        save_action = QAction(QIcon(), '保存', self)
-        save_action.triggered.connect(self.save_results)
-        toolbar.addAction(save_action)
 
     def toggle_detection_regions(self):
         """切换检测区域显示"""
@@ -3069,40 +3005,68 @@ class ParameterPanel(QWidget):
         layout.addLayout(size_layout)
         
         return group
-    
+
     def create_detection_group(self) -> QGroupBox:
         """创建检测参数组"""
         group = QGroupBox("检测参数")
         layout = QVBoxLayout(group)
         
-        # 置信度阈值
-        conf_layout = self.create_slider_layout(
-            "置信度阈值:", 0.1, 0.9, 0.4, 
-            lambda: self.parameters_changed.emit()
-        )
-        self.conf_thresh_slider = conf_layout[1]
-        layout.addLayout(conf_layout[0])
+        # 置信度阈值输入框
+        conf_layout = QHBoxLayout()
+        conf_layout.addWidget(QLabel("置信度阈值:"))
         
-        # 掩码阈值
-        mask_layout = self.create_slider_layout(
-            "掩码阈值:", 0.1, 0.8, 0.3,
-            lambda: self.parameters_changed.emit()
-        )
-        self.mask_thresh_slider = mask_layout[1]
-        layout.addLayout(mask_layout[0])
+        self.conf_thresh_input = QDoubleSpinBox()
+        self.conf_thresh_input.setRange(0.01, 0.99)
+        self.conf_thresh_input.setSingleStep(0.01)
+        self.conf_thresh_input.setDecimals(2)
+        self.conf_thresh_input.setValue(0.40)
+        self.conf_thresh_input.setSuffix("")
+        self.conf_thresh_input.valueChanged.connect(self.parameters_changed.emit)
         
-        # 在 create_detection_group 方法中，替换现有的最小框尺寸部分
+        conf_layout.addWidget(self.conf_thresh_input)
+        conf_layout.addStretch()
+        layout.addLayout(conf_layout)
+        
+        # 掩码阈值输入框
+        mask_layout = QHBoxLayout()
+        mask_layout.addWidget(QLabel("掩码阈值:"))
+        
+        self.mask_thresh_input = QDoubleSpinBox()
+        self.mask_thresh_input.setRange(0.01, 0.80)
+        self.mask_thresh_input.setSingleStep(0.01)
+        self.mask_thresh_input.setDecimals(2)
+        self.mask_thresh_input.setValue(0.30)
+        self.mask_thresh_input.valueChanged.connect(self.parameters_changed.emit)
+        
+        mask_layout.addWidget(self.mask_thresh_input)
+        mask_layout.addStretch()
+        layout.addLayout(mask_layout)
+        
+        # 包含关系阈值输入框
+        contain_layout = QHBoxLayout()
+        contain_layout.addWidget(QLabel("包含关系阈值:"))
+        
+        self.containment_input = QDoubleSpinBox()
+        self.containment_input.setRange(0.50, 1.00)
+        self.containment_input.setSingleStep(0.01)
+        self.containment_input.setDecimals(2)
+        self.containment_input.setValue(0.80)
+        self.containment_input.valueChanged.connect(self.parameters_changed.emit)
+        
+        contain_layout.addWidget(self.containment_input)
+        contain_layout.addStretch()
+        layout.addLayout(contain_layout)
+        
+        # 最小框尺寸保持不变 (已经是输入框)
         min_size_layout = QHBoxLayout()
         min_size_layout.addWidget(QLabel("最小框尺寸:"))
 
-        # 宽度设置
         self.min_box_width_spin = QSpinBox()
         self.min_box_width_spin.setRange(1, 500)
         self.min_box_width_spin.setValue(10)
         self.min_box_width_spin.setSuffix(" px")
         self.min_box_width_spin.valueChanged.connect(self.parameters_changed.emit)
 
-        # 高度设置
         self.min_box_height_spin = QSpinBox()
         self.min_box_height_spin.setRange(1, 500)
         self.min_box_height_spin.setValue(10)
@@ -3116,54 +3080,14 @@ class ParameterPanel(QWidget):
         min_size_layout.addStretch()
         layout.addLayout(min_size_layout)
         
-        # 新增：包含关系阈值
-        contain_layout = self.create_slider_layout(
-            "包含关系阈值:", 0.5, 1.0, 0.8,
-            lambda: self.parameters_changed.emit()
-        )
-        self.containment_slider = contain_layout[1]
-        layout.addLayout(contain_layout[0])
-        
-        # 新增：启用框过滤
+        # 启用框过滤复选框保持不变
         self.enable_filter_checkbox = QCheckBox("启用框过滤")
         self.enable_filter_checkbox.setChecked(True)
         self.enable_filter_checkbox.stateChanged.connect(self.parameters_changed.emit)
         layout.addWidget(self.enable_filter_checkbox)
 
-        return group
-        
-    
-    def create_slider_layout(self, label_text: str, min_val: float, max_val: float, 
-                            default_val: float, callback):
-        """创建滑块布局"""
-        layout = QVBoxLayout()
-        
-        # 标签和值显示
-        header_layout = QHBoxLayout()
-        label = QLabel(label_text)
-        value_label = QLabel(f"{default_val:.2f}")
-        header_layout.addWidget(label)
-        header_layout.addStretch()
-        header_layout.addWidget(value_label)
-        layout.addLayout(header_layout)
-        
-        # 滑块
-        slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(int(min_val * 100))
-        slider.setMaximum(int(max_val * 100))
-        slider.setValue(int(default_val * 100))
-        
-        # 连接信号
-        def on_value_changed():
-            val = slider.value() / 100.0
-            value_label.setText(f"{val:.2f}")
-            callback()
-        
-        slider.valueChanged.connect(on_value_changed)
-        layout.addWidget(slider)
-        
-        return layout, slider
-    
+        return group      
+      
     def create_language_group(self) -> QGroupBox:
         """创建语言选择组"""
         group = QGroupBox("支持语言")
@@ -3238,18 +3162,18 @@ class ParameterPanel(QWidget):
         
         params = {
             "input_size": int(self.input_size_combo.currentText()),
-            "conf_thresh": self.conf_thresh_slider.value() / 100.0,
-            "mask_thresh": self.mask_thresh_slider.value() / 100.0,
+            "conf_thresh": self.conf_thresh_input.value(),  # 改为输入框
+            "mask_thresh": self.mask_thresh_input.value(),  # 改为输入框
             "allowed_languages": allowed_languages,
             "device": self.device_combo.currentText(),
-            "containment_thresh": self.containment_slider.value() / 100.0,
+            "containment_thresh": self.containment_input.value(),  # 改为输入框
             "enable_box_filter": self.enable_filter_checkbox.isChecked(),
             "min_box_width": self.min_box_width_spin.value(),
             "min_box_height": self.min_box_height_spin.value()
         }
         
         return params
-    
+
     def set_parameters(self, params: Dict[str, Any]):
         """设置参数"""
         # 阻止信号发射
@@ -3266,15 +3190,15 @@ class ParameterPanel(QWidget):
             
             # 设置置信度阈值
             if "conf_thresh" in params:
-                self.conf_thresh_slider.setValue(int(params["conf_thresh"] * 100))
+                self.conf_thresh_input.setValue(params["conf_thresh"])
             
             # 设置掩码阈值
             if "mask_thresh" in params:
-                self.mask_thresh_slider.setValue(int(params["mask_thresh"] * 100))
+                self.mask_thresh_input.setValue(params["mask_thresh"])
             
             # 设置包含关系阈值
             if "containment_thresh" in params:
-                self.containment_slider.setValue(int(params["containment_thresh"] * 100))
+                self.containment_input.setValue(params["containment_thresh"])
             
             # 设置语言选择
             if "allowed_languages" in params:
@@ -4664,8 +4588,7 @@ class TextBlock(object):
             M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
             region = cv2.warpPerspective(img, M, (w, h))
             region = cv2.rotate(region, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        # cv2.imshow('region'+str(idx), region)
-        # cv2.waitKey(0)
+            
         return region
 
     def get_text(self):
@@ -5176,103 +5099,6 @@ def refine_mask(img: np.ndarray, pred_mask: np.ndarray, blk_list: List[TextBlock
         mask_refined[by1: by2, bx1: bx2] = cv2.bitwise_or(mask_refined[by1: by2, bx1: bx2], mask_merged)
     return mask_refined
 
-# def extract_textballoon(img, pred_textmsk=None, global_mask=None):
-#     if len(img.shape) > 2 and img.shape[2] == 3:
-#         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-#     im_h, im_w = img.shape[0], img.shape[1]
-#     hyp_textmsk = np.zeros((im_h, im_w), np.uint8)
-#     thresh_val, threshed = cv2.threshold(img, 1, 255, cv2.THRESH_OTSU+cv2.THRESH_BINARY)
-#     xormap_sum = cv2.bitwise_xor(threshed, pred_textmsk).sum()
-#     neg_threshed = 255 - threshed
-#     neg_xormap_sum = cv2.bitwise_xor(neg_threshed, pred_textmsk).sum()
-#     neg_thresh = neg_xormap_sum < xormap_sum
-#     if neg_thresh:
-#         threshed = neg_threshed
-#     thresh_info = {'thresh_val': thresh_val,'neg_thresh': neg_thresh}
-#     connectivity = 8
-#     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(threshed, connectivity, cv2.CV_16U)
-#     label_unchanged = np.copy(labels)
-#     if global_mask is not None:
-#         labels[np.where(global_mask==0)] = 0
-#     text_labels = []
-#     if pred_textmsk is not None:
-#         text_score_thresh = 0.5
-#         textbbox_map = np.zeros_like(pred_textmsk)
-#         for label_index, stat, centroid in zip(range(num_labels), stats, centroids):
-#             if label_index != 0: # skip background label
-#                 x, y, w, h, area = stat
-#                 area *= 255
-#                 x1, y1, x2, y2 = x, y, x+w, y+h
-#                 label_local = labels[y1: y2, x1: x2]
-#                 label_coordinates = np.where(label_local==label_index)
-#                 tmp_merged = np.zeros((h, w), np.uint8)
-#                 tmp_merged[label_coordinates] = 255
-#                 andmap = cv2.bitwise_and(tmp_merged, pred_textmsk[y1: y2, x1: x2])
-#                 text_score = andmap.sum() / area
-#                 if text_score > text_score_thresh:
-#                     text_labels.append(label_index)
-#                     hyp_textmsk[y1: y2, x1: x2][label_coordinates] = 255
-#     labels = label_unchanged
-#     bubble_msk = np.zeros((img.shape[0], img.shape[1]), np.uint8)
-#     bubble_msk[np.where(labels==0)] = 255
-#     # if lang == LANG_JPN:
-#     bubble_msk = cv2.erode(bubble_msk, (3, 3), iterations=1)
-#     line_thickness = 2
-#     cv2.rectangle(bubble_msk, (0, 0), (im_w, im_h), BLACK, line_thickness, cv2.LINE_8)
-#     contours, hiers = cv2.findContours(bubble_msk, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
-
-#     brect_area_thresh = im_h * im_w * 0.4
-#     min_brect_area = np.inf
-#     ballon_index = -1
-#     maximum_pixsum = -1
-#     for ii, contour in enumerate(contours):
-#         brect = cv2.boundingRect(contours[ii])
-#         brect_area = brect[2] * brect[3]
-#         if brect_area > brect_area_thresh and brect_area < min_brect_area:
-#             tmp_ballonmsk = np.zeros_like(bubble_msk)
-#             tmp_ballonmsk = cv2.drawContours(tmp_ballonmsk, contours, ii, WHITE, cv2.FILLED)
-#             andmap_sum = cv2.bitwise_and(tmp_ballonmsk, hyp_textmsk).sum()
-#             if andmap_sum > maximum_pixsum:
-#                 maximum_pixsum = andmap_sum
-#                 min_brect_area = brect_area
-#                 ballon_index = ii
-#     if ballon_index != -1:
-#         bubble_msk = np.zeros_like(bubble_msk)
-#         bubble_msk = cv2.drawContours(bubble_msk, contours, ballon_index, WHITE, cv2.FILLED)
-#     hyp_textmsk = cv2.bitwise_and(hyp_textmsk, bubble_msk)
-#     return hyp_textmsk, bubble_msk, thresh_info, (num_labels, label_unchanged, stats, centroids, text_labels)
-
-# def extract_textballoon_channelwise(img, pred_textmsk, test_grey=True, global_mask=None):
-#     c_list = [img[:, :, i] for i in range(3)]
-#     if test_grey:
-#         c_list.append(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
-#     best_xorpix_sum = np.inf
-#     best_cindex = best_hyptextmsk = best_bubblemsk = best_thresh_info = best_component_stats = None
-#     for c_index, channel in enumerate(c_list):
-#         hyp_textmsk, bubble_msk, thresh_info, component_stats = extract_textballoon(channel, pred_textmsk, global_mask=global_mask)
-#         pixor_sum = cv2.bitwise_xor(hyp_textmsk, pred_textmsk).sum()
-#         if pixor_sum < best_xorpix_sum:
-#             best_xorpix_sum = pixor_sum
-#             best_cindex = c_index
-#             best_hyptextmsk, best_bubblemsk, best_thresh_info, best_component_stats = hyp_textmsk, bubble_msk, thresh_info, component_stats
-#     return best_hyptextmsk, best_bubblemsk, best_component_stats
-
-# def refine_textmask(img, pred_mask, channel_wise=True, find_leaveouts=True, global_mask=None):
-#     hyp_textmsk, bubble_msk, component_stats = extract_textballoon_channelwise(img, pred_mask, global_mask=global_mask)
-#     num_labels, labels, stats, centroids, text_labels = component_stats
-#     stats = np.array(stats)
-#     text_stats = stats[text_labels]
-#     if find_leaveouts and len(text_stats) > 0:
-#         median_h = np.median(text_stats[:, 3])
-#         for label, label_h in zip(range(num_labels), stats[:, 3]):
-#             if label == 0 or label in text_labels:
-#                 continue
-#             if label_h > 0.5 * median_h and label_h < 1.5 * median_h:
-#                 hyp_textmsk[np.where(labels==label)] = 255
-#         hyp_textmsk = cv2.bitwise_and(hyp_textmsk, bubble_msk)
-#         if global_mask is not None:
-#             hyp_textmsk = cv2.bitwise_and(hyp_textmsk, global_mask)
-#     return hyp_textmsk, bubble_msk
 ```
 
 #### `weight_init.py`

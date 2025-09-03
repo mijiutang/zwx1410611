@@ -657,8 +657,8 @@
     "region_9": "學生會算哪根葱啊！",
     "region_10": "腦電社可是很團結的！"
   },
-  "detection_time": 0.41693663597106934,
-  "ocr_time": 5.951927185058594,
+  "detection_time": 0.413851261138916,
+  "ocr_time": 6.050843715667725,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

@@ -675,8 +675,8 @@
     "region_9": "2",
     "region_10": "該不會是竹中回心轉意了吧？"
   },
-  "detection_time": 0.3870975971221924,
-  "ocr_time": 5.632620811462402,
+  "detection_time": 0.4377429485321045,
+  "ocr_time": 5.593599081039429,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

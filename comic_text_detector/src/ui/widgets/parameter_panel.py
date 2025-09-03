@@ -176,40 +176,68 @@ class ParameterPanel(QWidget):
         layout.addLayout(size_layout)
         
         return group
-    
+
     def create_detection_group(self) -> QGroupBox:
         """创建检测参数组"""
         group = QGroupBox("检测参数")
         layout = QVBoxLayout(group)
         
-        # 置信度阈值
-        conf_layout = self.create_slider_layout(
-            "置信度阈值:", 0.1, 0.9, 0.4, 
-            lambda: self.parameters_changed.emit()
-        )
-        self.conf_thresh_slider = conf_layout[1]
-        layout.addLayout(conf_layout[0])
+        # 置信度阈值输入框
+        conf_layout = QHBoxLayout()
+        conf_layout.addWidget(QLabel("置信度阈值:"))
         
-        # 掩码阈值
-        mask_layout = self.create_slider_layout(
-            "掩码阈值:", 0.1, 0.8, 0.3,
-            lambda: self.parameters_changed.emit()
-        )
-        self.mask_thresh_slider = mask_layout[1]
-        layout.addLayout(mask_layout[0])
+        self.conf_thresh_input = QDoubleSpinBox()
+        self.conf_thresh_input.setRange(0.01, 0.99)
+        self.conf_thresh_input.setSingleStep(0.01)
+        self.conf_thresh_input.setDecimals(2)
+        self.conf_thresh_input.setValue(0.40)
+        self.conf_thresh_input.setSuffix("")
+        self.conf_thresh_input.valueChanged.connect(self.parameters_changed.emit)
         
-        # 在 create_detection_group 方法中，替换现有的最小框尺寸部分
+        conf_layout.addWidget(self.conf_thresh_input)
+        conf_layout.addStretch()
+        layout.addLayout(conf_layout)
+        
+        # 掩码阈值输入框
+        mask_layout = QHBoxLayout()
+        mask_layout.addWidget(QLabel("掩码阈值:"))
+        
+        self.mask_thresh_input = QDoubleSpinBox()
+        self.mask_thresh_input.setRange(0.01, 0.80)
+        self.mask_thresh_input.setSingleStep(0.01)
+        self.mask_thresh_input.setDecimals(2)
+        self.mask_thresh_input.setValue(0.30)
+        self.mask_thresh_input.valueChanged.connect(self.parameters_changed.emit)
+        
+        mask_layout.addWidget(self.mask_thresh_input)
+        mask_layout.addStretch()
+        layout.addLayout(mask_layout)
+        
+        # 包含关系阈值输入框
+        contain_layout = QHBoxLayout()
+        contain_layout.addWidget(QLabel("包含关系阈值:"))
+        
+        self.containment_input = QDoubleSpinBox()
+        self.containment_input.setRange(0.50, 1.00)
+        self.containment_input.setSingleStep(0.01)
+        self.containment_input.setDecimals(2)
+        self.containment_input.setValue(0.80)
+        self.containment_input.valueChanged.connect(self.parameters_changed.emit)
+        
+        contain_layout.addWidget(self.containment_input)
+        contain_layout.addStretch()
+        layout.addLayout(contain_layout)
+        
+        # 最小框尺寸保持不变 (已经是输入框)
         min_size_layout = QHBoxLayout()
         min_size_layout.addWidget(QLabel("最小框尺寸:"))
 
-        # 宽度设置
         self.min_box_width_spin = QSpinBox()
         self.min_box_width_spin.setRange(1, 500)
         self.min_box_width_spin.setValue(10)
         self.min_box_width_spin.setSuffix(" px")
         self.min_box_width_spin.valueChanged.connect(self.parameters_changed.emit)
 
-        # 高度设置
         self.min_box_height_spin = QSpinBox()
         self.min_box_height_spin.setRange(1, 500)
         self.min_box_height_spin.setValue(10)
@@ -223,54 +251,14 @@ class ParameterPanel(QWidget):
         min_size_layout.addStretch()
         layout.addLayout(min_size_layout)
         
-        # 新增：包含关系阈值
-        contain_layout = self.create_slider_layout(
-            "包含关系阈值:", 0.5, 1.0, 0.8,
-            lambda: self.parameters_changed.emit()
-        )
-        self.containment_slider = contain_layout[1]
-        layout.addLayout(contain_layout[0])
-        
-        # 新增：启用框过滤
+        # 启用框过滤复选框保持不变
         self.enable_filter_checkbox = QCheckBox("启用框过滤")
         self.enable_filter_checkbox.setChecked(True)
         self.enable_filter_checkbox.stateChanged.connect(self.parameters_changed.emit)
         layout.addWidget(self.enable_filter_checkbox)
 
-        return group
-        
-    
-    def create_slider_layout(self, label_text: str, min_val: float, max_val: float, 
-                            default_val: float, callback):
-        """创建滑块布局"""
-        layout = QVBoxLayout()
-        
-        # 标签和值显示
-        header_layout = QHBoxLayout()
-        label = QLabel(label_text)
-        value_label = QLabel(f"{default_val:.2f}")
-        header_layout.addWidget(label)
-        header_layout.addStretch()
-        header_layout.addWidget(value_label)
-        layout.addLayout(header_layout)
-        
-        # 滑块
-        slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(int(min_val * 100))
-        slider.setMaximum(int(max_val * 100))
-        slider.setValue(int(default_val * 100))
-        
-        # 连接信号
-        def on_value_changed():
-            val = slider.value() / 100.0
-            value_label.setText(f"{val:.2f}")
-            callback()
-        
-        slider.valueChanged.connect(on_value_changed)
-        layout.addWidget(slider)
-        
-        return layout, slider
-    
+        return group      
+      
     def create_language_group(self) -> QGroupBox:
         """创建语言选择组"""
         group = QGroupBox("支持语言")
@@ -345,18 +333,18 @@ class ParameterPanel(QWidget):
         
         params = {
             "input_size": int(self.input_size_combo.currentText()),
-            "conf_thresh": self.conf_thresh_slider.value() / 100.0,
-            "mask_thresh": self.mask_thresh_slider.value() / 100.0,
+            "conf_thresh": self.conf_thresh_input.value(),  # 改为输入框
+            "mask_thresh": self.mask_thresh_input.value(),  # 改为输入框
             "allowed_languages": allowed_languages,
             "device": self.device_combo.currentText(),
-            "containment_thresh": self.containment_slider.value() / 100.0,
+            "containment_thresh": self.containment_input.value(),  # 改为输入框
             "enable_box_filter": self.enable_filter_checkbox.isChecked(),
             "min_box_width": self.min_box_width_spin.value(),
             "min_box_height": self.min_box_height_spin.value()
         }
         
         return params
-    
+
     def set_parameters(self, params: Dict[str, Any]):
         """设置参数"""
         # 阻止信号发射
@@ -373,15 +361,15 @@ class ParameterPanel(QWidget):
             
             # 设置置信度阈值
             if "conf_thresh" in params:
-                self.conf_thresh_slider.setValue(int(params["conf_thresh"] * 100))
+                self.conf_thresh_input.setValue(params["conf_thresh"])
             
             # 设置掩码阈值
             if "mask_thresh" in params:
-                self.mask_thresh_slider.setValue(int(params["mask_thresh"] * 100))
+                self.mask_thresh_input.setValue(params["mask_thresh"])
             
             # 设置包含关系阈值
             if "containment_thresh" in params:
-                self.containment_slider.setValue(int(params["containment_thresh"] * 100))
+                self.containment_input.setValue(params["containment_thresh"])
             
             # 设置语言选择
             if "allowed_languages" in params:

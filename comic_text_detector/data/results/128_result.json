@@ -343,8 +343,8 @@
     "region_5": "",
     "region_6": "學生會!"
   },
-  "detection_time": 0.5160858631134033,
-  "ocr_time": 2.987816333770752,
+  "detection_time": 0.4965972900390625,
+  "ocr_time": 3.0400407314300537,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

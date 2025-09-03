@@ -639,8 +639,8 @@
     "region_9": "而且社長三年五班的暗田，",
     "region_10": "妳已經好幾個月沒交活動報告書了吧"
   },
-  "detection_time": 0.4677903652191162,
-  "ocr_time": 5.424828052520752,
+  "detection_time": 0.5038962364196777,
+  "ocr_time": 5.54690146446228,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

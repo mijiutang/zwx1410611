@@ -817,8 +817,8 @@
     "region_8": "話9妄想第-155-成為神的靈",
     "region_9": "附錄-174-最可怕的鬧鬼景點篇"
   },
-  "detection_time": 0.691124439239502,
-  "ocr_time": 6.641542673110962,
+  "detection_time": 0.7134604454040527,
+  "ocr_time": 6.667237997055054,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

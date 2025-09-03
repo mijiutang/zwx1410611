@@ -547,8 +547,8 @@
     "region_8": "拜託饒了我吧…",
     "region_9": "我還不想消失啊…"
   },
-  "detection_time": 0.81015944480896,
-  "ocr_time": 4.543498516082764,
+  "detection_time": 0.6159861087799072,
+  "ocr_time": 4.518176317214966,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

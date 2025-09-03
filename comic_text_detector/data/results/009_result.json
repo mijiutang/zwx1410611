@@ -209,8 +209,8 @@
     "region_1": "花子小姐的臉一定也會恢復原狀的。",
     "region_2": "我才不是在擔心她的臉啦！！"
   },
-  "detection_time": 1.2734203338623047,
-  "ocr_time": 2.0040860176086426,
+  "detection_time": 0.651270866394043,
+  "ocr_time": 1.9197540283203125,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

@@ -771,8 +771,8 @@
     "region_12": "春",
     "region_13": "客人跟惡靈都在等。所以要快點來喔。麻煩你啦·那我先掛曬。"
   },
-  "detection_time": 0.3419826030731201,
-  "ocr_time": 6.050202131271362,
+  "detection_time": 0.3688216209411621,
+  "ocr_time": 6.0410990715026855,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

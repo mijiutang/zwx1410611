@@ -147,45 +147,38 @@ class ComicTextDetectorGUI(QMainWindow):
         self.image_viewer = ImageViewer()
         right_layout.addWidget(self.image_viewer, stretch=1)
         
-            # 状态和控制栏
+        # 状态和控制栏 - 简化版，仅保留导航按钮
         status_widget = QWidget()
         status_layout = QHBoxLayout(status_widget)
         status_layout.setContentsMargins(0, 5, 0, 5)
+
+        # 添加弹簧，让按钮居中显示
+        status_layout.addStretch()
 
         self.prev_button = QPushButton("上一张")
         self.prev_button.clicked.connect(self.prev_image)
         self.prev_button.setEnabled(False)
         status_layout.addWidget(self.prev_button)
-        
+
         self.next_button = QPushButton("下一张")
         self.next_button.clicked.connect(self.next_image)
         self.next_button.setEnabled(False)
         status_layout.addWidget(self.next_button)
-        
-        # 批量处理按钮
-        self.batch_button = QPushButton("开始批量处理")
-        self.batch_button.clicked.connect(self.start_batch_processing)
-        self.batch_button.setEnabled(False)
-        status_layout.addWidget(self.batch_button)
-        
-        # 进度条
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        status_layout.addWidget(self.progress_bar)
-        
-        # 状态标签
-        self.status_label = QLabel("请选择项目文件夹")
-        status_layout.addWidget(self.status_label)
-        
+
+        # 添加弹簧，让按钮居中显示
         status_layout.addStretch()
-        
-        # 保存按钮
-        self.save_button = QPushButton("保存结果")
-        self.save_button.clicked.connect(self.save_results)
-        self.save_button.setEnabled(False)
-        status_layout.addWidget(self.save_button)
-        
+
         right_layout.addWidget(status_widget)
+
+        # 为了避免代码错误，创建隐藏的占位组件
+        self.batch_button = QPushButton()
+        self.batch_button.hide()
+        self.progress_bar = QProgressBar()
+        self.progress_bar.hide()
+        self.status_label = QLabel()
+        self.status_label.hide()
+        self.save_button = QPushButton()
+        self.save_button.hide()
     
 
         # 进度条
@@ -198,12 +191,6 @@ class ComicTextDetectorGUI(QMainWindow):
         status_layout.addWidget(self.status_label)
         
         status_layout.addStretch()
-        
-        # 保存按钮
-        self.save_button = QPushButton("保存结果")
-        self.save_button.clicked.connect(self.save_results)
-        self.save_button.setEnabled(False)
-        status_layout.addWidget(self.save_button)
         
         right_layout.addWidget(status_widget)
         main_layout.addWidget(right_widget, stretch=1)
@@ -586,8 +573,14 @@ class ComicTextDetectorGUI(QMainWindow):
         
         for i, folder_path in enumerate(self.recent_files):
             if Path(folder_path).exists():
+                # 显示文件夹名 + 上级目录，避免路径过长
                 folder_name = Path(folder_path).name
-                action = QAction(f"{i+1}. {folder_name}", self)
+                parent_name = Path(folder_path).parent.name
+                display_name = f"{parent_name}/{folder_name}" if parent_name != folder_name else folder_name
+                
+                action = QAction(f"{i+1}. {display_name}", self)
+                # 设置工具提示显示完整路径
+                action.setToolTip(folder_path)
                 action.triggered.connect(lambda checked, path=folder_path: self.load_project_folder(path))
                 self.recent_menu.addAction(action)
         

@@ -653,8 +653,8 @@
     "region_7": "!?",
     "region_8": ""
   },
-  "detection_time": 0.561448335647583,
-  "ocr_time": 4.6425254344940186,
+  "detection_time": 0.42574191093444824,
+  "ocr_time": 4.787412881851196,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

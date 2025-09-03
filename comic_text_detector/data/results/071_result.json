@@ -789,8 +789,8 @@
     "region_12": "嗯，律。",
     "region_13": "我就去了。"
   },
-  "detection_time": 0.6516106128692627,
-  "ocr_time": 5.647875070571899,
+  "detection_time": 0.6503376960754395,
+  "ocr_time": 5.575526237487793,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",

@@ -43,8 +43,8 @@
   "ocr_results": {
     "region_0": "廢道了團社社"
   },
-  "detection_time": 0.5498936176300049,
-  "ocr_time": 1.1514291763305664,
+  "detection_time": 0.5425584316253662,
+  "ocr_time": 1.1376867294311523,
   "model_info": {
     "model_path": "c:\\Users\\Administrator\\Documents\\GitHub\\zwx1410611\\comic_text_detector\\data\\models\\comictextdetector.pt",
     "device": "cuda",
