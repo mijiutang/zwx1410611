@@ -99,12 +99,13 @@ class ComicTextDetectorGUI(QMainWindow):
         
         # 应用状态
         self.detector: Optional[ComicTextDetector] = None
-        self.current_results: Optional[DetectionResults] = None
-        self.current_image_path: Optional[str] = None
-        self.recent_files: List[str] = []
+        self.current_project_path: Optional[str] = None
+        self.current_image_files: List[str] = []
+        self.batch_results: Optional[dict] = None
+        self.recent_files: List[str] = []  # 现在存储的是项目文件夹路径
         
         # 工作线程
-        self.detection_worker: Optional[DetectionWorker] = None
+        self.batch_worker: Optional[BatchProcessWorker] = None
         
         # 初始化UI
         self.init_ui()
@@ -480,27 +481,6 @@ class ComicTextDetectorGUI(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"无法加载图片: {e}")
     
-    def start_detection(self):
-        """开始检测"""
-        if not self.current_image_path or not self.detector:
-            return
-        
-        # 更新检测器参数
-        params = self.parameter_panel.get_parameters()
-        self.detector.update_parameters(**params)
-        
-        # 禁用按钮，显示进度
-        self.detect_button.setEnabled(False)
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)  # 不确定进度
-        
-        # 启动检测线程
-        self.detection_worker = DetectionWorker(self.detector, self.current_image_path)
-        self.detection_worker.finished.connect(self.on_detection_finished)
-        self.detection_worker.error.connect(self.on_detection_error)
-        self.detection_worker.progress.connect(self.on_detection_progress)
-        self.detection_worker.start()
-    
     def on_detection_finished(self, results: DetectionResults):
         """检测完成回调"""
         self.current_results = results
@@ -659,18 +639,18 @@ class ComicTextDetectorGUI(QMainWindow):
     
     def closeEvent(self, event):
         """关闭事件处理"""
-        # 停止检测线程
-        if self.detection_worker and self.detection_worker.isRunning():
+        # 停止批量处理线程
+        if hasattr(self, 'batch_worker') and self.batch_worker and self.batch_worker.isRunning():
             reply = QMessageBox.question(
-                self, "确认退出", "检测正在进行中，确定要退出吗？",
+                self, "确认退出", "批量处理正在进行中，确定要退出吗？",
                 QMessageBox.Yes | QMessageBox.No
             )
             if reply == QMessageBox.No:
                 event.ignore()
                 return
             
-            self.detection_worker.quit()
-            self.detection_worker.wait()
+            self.batch_worker.quit()
+            self.batch_worker.wait()
         
         # 保存设置
         self.save_settings()

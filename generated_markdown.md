@@ -370,68 +370,25 @@ if __name__ == "__main__":
 ```py
 #!/usr/bin/env python3
 """
-漫画文本检测器 - 主程序入口
-支持命令行和GUI两种模式
+漫画文本检测器 - GUI模式
 """
 
 import sys
-import argparse
 from pathlib import Path
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from src.core.detector import ComicTextDetector
 from src.ui.main_window import ComicTextDetectorGUI
 from config.config import Config
 from src.utils.general import set_logging
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(description="漫画文本检测器")
-    parser.add_argument("--mode", choices=["gui", "cli"], default="gui", 
-                       help="运行模式：gui(图形界面) 或 cli(命令行)")
-    parser.add_argument("--image", type=str, help="输入图片路径 (CLI模式)")
-    parser.add_argument("--model", type=str, help="模型文件路径")
-    parser.add_argument("--output", type=str, help="输出目录")
-    parser.add_argument("--config", type=str, help="配置文件路径")
-    parser.add_argument("--device", type=str, choices=["auto", "cpu", "cuda", "cuda:0", "cuda:1"], 
-                       default="auto", help="计算设备 (auto/cpu/cuda/cuda:0/cuda:1)")
-    parser.add_argument("--verbose", action="store_true", help="详细输出")
+def main():
+    """主函数 - 只启动GUI"""
+    # 设置日志
+    set_logging(verbose=False)
     
-    return parser.parse_args()
-
-def run_cli_mode(args):
-    """命令行模式"""
-    if not args.image:
-        print("错误：CLI模式需要指定 --image 参数")
-        return 1
-    
-    # 初始化检测器
-    config = Config(args.config) if args.config else Config()
-    detector = ComicTextDetector(
-        model_path=args.model or config.model_path,
-        device=args.device,  # 添加这行
-        **config.detector_params
-    )
-    
-    # 执行检测
-    try:
-        results = detector.detect(args.image)
-        
-        # 保存结果
-        output_dir = Path(args.output) if args.output else Path("results")
-        detector.save_results(results, args.image, output_dir)
-        
-        print(f"检测完成！结果保存到: {output_dir}")
-        return 0
-        
-    except Exception as e:
-        print(f"检测失败：{e}")
-        return 1
-
-def run_gui_mode(args):
-    """GUI模式"""
     try:
         from PyQt5.QtWidgets import QApplication
         
@@ -449,17 +406,9 @@ def run_gui_mode(args):
         print("错误：GUI模式需要安装PyQt5")
         print("请运行：pip install PyQt5")
         return 1
-
-def main():
-    args = parse_arguments()
-    
-    # 设置日志
-    set_logging(verbose=args.verbose)
-    
-    if args.mode == "cli":
-        return run_cli_mode(args)
-    else:
-        return run_gui_mode(args)
+    except Exception as e:
+        print(f"启动失败：{e}")
+        return 1
 
 if __name__ == "__main__":
     sys.exit(main())
@@ -1747,6 +1696,53 @@ class DetectionWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
+class BatchProcessWorker(QThread):
+    """批量处理工作线程"""
+    
+    finished = pyqtSignal(dict)  # 返回处理结果摘要
+    error = pyqtSignal(str)
+    progress = pyqtSignal(int, int, str)  # current, total, message
+    
+    def __init__(self, detector: ComicTextDetector, image_files: List[str], output_dir: str):
+        super().__init__()
+        self.detector = detector
+        self.image_files = image_files
+        self.output_dir = output_dir
+    
+    def run(self):
+        try:
+            results_summary = {}
+            total_files = len(self.image_files)
+            
+            for i, image_path in enumerate(self.image_files, 1):
+                try:
+                    file_name = Path(image_path).name
+                    self.progress.emit(i, total_files, f"正在处理: {file_name}")
+                    
+                    # 执行检测和OCR
+                    results = self.detector.detect(image_path, enable_ocr=True)
+                    
+                    # 保存结果
+                    self.detector.save_results(results, self.output_dir)
+                    
+                    # 汇总OCR文本
+                    all_texts = []
+                    for region_key, text in results.ocr_results.items():
+                        if text.strip():
+                            all_texts.append(text.strip())
+                    
+                    combined_text = " ".join(all_texts)
+                    results_summary[results.image_name] = combined_text
+                    
+                except Exception as e:
+                    print(f"处理文件 {image_path} 时出错: {e}")
+                    image_name = Path(image_path).stem
+                    results_summary[image_name] = ""
+            
+            self.finished.emit(results_summary)
+            
+        except Exception as e:
+            self.error.emit(str(e))
 
 class ComicTextDetectorGUI(QMainWindow):
     """漫画文本检测器GUI主窗口"""
@@ -1759,12 +1755,13 @@ class ComicTextDetectorGUI(QMainWindow):
         
         # 应用状态
         self.detector: Optional[ComicTextDetector] = None
-        self.current_results: Optional[DetectionResults] = None
-        self.current_image_path: Optional[str] = None
-        self.recent_files: List[str] = []
+        self.current_project_path: Optional[str] = None
+        self.current_image_files: List[str] = []
+        self.batch_results: Optional[dict] = None
+        self.recent_files: List[str] = []  # 现在存储的是项目文件夹路径
         
         # 工作线程
-        self.detection_worker: Optional[DetectionWorker] = None
+        self.batch_worker: Optional[BatchProcessWorker] = None
         
         # 初始化UI
         self.init_ui()
@@ -1801,16 +1798,16 @@ class ComicTextDetectorGUI(QMainWindow):
         self.image_viewer = ImageViewer()
         right_layout.addWidget(self.image_viewer, stretch=1)
         
-        # 状态和控制栏
+            # 状态和控制栏
         status_widget = QWidget()
         status_layout = QHBoxLayout(status_widget)
         status_layout.setContentsMargins(0, 5, 0, 5)
         
-        # 检测按钮
-        self.detect_button = QPushButton("开始检测")
-        self.detect_button.clicked.connect(self.start_detection)
-        self.detect_button.setEnabled(False)
-        status_layout.addWidget(self.detect_button)
+        # 批量处理按钮
+        self.batch_button = QPushButton("开始批量处理")
+        self.batch_button.clicked.connect(self.start_batch_processing)
+        self.batch_button.setEnabled(False)
+        status_layout.addWidget(self.batch_button)
         
         # 进度条
         self.progress_bar = QProgressBar()
@@ -1818,7 +1815,27 @@ class ComicTextDetectorGUI(QMainWindow):
         status_layout.addWidget(self.progress_bar)
         
         # 状态标签
-        self.status_label = QLabel("就绪")
+        self.status_label = QLabel("请选择项目文件夹")
+        status_layout.addWidget(self.status_label)
+        
+        status_layout.addStretch()
+        
+        # 保存按钮
+        self.save_button = QPushButton("保存结果")
+        self.save_button.clicked.connect(self.save_results)
+        self.save_button.setEnabled(False)
+        status_layout.addWidget(self.save_button)
+        
+        right_layout.addWidget(status_widget)
+    
+
+        # 进度条
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        status_layout.addWidget(self.progress_bar)
+        
+        # 状态标签
+        self.status_label = QLabel("请选择项目文件夹")
         status_layout.addWidget(self.status_label)
         
         status_layout.addStretch()
@@ -1848,25 +1865,29 @@ class ComicTextDetectorGUI(QMainWindow):
         # 文件菜单
         file_menu = menubar.addMenu('文件(&F)')
         
-        # 打开文件
-        open_action = QAction('打开图片(&O)', self)
+        # 打开项目文件夹
+        open_action = QAction('打开项目文件夹(&O)', self)
         open_action.setShortcut('Ctrl+O')
-        open_action.triggered.connect(self.open_file)
+        open_action.triggered.connect(self.open_project_folder)
         file_menu.addAction(open_action)
         
-        # 最近文件
-        self.recent_menu = file_menu.addMenu('最近文件(&R)')
+        # 最近项目菜单 - 保留但改为最近项目
+        self.recent_menu = file_menu.addMenu('最近项目(&R)')
         self.update_recent_menu()
         
         file_menu.addSeparator()
+        
+        # 批量处理
+        batch_action = QAction('开始批量处理(&B)', self)
+        batch_action.setShortcut('Ctrl+B')
+        batch_action.triggered.connect(self.start_batch_processing)
+        file_menu.addAction(batch_action)
         
         # 保存结果
         save_action = QAction('保存结果(&S)', self)
         save_action.setShortcut('Ctrl+S')
         save_action.triggered.connect(self.save_results)
         file_menu.addAction(save_action)
-        
-        # 移除导出配置选项
         
         file_menu.addSeparator()
         
@@ -1910,6 +1931,113 @@ class ComicTextDetectorGUI(QMainWindow):
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
+    def open_project_folder(self):
+        """打开项目文件夹"""
+        folder_path = QFileDialog.getExistingDirectory(
+            self, "选择项目文件夹", 
+            str(self.config.examples_dir)
+        )
+        
+        if folder_path:
+            self.load_project_folder(folder_path)
+
+    def load_project_folder(self, folder_path: str):
+        """加载项目文件夹"""
+        try:
+            from src.utils.io_utils import find_all_imgs
+            
+            # 检查文件夹中的图片
+            image_files = find_all_imgs(folder_path, abs_path=True)
+            if not image_files:
+                QMessageBox.warning(self, "警告", f"文件夹中没有找到图片文件: {folder_path}")
+                return
+            
+            # 保存当前项目路径和文件列表
+            self.current_project_path = folder_path
+            self.current_image_files = image_files
+            
+            # 显示第一张图片作为预览
+            if image_files:
+                self.image_viewer.load_image(image_files[0])
+            
+            # 更新UI状态
+            self.batch_button.setEnabled(self.detector is not None)  # 启用批量处理按钮
+            
+            # 更新状态
+            self.status_label.setText(f"已加载项目: {len(image_files)} 个文件")
+            self.statusBar().showMessage(f"项目已加载: {folder_path} ({len(image_files)} 个文件)")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"无法加载项目文件夹: {e}")
+
+    def start_batch_processing(self):
+        """开始批量处理"""
+        if not hasattr(self, 'current_image_files') or not self.current_image_files or not self.detector:
+            QMessageBox.information(self, "提示", "请先选择项目文件夹")
+            return
+        
+        # 选择输出目录
+        output_dir = QFileDialog.getExistingDirectory(
+            self, "选择输出目录", str(self.config.results_dir)
+        )
+        
+        if not output_dir:
+            return
+        
+        # 更新检测器参数
+        params = self.parameter_panel.get_parameters()
+        self.detector.update_parameters(**params)
+        
+        # 禁用按钮，显示进度
+        self.batch_button.setEnabled(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setMaximum(len(self.current_image_files))
+        self.progress_bar.setValue(0)
+        
+        # 启动批量处理线程
+        self.batch_worker = BatchProcessWorker(self.detector, self.current_image_files, output_dir)
+        self.batch_worker.finished.connect(self.on_batch_finished)
+        self.batch_worker.error.connect(self.on_batch_error)
+        self.batch_worker.progress.connect(self.on_batch_progress)
+        self.batch_worker.start()
+
+    def on_batch_progress(self, current, total, message):
+        """批量处理进度回调"""
+        self.progress_bar.setValue(current)
+        self.status_label.setText(f"正在处理: {current}/{total}")
+        self.statusBar().showMessage(message)
+
+    def on_batch_finished(self, results_summary):
+        """批量处理完成回调"""
+        self.batch_results = results_summary
+        
+        # 更新UI状态
+        self.batch_button.setEnabled(True)
+        self.save_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        
+        # 显示完成信息
+        total_files = len(results_summary)
+        successful = sum(1 for text in results_summary.values() if text.strip())
+        
+        self.status_label.setText(f"批量处理完成: {successful}/{total_files} 成功")
+        
+        QMessageBox.information(
+            self, "完成", 
+            f"批量处理完成！\n"
+            f"总文件数: {total_files}\n"
+            f"成功处理: {successful}\n"
+            f"失败: {total_files - successful}"
+        )
+
+    def on_batch_error(self, error_msg: str):
+        """批量处理错误回调"""
+        self.batch_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        self.status_label.setText("批量处理失败")
+        
+        QMessageBox.critical(self, "批量处理失败", f"处理过程中发生错误: {error_msg}")
+
     def toggle_text_lines(self):
         """切换文本行显示"""
         self.image_viewer.toggle_lines()
@@ -1932,17 +2060,17 @@ class ComicTextDetectorGUI(QMainWindow):
         """创建工具栏"""
         toolbar = self.addToolBar('主工具栏')
         
-        # 打开文件
-        open_action = QAction(QIcon(), '打开', self)
-        open_action.triggered.connect(self.open_file)
+        # 打开项目文件夹
+        open_action = QAction(QIcon(), '打开项目', self)
+        open_action.triggered.connect(self.open_project_folder)
         toolbar.addAction(open_action)
         
         toolbar.addSeparator()
-        
-        # 检测
-        detect_action = QAction(QIcon(), '检测', self)
-        detect_action.triggered.connect(self.start_detection)
-        toolbar.addAction(detect_action)
+    
+        # 批量处理
+        batch_action = QAction(QIcon(), '批量处理', self)
+        batch_action.triggered.connect(self.start_batch_processing)
+        toolbar.addAction(batch_action)
         
         # 保存
         save_action = QAction(QIcon(), '保存', self)
@@ -2008,27 +2136,6 @@ class ComicTextDetectorGUI(QMainWindow):
             
         except Exception as e:
             QMessageBox.critical(self, "错误", f"无法加载图片: {e}")
-    
-    def start_detection(self):
-        """开始检测"""
-        if not self.current_image_path or not self.detector:
-            return
-        
-        # 更新检测器参数
-        params = self.parameter_panel.get_parameters()
-        self.detector.update_parameters(**params)
-        
-        # 禁用按钮，显示进度
-        self.detect_button.setEnabled(False)
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)  # 不确定进度
-        
-        # 启动检测线程
-        self.detection_worker = DetectionWorker(self.detector, self.current_image_path)
-        self.detection_worker.finished.connect(self.on_detection_finished)
-        self.detection_worker.error.connect(self.on_detection_error)
-        self.detection_worker.progress.connect(self.on_detection_progress)
-        self.detection_worker.start()
     
     def on_detection_finished(self, results: DetectionResults):
         """检测完成回调"""
@@ -2188,18 +2295,18 @@ class ComicTextDetectorGUI(QMainWindow):
     
     def closeEvent(self, event):
         """关闭事件处理"""
-        # 停止检测线程
-        if self.detection_worker and self.detection_worker.isRunning():
+        # 停止批量处理线程
+        if hasattr(self, 'batch_worker') and self.batch_worker and self.batch_worker.isRunning():
             reply = QMessageBox.question(
-                self, "确认退出", "检测正在进行中，确定要退出吗？",
+                self, "确认退出", "批量处理正在进行中，确定要退出吗？",
                 QMessageBox.Yes | QMessageBox.No
             )
             if reply == QMessageBox.No:
                 event.ignore()
                 return
             
-            self.detection_worker.quit()
-            self.detection_worker.wait()
+            self.batch_worker.quit()
+            self.batch_worker.wait()
         
         # 保存设置
         self.save_settings()
@@ -2209,6 +2316,74 @@ class ComicTextDetectorGUI(QMainWindow):
             del self.detector
         
         event.accept()
+
+    def start_batch_processing(self):
+        """开始批量处理"""
+        if not hasattr(self, 'current_image_files') or not self.current_image_files or not self.detector:
+            QMessageBox.information(self, "提示", "请先选择项目文件夹")
+            return
+        
+        # 选择输出目录
+        output_dir = QFileDialog.getExistingDirectory(
+            self, "选择输出目录", str(self.config.results_dir)
+        )
+        
+        if not output_dir:
+            return
+        
+        # 更新检测器参数
+        params = self.parameter_panel.get_parameters()
+        self.detector.update_parameters(**params)
+        
+        # 禁用按钮，显示进度
+        self.batch_button.setEnabled(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setMaximum(len(self.current_image_files))
+        self.progress_bar.setValue(0)
+        
+        # 启动批量处理线程
+        self.batch_worker = BatchProcessWorker(self.detector, self.current_image_files, output_dir)
+        self.batch_worker.finished.connect(self.on_batch_finished)
+        self.batch_worker.error.connect(self.on_batch_error)
+        self.batch_worker.progress.connect(self.on_batch_progress)
+        self.batch_worker.start()
+
+    def on_batch_progress(self, current, total, message):
+        """批量处理进度回调"""
+        self.progress_bar.setValue(current)
+        self.status_label.setText(f"正在处理: {current}/{total}")
+        self.statusBar().showMessage(message)
+
+    def on_batch_finished(self, results_summary):
+        """批量处理完成回调"""
+        self.batch_results = results_summary
+        
+        # 更新UI状态
+        self.batch_button.setEnabled(True)
+        self.save_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        
+        # 显示完成信息
+        total_files = len(results_summary)
+        successful = sum(1 for text in results_summary.values() if text.strip())
+        
+        self.status_label.setText(f"批量处理完成: {successful}/{total_files} 成功")
+        
+        QMessageBox.information(
+            self, "完成", 
+            f"批量处理完成！\n"
+            f"总文件数: {total_files}\n"
+            f"成功处理: {successful}\n"
+            f"失败: {total_files - successful}"
+        )
+
+    def on_batch_error(self, error_msg: str):
+        """批量处理错误回调"""
+        self.batch_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        self.status_label.setText("批量处理失败")
+        
+        QMessageBox.critical(self, "批量处理失败", f"处理过程中发生错误: {error_msg}")
 
 
 if __name__ == "__main__":
