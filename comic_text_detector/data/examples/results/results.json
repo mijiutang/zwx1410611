@@ -1,8 +1,8 @@
 {
-  "project_name": "examples_out",
+  "project_name": "results",
   "total_images": 0,
-  "processing_time": 73.28767204284668,
-  "created_at": "2025-09-04 00:07:37",
+  "processing_time": 248.32609581947327,
+  "created_at": "2025-09-04 00:48:18",
   "status": "completed",
   "images": [
     {
@@ -10,7 +10,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\009.jpg",
       "detection_results": {
         "text_regions_count": 3,
-        "detection_time": 0.453629732131958,
+        "detection_time": 0.7836439609527588,
         "languages": [
           "ja"
         ],
@@ -214,7 +214,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 2.019599676132202,
+        "ocr_time": 2.043510913848877,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -229,7 +229,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\010.jpg",
       "detection_results": {
         "text_regions_count": 9,
-        "detection_time": 0.5468754768371582,
+        "detection_time": 0.5251045227050781,
         "languages": [
           "ja"
         ],
@@ -859,7 +859,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 5.0252907276153564,
+        "ocr_time": 4.584152460098267,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -879,7 +879,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\016.jpg",
       "detection_results": {
         "text_regions_count": 14,
-        "detection_time": 0.5091969966888428,
+        "detection_time": 0.4201538562774658,
         "languages": [
           "ja"
         ],
@@ -1612,7 +1612,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 6.4289710521698,
+        "ocr_time": 5.780217170715332,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -1637,7 +1637,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\069.jpg",
       "detection_results": {
         "text_regions_count": 11,
-        "detection_time": 0.7272422313690186,
+        "detection_time": 1.4347224235534668,
         "languages": [
           "ja"
         ],
@@ -2247,7 +2247,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 5.179550409317017,
+        "ocr_time": 23.781933546066284,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -2270,7 +2270,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\070.jpg",
       "detection_results": {
         "text_regions_count": 10,
-        "detection_time": 0.8135626316070557,
+        "detection_time": 2.179940938949585,
         "languages": [
           "ja"
         ],
@@ -2791,7 +2791,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 4.6898863315582275,
+        "ocr_time": 26.32974147796631,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -2813,7 +2813,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\071.jpg",
       "detection_results": {
         "text_regions_count": 14,
-        "detection_time": 0.4766561985015869,
+        "detection_time": 1.6707849502563477,
         "languages": [
           "ja"
         ],
@@ -3564,7 +3564,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 5.650679349899292,
+        "ocr_time": 38.65115141868591,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -3590,7 +3590,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\125.jpg",
       "detection_results": {
         "text_regions_count": 2,
-        "detection_time": 0.7251408100128174,
+        "detection_time": 1.7469720840454102,
         "languages": [
           "ja"
         ],
@@ -3705,7 +3705,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 1.307438611984253,
+        "ocr_time": 13.873390197753906,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -3719,7 +3719,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\126.jpg",
       "detection_results": {
         "text_regions_count": 11,
-        "detection_time": 0.4429893493652344,
+        "detection_time": 1.6954083442687988,
         "languages": [
           "ja"
         ],
@@ -4365,7 +4365,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 5.427760124206543,
+        "ocr_time": 55.774797677993774,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -4388,7 +4388,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\127.jpg",
       "detection_results": {
         "text_regions_count": 10,
-        "detection_time": 0.6282627582550049,
+        "detection_time": 1.2745349407196045,
         "languages": [
           "ja"
         ],
@@ -5179,7 +5179,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 6.526120185852051,
+        "ocr_time": 26.998183727264404,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -5201,7 +5201,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\128.jpg",
       "detection_results": {
         "text_regions_count": 7,
-        "detection_time": 0.36569809913635254,
+        "detection_time": 1.1393446922302246,
         "languages": [
           "ja"
         ],
@@ -5527,7 +5527,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 2.9752256870269775,
+        "ocr_time": 11.587631225585938,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -5545,7 +5545,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\129.jpg",
       "detection_results": {
         "text_regions_count": 1,
-        "detection_time": 0.5237035751342773,
+        "detection_time": 0.39696478843688965,
         "languages": [
           "ja"
         ],
@@ -5589,7 +5589,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 1.1176550388336182,
+        "ocr_time": 1.2433459758758545,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -5602,7 +5602,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\130.jpg",
       "detection_results": {
         "text_regions_count": 11,
-        "detection_time": 0.4101409912109375,
+        "detection_time": 0.4367969036102295,
         "languages": [
           "ja"
         ],
@@ -6230,7 +6230,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 6.225177526473999,
+        "ocr_time": 5.9244184494018555,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -6253,7 +6253,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\131.jpg",
       "detection_results": {
         "text_regions_count": 11,
-        "detection_time": 0.3865065574645996,
+        "detection_time": 0.5220966339111328,
         "languages": [
           "ja"
         ],
@@ -6863,7 +6863,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 5.564344882965088,
+        "ocr_time": 5.251119375228882,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -6886,7 +6886,7 @@
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\132.jpg",
       "detection_results": {
         "text_regions_count": 10,
-        "detection_time": 0.5864863395690918,
+        "detection_time": 0.6755514144897461,
         "languages": [
           "ja"
         ],
@@ -7497,7 +7497,7 @@
         ]
       },
       "ocr_results": {
-        "ocr_time": 5.341647624969482,
+        "ocr_time": 5.104468584060669,
         "has_ocr": true,
         "avg_ocr_confidence": 0.0,
         "regions": {
@@ -7519,8 +7519,8 @@
     "total_regions": 124,
     "images_with_ocr": 14,
     "avg_regions_per_image": 8.857142857142858,
-    "total_detection_time": 7.5960917472839355,
-    "total_ocr_time": 63.479347229003906,
+    "total_detection_time": 14.902020454406738,
+    "total_ocr_time": 226.92806220054626,
     "languages_detected": [
       "ja"
     ]

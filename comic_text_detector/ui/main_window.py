@@ -1,5 +1,5 @@
 """
-GUI应用主类 - 简化版本（模块化）
+GUI应用主类 - 优化OCR结果管理版本
 """
 
 import sys
@@ -23,7 +23,7 @@ from config.config import Config
 
 
 class ComicTextDetectorGUI(QMainWindow):
-    """漫画文本检测器GUI主窗口 - 模块化版本"""
+    """漫画文本检测器GUI主窗口 - 优化OCR管理版本"""
     
     def __init__(self):
         super().__init__()
@@ -60,7 +60,7 @@ class ComicTextDetectorGUI(QMainWindow):
     
     def init_ui(self):
         """初始化用户界面"""
-        self.setWindowTitle("漫画文本检测器 v1.0 (模块化版)")
+        self.setWindowTitle("漫画文本检测器 v1.0 (OCR优化版)")
         self.setMinimumSize(1000, 700)
         
         # 设置窗口大小
@@ -229,7 +229,18 @@ class ComicTextDetectorGUI(QMainWindow):
         # 参数面板信号
         self.parameter_panel.parameters_changed.connect(self.on_parameters_changed)
         self.parameter_panel.ocr_text_modified.connect(self.on_ocr_text_modified)
+        self.parameter_panel.refresh_requested.connect(self.on_refresh_ocr_requested) 
     
+    def on_refresh_ocr_requested(self):
+        """处理刷新OCR请求"""
+        if self.current_image_path and self.current_project_folder:
+            input_folder = Path(self.current_project_folder)
+            project_results_dir = input_folder / "results"  # 【修改】输出到项目内部
+            image_name = Path(self.current_image_path).stem
+            
+            self.parameter_panel.load_ocr_from_json(str(project_results_dir), image_name)
+            self.statusBar().showMessage("OCR结果已刷新")
+
     def init_detector(self):
         """初始化检测器"""
         try:
@@ -269,14 +280,26 @@ class ComicTextDetectorGUI(QMainWindow):
                 QMessageBox.warning(self, "警告", f"参数更新失败: {e}")
 
     def on_ocr_text_modified(self, region_idx: int, new_text: str):
-        """OCR文本修改回调 - 自动保存"""
+        """【优化】OCR文本修改回调 - 使用项目内部路径"""
         if self.current_results:
             try:
                 # 更新可视化（如果需要重新生成带OCR文本的结果图）
                 self.image_viewer.set_detection_regions(self.current_results.text_regions)
                 
+                # 【修改】如果在项目模式下，同步到JSON文件 - 使用项目内部路径
+                if (self.current_project_folder and 
+                    self.current_project_results):
+                    
+                    input_folder = Path(self.current_project_folder)
+                    project_results_dir = input_folder / "results"  # 【修改】输出到项目内部
+                    image_name = self.current_results.image_name
+                    
+                    # 同步到JSON
+                    self.parameter_panel.sync_ocr_to_json(
+                        str(project_results_dir), image_name, region_idx, new_text)
+                
                 # 更新状态栏
-                self.statusBar().showMessage(f"区域{region_idx}的OCR文本已修改并保存")
+                self.statusBar().showMessage(f"区域{region_idx+1}的OCR文本已修改并保存")
                 
             except Exception as e:
                 print(f"保存OCR修改时出错: {e}")

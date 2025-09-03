@@ -1,5 +1,5 @@
 """
-事件处理器 - 处理所有UI事件和业务逻辑
+事件处理器 - 处理所有UI事件和业务逻辑（优化输出路径版本）
 """
 
 import os
@@ -46,12 +46,20 @@ class EventHandlers(QObject):
             self.main_window.current_image_files = image_files
             self.main_window.current_image_index = 0
 
-            project_name = f"{Path(folder_path).name}_single"
+            project_name = "results"  # 【修改】简化项目名称
             self.main_window.current_project_results = ProjectResults(project_name)
             
             # 显示第一张图片
             self.main_window.image_viewer.load_image(image_files[0])
             self.main_window.current_image_path = image_files[0]
+            
+            # 【修改】调整OCR结果加载路径 - 输出到项目内部
+            input_folder = Path(folder_path)
+            project_results_dir = input_folder / "results"  # 【修改】输出到项目内部
+            first_image_name = Path(image_files[0]).stem
+            
+            self.main_window.parameter_panel.load_ocr_from_json(
+                str(project_results_dir), first_image_name)
             
             # 更新按钮状态
             self.main_window.prev_button.setEnabled(False)
@@ -61,7 +69,6 @@ class EventHandlers(QObject):
             # 清空之前的结果
             self.main_window.current_results = None
             self.main_window.ocr_button.setEnabled(False)
-            
             
             # 更新最近文件夹
             self.add_recent_folder(folder_path)
@@ -100,6 +107,18 @@ class EventHandlers(QObject):
         self.main_window.current_results = None
         self.main_window.ocr_button.setEnabled(False)
         
+        # 【修改】调整OCR结果加载路径 - 项目内部
+        if self.main_window.current_project_folder:
+            input_folder = Path(self.main_window.current_project_folder)
+            project_results_dir = input_folder / "results"  # 【修改】输出到项目内部
+            image_name = Path(current_image).stem
+            
+            # 从JSON加载OCR结果到面板
+            self.main_window.parameter_panel.load_ocr_from_json(
+                str(project_results_dir), image_name)
+        else:
+            # 非项目模式，清空OCR面板
+            self.main_window.parameter_panel.clear_ocr_results()
         
         # 更新按钮状态
         self.main_window.prev_button.setEnabled(self.main_window.current_image_index > 0)
@@ -185,7 +204,7 @@ class EventHandlers(QObject):
         self._start_batch_processing(include_ocr=True)
 
     def _start_batch_processing(self, include_ocr: bool = True):
-        """开始批量处理 - 使用新的项目结构"""
+        """开始批量处理 - 【修改】输出到项目内部"""
         if (not self.main_window.current_image_files or 
             not self.main_window.detector):
             QMessageBox.information(
@@ -196,10 +215,10 @@ class EventHandlers(QObject):
             QMessageBox.warning(self.main_window, "错误", "当前没有选择项目文件夹")
             return
         
-        # 自动生成项目名称和输出路径
+        # 【修改】输出到项目内部
         input_folder = Path(self.main_window.current_project_folder)
-        project_name = f"{input_folder.name}_out"
-        output_dir = str(input_folder.parent)
+        project_name = "results"  # 简化项目名称
+        output_dir = str(input_folder)  # 【修改】输出到项目文件夹内部
         
         # 【新增】创建项目结果对象并提前创建结构
         self.main_window.current_project_results = ProjectResults(project_name)
@@ -232,7 +251,7 @@ class EventHandlers(QObject):
         operation_name = "批量处理（含OCR）" if include_ocr else "批量检测"
         self.main_window.status_label.setText(f"正在{operation_name}...")
         
-        # 显示自动生成的路径信息
+        # 【修改】显示新的输出路径信息
         self.main_window.statusBar().showMessage(
             f"开始{operation_name} -> 输出到: {Path(output_dir) / project_name}")
         
@@ -263,9 +282,9 @@ class EventHandlers(QObject):
         self.main_window.image_viewer.set_result_image(results.result_image)
         self.main_window.image_viewer.set_detection_regions(results.text_regions)
         
-        # 【修复】如果在项目模式下，立即保存检测结果
+        # 【修改】如果在项目模式下，立即保存检测结果
         if (self.main_window.current_project_folder and 
-            self.main_window.current_project_results is not None):  # 修改这里
+            self.main_window.current_project_results is not None):
             self.main_window.current_project_results.update_image_detection_result(
                 results, self.main_window.config.output_params)
         
@@ -306,9 +325,9 @@ class EventHandlers(QObject):
         self.main_window.image_viewer.set_result_image(results.result_image)
         self.main_window.image_viewer.set_detection_regions(results.text_regions)
         
-        # 【新增】如果在项目模式下，立即保存OCR结果
+        # 【修改】如果在项目模式下，立即保存OCR结果
         if (self.main_window.current_project_folder and 
-            self.main_window.current_project_results is not None):  # 修改这里
+            self.main_window.current_project_results is not None):
             self.main_window.current_project_results.update_image_ocr_result(results)
         
         # 更新状态信息
@@ -341,12 +360,12 @@ class EventHandlers(QObject):
     def _auto_save_results(self, results: DetectionResults, operation_type: str):
         """自动保存结果"""
         try:
-            # 确定保存路径
+            # 【修改】确定保存路径 - 输出到项目内部
             if self.main_window.current_project_folder:
-                # 如果有项目文件夹，保存到项目文件夹同级的输出目录
+                # 输出到项目文件夹内部
                 input_folder = Path(self.main_window.current_project_folder)
-                project_name = f"{input_folder.name}_{operation_type}"
-                output_dir = str(input_folder.parent)
+                project_name = f"results_{operation_type}"
+                output_dir = str(input_folder)  # 【修改】输出到项目内部
             else:
                 # 如果是单个文件，保存到图片同级目录
                 image_path = Path(results.image_path)
@@ -370,7 +389,7 @@ class EventHandlers(QObject):
         self.main_window.status_label.setText(f"处理中: {current}/{total}")
 
     def on_batch_finished(self, project_results: ProjectResults):
-        """批量处理完成回调 - 适配新的ProjectResults"""
+        """批量处理完成回调 - 【修改】适配新的输出路径"""
         total_files = len(project_results.detection_results)
         successful = sum(1 for result in project_results.detection_results if len(result.text_regions) > 0)
         
@@ -380,10 +399,10 @@ class EventHandlers(QObject):
         # 获取项目统计信息
         project_stats = project_results.get_project_detection_results()['stats']
         
-        # 计算输出路径（用于显示）
+        # 【修改】计算输出路径（用于显示） - 项目内部
         if self.main_window.current_project_folder:
             input_folder = Path(self.main_window.current_project_folder)
-            expected_output_path = input_folder.parent / f"{input_folder.name}_out"
+            expected_output_path = input_folder / "results"  # 【修改】输出路径
         else:
             expected_output_path = "未知路径"
         
@@ -399,7 +418,7 @@ class EventHandlers(QObject):
         if project_stats['total_ocr_time'] > 0:
             completion_msg += f"• OCR总时间: {project_stats['total_ocr_time']:.1f}s\n"
         
-        completion_msg += f"\n结果已自动保存到输入文件夹同级目录！"
+        completion_msg += f"\n结果已保存到项目文件夹内部！"  # 【修改】提示信息
         
         QMessageBox.information(self.main_window, "批量处理完成", completion_msg)
         
@@ -451,7 +470,7 @@ class EventHandlers(QObject):
     def handle_show_about(self):
         """显示关于对话框"""
         about_text = """
-        <h3>漫画文本检测器 v1.0 (项目结构优化版)</h3>
+        <h3>漫画文本检测器 v1.0 (路径优化版)</h3>
         <p>基于深度学习的漫画文本检测工具</p>
         <p><b>特性:</b></p>
         <ul>
@@ -461,14 +480,13 @@ class EventHandlers(QObject):
         <li>可视化文本块和文本行预览</li>
         <li>友好的图形用户界面</li>
         <li>可配置的检测参数</li>
-        <li>优化的项目结构输出</li>
+        <li>项目内部输出结构</li>
         </ul>
         <p><b>项目输出结构:</b></p>
-        <p>• 按项目名称创建输出文件夹<br>
+        <p>• 输出到项目文件夹内部/results/<br>
         • result_images/ - 检测结果图片<br>
         • masks/ - 文字掩码<br>
-        • detection_results.json - 检测结果摘要<br>
-        • ocr_results.json - OCR识别结果</p>
+        • results.json - 检测和OCR结果</p>
         <p><b>使用流程:</b></p>
         <p>1. 打开项目文件夹<br>
         2. 点击"开始检测"预览文本区域<br>
