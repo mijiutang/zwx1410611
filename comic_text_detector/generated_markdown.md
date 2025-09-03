@@ -2475,17 +2475,524 @@ def load_yolov5_ckpt(weights, map_location='cpu', fuse=True, inplace=True, out_i
 
 ## `ui`
 
+### `event_handlers.py`
+
+```py
+"""
+事件处理器 - 处理所有UI事件和业务逻辑
+"""
+
+import os
+import time
+from pathlib import Path
+from typing import List, Optional
+from PyQt5.QtWidgets import QFileDialog, QMessageBox
+from PyQt5.QtCore import QObject, QSettings
+
+from src.core.detector import ComicTextDetector, DetectionResults, ProjectResults
+from config.config import Config
+
+
+class EventHandlers(QObject):
+    """事件处理器类"""
+    
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_window = main_window
+    
+    def handle_open_folder(self):
+        """处理打开项目文件夹"""
+        folder_path = QFileDialog.getExistingDirectory(
+            self.main_window, "选择项目文件夹", 
+            str(self.main_window.config.examples_dir)
+        )
+        
+        if folder_path:
+            self.load_project_folder(folder_path)
+
+    def load_project_folder(self, folder_path: str):
+        """加载项目文件夹"""
+        try:
+            from src.utils.io_utils import find_all_imgs
+            
+            # 检查文件夹中的图片
+            image_files = find_all_imgs(folder_path, abs_path=True)
+            if not image_files:
+                QMessageBox.warning(self.main_window, "警告", f"文件夹中没有找到图片文件: {folder_path}")
+                return
+            
+            # 保存当前项目信息
+            self.main_window.current_project_folder = folder_path
+            self.main_window.current_image_files = image_files
+            self.main_window.current_image_index = 0
+            
+            # 显示第一张图片
+            self.main_window.image_viewer.load_image(image_files[0])
+            self.main_window.current_image_path = image_files[0]
+            
+            # 更新按钮状态
+            self.main_window.prev_button.setEnabled(False)
+            self.main_window.next_button.setEnabled(len(image_files) > 1)
+            self.main_window.detect_button.setEnabled(True)
+            
+            # 清空之前的结果
+            self.main_window.current_results = None
+            self.main_window.ocr_button.setEnabled(False)
+            self.main_window.save_button.setEnabled(False)
+            
+            # 更新最近文件夹
+            self.add_recent_folder(folder_path)
+            
+            # 更新状态
+            self.main_window.statusBar().showMessage(f"项目已加载: {folder_path} ({len(image_files)} 个文件)")
+            self.main_window.status_label.setText(f"已加载 {len(image_files)} 个文件")
+            
+        except Exception as e:
+            QMessageBox.critical(self.main_window, "错误", f"无法加载项目文件夹: {e}")
+
+    def handle_prev_image(self):
+        """切换到上一张图片"""
+        if (self.main_window.current_image_files and 
+            self.main_window.current_image_index > 0):
+            self.main_window.current_image_index -= 1
+            self.load_current_image()
+
+    def handle_next_image(self):
+        """切换到下一张图片"""
+        if (self.main_window.current_image_files and 
+            self.main_window.current_image_index < len(self.main_window.current_image_files) - 1):
+            self.main_window.current_image_index += 1
+            self.load_current_image()
+
+    def load_current_image(self):
+        """加载当前索引的图片"""
+        if not self.main_window.current_image_files:
+            return
+            
+        current_image = self.main_window.current_image_files[self.main_window.current_image_index]
+        self.main_window.image_viewer.load_image(current_image)
+        self.main_window.current_image_path = current_image
+        
+        # 清空之前的结果
+        self.main_window.current_results = None
+        self.main_window.ocr_button.setEnabled(False)
+        self.main_window.save_button.setEnabled(False)
+        
+        # 更新按钮状态
+        self.main_window.prev_button.setEnabled(self.main_window.current_image_index > 0)
+        self.main_window.next_button.setEnabled(
+            self.main_window.current_image_index < len(self.main_window.current_image_files) - 1)
+        
+        # 更新状态显示
+        image_name = Path(current_image).name
+        total_count = len(self.main_window.current_image_files)
+        self.main_window.statusBar().showMessage(
+            f"图片: {image_name} ({self.main_window.current_image_index + 1}/{total_count})")
+        self.main_window.status_label.setText(
+            f"图片 {self.main_window.current_image_index + 1}/{total_count}: {image_name}")
+
+    def handle_start_detection(self):
+        """开始文字检测"""
+        if not self.main_window.current_image_path or not self.main_window.detector:
+            QMessageBox.information(self.main_window, "提示", "请先选择图片并确保检测器已加载")
+            return
+        
+        # 更新检测器参数
+        params = self.main_window.parameter_panel.get_parameters()
+        self.main_window.detector.update_parameters(**params)
+        
+        # 禁用按钮
+        self.main_window.detect_button.setEnabled(False)
+        self.main_window.ocr_button.setEnabled(False)
+        self.main_window.save_button.setEnabled(False)
+        
+        # 显示进度
+        self.main_window.progress_bar.setVisible(True)
+        self.main_window.progress_bar.setRange(0, 0)  # 不确定进度
+        self.main_window.status_label.setText("正在检测...")
+        
+        # 启动检测线程
+        from src.ui.workers import DetectionWorker
+        self.main_window.detection_worker = DetectionWorker(
+            self.main_window.detector, self.main_window.current_image_path)
+        self.main_window.detection_worker.finished.connect(self.on_detection_finished)
+        self.main_window.detection_worker.error.connect(self.on_detection_error)
+        self.main_window.detection_worker.progress.connect(self.on_detection_progress)
+        self.main_window.detection_worker.start()
+
+    def handle_start_ocr(self):
+        """开始OCR识别"""
+        if not self.main_window.current_results or not self.main_window.detector:
+            QMessageBox.information(self.main_window, "提示", "请先完成文字检测")
+            return
+        
+        if self.main_window.current_results.has_ocr_results:
+            reply = QMessageBox.question(
+                self.main_window, "确认", "该图片已有OCR结果，是否重新识别？",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.No:
+                return
+        
+        # 禁用按钮
+        self.main_window.detect_button.setEnabled(False)
+        self.main_window.ocr_button.setEnabled(False)
+        self.main_window.save_button.setEnabled(False)
+        
+        # 显示进度
+        self.main_window.progress_bar.setVisible(True)
+        self.main_window.progress_bar.setRange(0, 0)
+        self.main_window.status_label.setText("正在OCR识别...")
+        
+        # 启动OCR线程
+        from src.ui.workers import OCRWorker
+        self.main_window.ocr_worker = OCRWorker(
+            self.main_window.detector, self.main_window.current_results)
+        self.main_window.ocr_worker.finished.connect(self.on_ocr_finished)
+        self.main_window.ocr_worker.error.connect(self.on_ocr_error)
+        self.main_window.ocr_worker.progress.connect(self.on_ocr_progress)
+        self.main_window.ocr_worker.start()
+
+    def handle_save_results(self):
+        """保存检测结果"""
+        if not self.main_window.current_results:
+            QMessageBox.information(self.main_window, "提示", "没有检测结果可保存")
+            return
+        
+        # 选择保存目录
+        output_dir = QFileDialog.getExistingDirectory(
+            self.main_window, "选择保存目录", str(self.main_window.config.results_dir)
+        )
+        
+        if output_dir:
+            try:
+                saved_dir = self.main_window.detector.save_results(
+                    self.main_window.current_results, output_dir)
+                
+                # 构建保存信息
+                save_info = f"结果已保存到: {saved_dir}\n\n包含内容:\n"
+                save_info += f"- 检测结果图片\n"
+                save_info += f"- 文字掩码\n" 
+                save_info += f"- JSON格式结果\n"
+                if self.main_window.current_results.has_ocr_results:
+                    save_info += f"- OCR识别结果"
+                
+                QMessageBox.information(self.main_window, "成功", save_info)
+                self.main_window.statusBar().showMessage(f"结果已保存: {saved_dir}")
+                
+            except Exception as e:
+                QMessageBox.critical(self.main_window, "错误", f"保存失败: {e}")
+
+    def handle_batch_detection(self):
+        """开始批量检测（不含OCR）"""
+        self._start_batch_processing(include_ocr=False)
+
+    def handle_batch_ocr(self):
+        """开始批量处理（含OCR）"""
+        self._start_batch_processing(include_ocr=True)
+
+    def _start_batch_processing(self, include_ocr: bool = True):
+        """开始批量处理 - 使用新的项目结构"""
+        if (not self.main_window.current_image_files or 
+            not self.main_window.detector):
+            QMessageBox.information(
+                self.main_window, "提示", "请先选择项目文件夹并确保检测器已加载")
+            return
+        
+        if not self.main_window.current_project_folder:
+            QMessageBox.warning(self.main_window, "错误", "当前没有选择项目文件夹")
+            return
+        
+        # 自动生成项目名称和输出路径
+        input_folder = Path(self.main_window.current_project_folder)
+        project_name = f"{input_folder.name}_out"
+        output_dir = str(input_folder.parent)  # 输出到输入文件夹的父目录
+        
+        # 检查输出目录是否可写
+        if not os.access(output_dir, os.W_OK):
+            QMessageBox.warning(
+                self.main_window, "错误", f"输出目录没有写入权限：{output_dir}")
+            return
+        
+        # 更新检测器参数
+        params = self.main_window.parameter_panel.get_parameters()
+        self.main_window.detector.update_parameters(**params)
+        
+        # 显示进度
+        self.main_window.progress_bar.setVisible(True)
+        self.main_window.progress_bar.setRange(0, len(self.main_window.current_image_files))
+        
+        # 禁用控件
+        self.main_window.detect_button.setEnabled(False)
+        self.main_window.ocr_button.setEnabled(False)
+        self.main_window.save_button.setEnabled(False)
+        
+        operation_name = "批量处理（含OCR）" if include_ocr else "批量检测"
+        self.main_window.status_label.setText(f"正在{operation_name}...")
+        
+        # 显示自动生成的路径信息
+        self.main_window.statusBar().showMessage(
+            f"开始{operation_name} -> 输出到: {Path(output_dir) / project_name}")
+        
+        # 启动批量处理线程
+        from src.ui.workers import BatchProcessWorker
+        self.main_window.batch_worker = BatchProcessWorker(
+            self.main_window.detector, 
+            self.main_window.current_image_files, 
+            project_name,
+            output_dir,
+            include_ocr=include_ocr
+        )
+        self.main_window.batch_worker.finished.connect(self.on_batch_finished)
+        self.main_window.batch_worker.error.connect(self.on_batch_error)
+        self.main_window.batch_worker.progress.connect(self.on_batch_progress)
+        self.main_window.batch_worker.start()
+
+    # 工作线程回调方法
+    def on_detection_progress(self, message: str):
+        """检测进度更新"""
+        self.main_window.status_label.setText(message)
+
+    def on_detection_finished(self, results: DetectionResults):
+        """检测完成回调"""
+        self.main_window.current_results = results
+        
+        # 显示结果图片
+        self.main_window.image_viewer.set_result_image(results.result_image)
+        self.main_window.image_viewer.set_detection_regions(results.text_regions)
+        
+        # 更新状态信息
+        region_count = len(results.text_regions)
+        detection_time = results.detection_time
+        self.main_window.statusBar().showMessage(
+            f"检测完成: 找到 {region_count} 个文字区域, 耗时 {detection_time:.2f}s")
+        self.main_window.status_label.setText(f"检测完成: {region_count} 个区域")
+        
+        self.main_window.parameter_panel.update_ocr_results(results)
+        
+        # 恢复按钮状态
+        self.main_window.detect_button.setEnabled(True)
+        self.main_window.ocr_button.setEnabled(True)
+        self.main_window.save_button.setEnabled(True)
+        self.main_window.progress_bar.setVisible(False)
+
+    def on_detection_error(self, error_msg: str):
+        """检测错误回调"""
+        self.main_window.statusBar().showMessage("检测失败")
+        self.main_window.status_label.setText("检测失败")
+        QMessageBox.critical(
+            self.main_window, "检测失败", f"检测过程中发生错误: {error_msg}")
+        
+        # 恢复按钮状态
+        self.main_window.detect_button.setEnabled(True)
+        self.main_window.progress_bar.setVisible(False)
+
+    def on_ocr_progress(self, message: str):
+        """OCR进度更新"""
+        self.main_window.status_label.setText(message)
+
+    def on_ocr_finished(self, results: DetectionResults):
+        """OCR完成回调"""
+        self.main_window.current_results = results
+        
+        # 更新显示（现在包含OCR文本）
+        self.main_window.image_viewer.set_result_image(results.result_image)
+        self.main_window.image_viewer.set_detection_regions(results.text_regions)
+        
+        # 更新状态信息
+        ocr_time = results.ocr_time
+        total_text_length = sum(len(text) for text in results.ocr_results.values())
+        self.main_window.statusBar().showMessage(
+            f"OCR完成: 识别了 {total_text_length} 个字符, 耗时 {ocr_time:.2f}s")
+        self.main_window.status_label.setText(f"OCR完成: {total_text_length} 个字符")
+        
+        self.main_window.parameter_panel.update_ocr_results(results)
+        
+        # 恢复按钮状态
+        self.main_window.detect_button.setEnabled(True)
+        self.main_window.ocr_button.setEnabled(True)
+        self.main_window.save_button.setEnabled(True)
+        self.main_window.progress_bar.setVisible(False)
+
+    def on_ocr_error(self, error_msg: str):
+        """OCR错误回调"""
+        self.main_window.statusBar().showMessage("OCR识别失败")
+        self.main_window.status_label.setText("OCR失败")
+        QMessageBox.critical(
+            self.main_window, "OCR失败", f"OCR过程中发生错误: {error_msg}")
+        
+        # 恢复按钮状态
+        self.main_window.detect_button.setEnabled(True)
+        self.main_window.ocr_button.setEnabled(True)
+        self.main_window.save_button.setEnabled(True)
+        self.main_window.progress_bar.setVisible(False)
+
+    def on_batch_progress(self, current, total, message):
+        """批量处理进度回调"""
+        self.main_window.progress_bar.setValue(current)
+        self.main_window.statusBar().showMessage(
+            f"批量处理进度: {current}/{total} - {message}")
+        self.main_window.status_label.setText(f"处理中: {current}/{total}")
+
+    def on_batch_finished(self, project_results: ProjectResults):
+        """批量处理完成回调 - 适配新的ProjectResults"""
+        total_files = len(project_results.detection_results)
+        successful = sum(1 for result in project_results.detection_results if len(result.text_regions) > 0)
+        
+        self.main_window.statusBar().showMessage(f"批量处理完成: {successful}/{total_files} 成功")
+        self.main_window.status_label.setText(f"批量完成: {successful}/{total_files}")
+        
+        # 获取项目统计信息
+        project_stats = project_results.get_project_detection_results()['stats']
+        
+        # 计算输出路径（用于显示）
+        if self.main_window.current_project_folder:
+            input_folder = Path(self.main_window.current_project_folder)
+            expected_output_path = input_folder.parent / f"{input_folder.name}_out"
+        else:
+            expected_output_path = "未知路径"
+        
+        completion_msg = f"项目 '{project_results.project_name}' 批量处理完成！\n\n"
+        completion_msg += f"输出路径: {expected_output_path}\n\n"
+        completion_msg += f"处理统计:\n"
+        completion_msg += f"• 总文件数: {total_files}\n"
+        completion_msg += f"• 检测成功: {successful}\n"
+        completion_msg += f"• 总文字区域: {project_stats['total_regions']}\n"
+        completion_msg += f"• OCR处理: {project_stats['images_with_ocr']}/{total_files}\n"
+        completion_msg += f"• 总处理时间: {project_stats['total_detection_time']:.1f}s\n"
+        
+        if project_stats['total_ocr_time'] > 0:
+            completion_msg += f"• OCR总时间: {project_stats['total_ocr_time']:.1f}s\n"
+        
+        completion_msg += f"\n结果已自动保存到输入文件夹同级目录！"
+        
+        QMessageBox.information(self.main_window, "批量处理完成", completion_msg)
+        
+        # 恢复控件状态
+        self.main_window.detect_button.setEnabled(True)
+        self.main_window.ocr_button.setEnabled(self.main_window.current_results is not None)
+        self.main_window.save_button.setEnabled(self.main_window.current_results is not None)
+        self.main_window.progress_bar.setVisible(False)
+
+    def on_batch_error(self, error_msg: str):
+        """批量处理错误回调"""
+        self.main_window.statusBar().showMessage("批量处理失败")
+        self.main_window.status_label.setText("批量处理失败")
+        QMessageBox.critical(
+            self.main_window, "批量处理失败", f"处理过程中发生错误: {error_msg}")
+        
+        # 恢复控件状态
+        self.main_window.detect_button.setEnabled(True)
+        self.main_window.ocr_button.setEnabled(self.main_window.current_results is not None)
+        self.main_window.save_button.setEnabled(self.main_window.current_results is not None)
+        self.main_window.progress_bar.setVisible(False)
+
+    # 视图切换处理
+    def handle_toggle_regions(self):
+        """切换检测区域显示"""
+        self.main_window.image_viewer.toggle_regions()
+        self.main_window.menu_manager.update_toggle_actions_text(
+            self.main_window.image_viewer.show_regions,
+            self.main_window.image_viewer.show_lines,
+            self.main_window.image_viewer.show_blocks
+        )
+
+    def handle_toggle_lines(self):
+        """切换文本行显示"""
+        self.main_window.image_viewer.toggle_lines()
+        self.main_window.menu_manager.update_toggle_actions_text(
+            self.main_window.image_viewer.show_regions,
+            self.main_window.image_viewer.show_lines,
+            self.main_window.image_viewer.show_blocks
+        )
+
+    def handle_toggle_blocks(self):
+        """切换文本块显示"""
+        self.main_window.image_viewer.toggle_blocks()
+        self.main_window.menu_manager.update_toggle_actions_text(
+            self.main_window.image_viewer.show_regions,
+            self.main_window.image_viewer.show_lines,
+            self.main_window.image_viewer.show_blocks
+        )
+
+    def handle_show_about(self):
+        """显示关于对话框"""
+        about_text = """
+        <h3>漫画文本检测器 v1.0 (项目结构优化版)</h3>
+        <p>基于深度学习的漫画文本检测工具</p>
+        <p><b>特性:</b></p>
+        <ul>
+        <li>支持中文和日文文本检测</li>
+        <li>高精度的文本区域定位</li>
+        <li>分离的检测和OCR流程</li>
+        <li>可视化文本块和文本行预览</li>
+        <li>友好的图形用户界面</li>
+        <li>可配置的检测参数</li>
+        <li>优化的项目结构输出</li>
+        </ul>
+        <p><b>项目输出结构:</b></p>
+        <p>• 按项目名称创建输出文件夹<br>
+        • result_images/ - 检测结果图片<br>
+        • masks/ - 文字掩码<br>
+        • detection_results.json - 检测结果摘要<br>
+        • ocr_results.json - OCR识别结果</p>
+        <p><b>使用流程:</b></p>
+        <p>1. 打开项目文件夹<br>
+        2. 点击"开始检测"预览文本区域<br>
+        3. 点击"OCR识别"进行文字识别<br>
+        4. 批量处理整个项目</p>
+        <p><b>技术支持:</b> PyQt5, PyTorch, OpenCV, PaddleX</p>
+        """
+        QMessageBox.about(self.main_window, "关于", about_text)
+
+    # 辅助方法
+    def add_recent_folder(self, folder_path: str):
+        """添加到最近项目文件夹"""
+        if folder_path in self.main_window.recent_files:
+            self.main_window.recent_files.remove(folder_path)
+        
+        self.main_window.recent_files.insert(0, folder_path)
+        
+        # 限制最近文件数量
+        max_recent = self.main_window.config.gui_params.get('recent_files_count', 10)
+        if len(self.main_window.recent_files) > max_recent:
+            self.main_window.recent_files = self.main_window.recent_files[:max_recent]
+        
+        # 更新菜单
+        self.main_window.menu_manager.update_recent_menu(
+            self.main_window.recent_files, self.load_project_folder)
+
+    def load_settings(self):
+        """加载设置"""
+        settings = QSettings("ComicTextDetector", "MainWindow")
+        
+        # 恢复窗口几何
+        geometry = settings.value("geometry")
+        if geometry:
+            self.main_window.restoreGeometry(geometry)
+        
+        # 恢复最近文件
+        recent_files = settings.value("recent_files", [])
+        if isinstance(recent_files, list):
+            self.main_window.recent_files = recent_files
+            self.main_window.menu_manager.update_recent_menu(
+                self.main_window.recent_files, self.load_project_folder)
+    
+    def save_settings(self):
+        """保存设置"""
+        settings = QSettings("ComicTextDetector", "MainWindow")
+        settings.setValue("geometry", self.main_window.saveGeometry())
+        settings.setValue("recent_files", self.main_window.recent_files)
+```
+
 ### `main_window.py`
 
 ```py
 """
-GUI应用主类 - 分离版本（检测和OCR独立）- 适配新的项目结构
+GUI应用主类 - 简化版本（模块化）
 """
 
 import sys
-import json
-import os
-import time
 from pathlib import Path
 from typing import Optional, List
 
@@ -2496,93 +3003,16 @@ try:
 except ImportError:
     raise ImportError("PyQt5未安装，请运行：pip install PyQt5")
 
-from src.core.detector import ComicTextDetector, DetectionResults, ProjectResults
+from src.core.detector import ComicTextDetector, DetectionResults
 from src.ui.widgets.image_viewer import ImageViewer
 from src.ui.widgets.parameter_panel import ParameterPanel
+from src.ui.menu_manager import MenuManager
+from src.ui.event_handlers import EventHandlers
 from config.config import Config
 
 
-class DetectionWorker(QThread):
-    """仅检测工作线程"""
-    
-    finished = pyqtSignal(object)  # DetectionResults
-    error = pyqtSignal(str)
-    progress = pyqtSignal(str)
-    
-    def __init__(self, detector: ComicTextDetector, image_path: str):
-        super().__init__()
-        self.detector = detector
-        self.image_path = image_path
-    
-    def run(self):
-        try:
-            self.progress.emit("正在执行文字检测...")
-            results = self.detector.detect_only(self.image_path)
-            self.finished.emit(results)
-        except Exception as e:
-            self.error.emit(str(e))
-
-
-class OCRWorker(QThread):
-    """OCR工作线程"""
-    
-    finished = pyqtSignal(object)  # DetectionResults with OCR
-    error = pyqtSignal(str)
-    progress = pyqtSignal(str)
-    
-    def __init__(self, detector: ComicTextDetector, detection_results: DetectionResults):
-        super().__init__()
-        self.detector = detector
-        self.detection_results = detection_results
-    
-    def run(self):
-        try:
-            self.progress.emit("正在进行OCR识别...")
-            results = self.detector.run_ocr_on_results(self.detection_results)
-            self.finished.emit(results)
-        except Exception as e:
-            self.error.emit(str(e))
-
-
-class BatchProcessWorker(QThread):
-    """批量处理工作线程 - 使用新的项目结构"""
-    
-    finished = pyqtSignal(object)  # ProjectResults
-    error = pyqtSignal(str)
-    progress = pyqtSignal(int, int, str)  # current, total, message
-    
-    def __init__(self, detector: ComicTextDetector, image_files: List[str], 
-                 project_name: str, output_dir: str, include_ocr: bool = True):
-        super().__init__()
-        self.detector = detector
-        self.image_files = image_files
-        self.project_name = project_name
-        self.output_dir = output_dir
-        self.include_ocr = include_ocr
-    
-    def run(self):
-        try:
-            def progress_callback(current, total, message):
-                """进度回调函数"""
-                self.progress.emit(current, total, message)
-            
-            # 使用新的批量处理方法
-            project_results = self.detector.batch_process_project(
-                image_files=self.image_files,
-                project_name=self.project_name,
-                output_dir=self.output_dir,
-                include_ocr=self.include_ocr,
-                progress_callback=progress_callback
-            )
-            
-            self.finished.emit(project_results)
-            
-        except Exception as e:
-            self.error.emit(str(e))
-
-
 class ComicTextDetectorGUI(QMainWindow):
-    """漫画文本检测器GUI主窗口 - 分离版本"""
+    """漫画文本检测器GUI主窗口 - 模块化版本"""
     
     def __init__(self):
         super().__init__()
@@ -2601,19 +3031,24 @@ class ComicTextDetectorGUI(QMainWindow):
         self.current_image_files: List[str] = []
         self.current_image_index: int = 0
         
-        # 工作线程
-        self.detection_worker: Optional[DetectionWorker] = None
-        self.ocr_worker: Optional[OCRWorker] = None
-        self.batch_worker: Optional[BatchProcessWorker] = None
+        # 工作线程（由事件处理器管理）
+        self.detection_worker = None
+        self.ocr_worker = None
+        self.batch_worker = None
         
-        # 初始化UI
+        # 管理器和处理器
+        self.menu_manager: Optional[MenuManager] = None
+        self.event_handlers: Optional[EventHandlers] = None
+        
+        # 初始化UI和管理器
         self.init_ui()
+        self.init_managers()
         self.init_detector()
-        self.load_settings()
+        self.event_handlers.load_settings()
     
     def init_ui(self):
         """初始化用户界面"""
-        self.setWindowTitle("漫画文本检测器 v1.0 (项目结构优化版)")
+        self.setWindowTitle("漫画文本检测器 v1.0 (模块化版)")
         self.setMinimumSize(1000, 700)
         
         # 设置窗口大小
@@ -2630,91 +3065,22 @@ class ComicTextDetectorGUI(QMainWindow):
         
         # 左侧面板 - 参数控制
         self.parameter_panel = ParameterPanel(self.config)
-        self.parameter_panel.parameters_changed.connect(self.on_parameters_changed)
         main_layout.addWidget(self.parameter_panel, stretch=0)
         
         # 右侧面板 - 图像显示和控制
+        right_widget = self.create_right_panel()
+        main_layout.addWidget(right_widget, stretch=1)
+        
+        # 创建状态栏
+        self.statusBar().showMessage("就绪")
+    
+    def create_right_panel(self) -> QWidget:
+        """创建右侧面板"""
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
         
         # 控制按钮区域
-        control_widget = QWidget()
-        control_layout = QHBoxLayout(control_widget)
-        control_layout.setContentsMargins(5, 5, 5, 5)
-        
-        # 检测按钮
-        self.detect_button = QPushButton("🔍 开始检测")
-        self.detect_button.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                font-size: 14px;
-                font-weight: bold;
-                padding: 8px 16px;
-                border: none;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:disabled {
-                background-color: #cccccc;
-                color: #666666;
-            }
-        """)
-        self.detect_button.clicked.connect(self.start_detection)
-        self.detect_button.setEnabled(False)
-        control_layout.addWidget(self.detect_button)
-        
-        # OCR按钮
-        self.ocr_button = QPushButton("📝 OCR识别")
-        self.ocr_button.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                font-size: 14px;
-                font-weight: bold;
-                padding: 8px 16px;
-                border: none;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:disabled {
-                background-color: #cccccc;
-                color: #666666;
-            }
-        """)
-        self.ocr_button.clicked.connect(self.start_ocr)
-        self.ocr_button.setEnabled(False)
-        control_layout.addWidget(self.ocr_button)
-        
-        # 保存按钮
-        self.save_button = QPushButton("💾 保存结果")
-        self.save_button.setStyleSheet("""
-            QPushButton {
-                background-color: #FF9800;
-                color: white;
-                font-size: 14px;
-                font-weight: bold;
-                padding: 8px 16px;
-                border: none;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #F57C00;
-            }
-            QPushButton:disabled {
-                background-color: #cccccc;
-                color: #666666;
-            }
-        """)
-        self.save_button.clicked.connect(self.save_results)
-        self.save_button.setEnabled(False)
-        control_layout.addWidget(self.save_button)
-        
-        control_layout.addStretch()
+        control_widget = self.create_control_buttons()
         right_layout.addWidget(control_widget)
         
         # 进度条
@@ -2727,18 +3093,50 @@ class ComicTextDetectorGUI(QMainWindow):
         right_layout.addWidget(self.image_viewer, stretch=1)
         
         # 导航和状态栏
+        nav_status_widget = self.create_navigation_bar()
+        right_layout.addWidget(nav_status_widget)
+        
+        return right_widget
+    
+    def create_control_buttons(self) -> QWidget:
+        """创建控制按钮"""
+        control_widget = QWidget()
+        control_layout = QHBoxLayout(control_widget)
+        control_layout.setContentsMargins(5, 5, 5, 5)
+        
+        # 检测按钮
+        self.detect_button = QPushButton("🔍 开始检测")
+        self.detect_button.setStyleSheet(self.get_button_style("#2196F3", "#1976D2"))
+        self.detect_button.setEnabled(False)
+        control_layout.addWidget(self.detect_button)
+        
+        # OCR按钮
+        self.ocr_button = QPushButton("📝 OCR识别")
+        self.ocr_button.setStyleSheet(self.get_button_style("#4CAF50", "#45a049"))
+        self.ocr_button.setEnabled(False)
+        control_layout.addWidget(self.ocr_button)
+        
+        # 保存按钮
+        self.save_button = QPushButton("💾 保存结果")
+        self.save_button.setStyleSheet(self.get_button_style("#FF9800", "#F57C00"))
+        self.save_button.setEnabled(False)
+        control_layout.addWidget(self.save_button)
+        
+        control_layout.addStretch()
+        return control_widget
+    
+    def create_navigation_bar(self) -> QWidget:
+        """创建导航栏"""
         nav_status_widget = QWidget()
         nav_status_layout = QHBoxLayout(nav_status_widget)
         nav_status_layout.setContentsMargins(0, 5, 0, 5)
 
         # 导航按钮
         self.prev_button = QPushButton("⬅️ 上一张")
-        self.prev_button.clicked.connect(self.prev_image)
         self.prev_button.setEnabled(False)
         nav_status_layout.addWidget(self.prev_button)
 
         self.next_button = QPushButton("下一张 ➡️")
-        self.next_button.clicked.connect(self.next_image)
         self.next_button.setEnabled(False)
         nav_status_layout.addWidget(self.next_button)
         
@@ -2749,380 +3147,86 @@ class ComicTextDetectorGUI(QMainWindow):
         self.status_label.setStyleSheet("color: #666666; font-size: 12px;")
         nav_status_layout.addWidget(self.status_label)
 
-        right_layout.addWidget(nav_status_widget)
-        
-        main_layout.addWidget(right_widget, stretch=1)
-        
-        # 创建菜单栏
-        self.create_menu_bar()
-        
-        # 创建状态栏
-        self.statusBar().showMessage("就绪")
+        return nav_status_widget
     
-    def create_menu_bar(self):
-        """创建菜单栏"""
-        menubar = self.menuBar()
-        
-        # 文件菜单
-        file_menu = menubar.addMenu('文件(&F)')
-        
-        # 打开项目文件夹
-        open_action = QAction('打开项目文件夹(&O)', self)
-        open_action.setShortcut('Ctrl+O')
-        open_action.triggered.connect(self.open_project_folder)
-        file_menu.addAction(open_action)
-        
-        # 最近项目菜单
-        self.recent_menu = file_menu.addMenu('最近项目(&R)')
-        self.update_recent_menu()
-        
-        file_menu.addSeparator()
-        
-        # 批量处理
-        batch_action = QAction('批量处理（仅检测）- 自动输出(&B)', self)
-        batch_action.triggered.connect(self.start_batch_detection)
-        file_menu.addAction(batch_action)
-
-        # 批量处理（包含OCR）
-        batch_ocr_action = QAction('批量处理（含OCR）- 自动输出(&M)', self)
-        batch_ocr_action.triggered.connect(self.start_batch_with_ocr)
-        file_menu.addAction(batch_ocr_action)
-        
-        # 保存结果
-        save_action = QAction('保存结果(&S)', self)
-        save_action.setShortcut('Ctrl+S')
-        save_action.triggered.connect(self.save_results)
-        file_menu.addAction(save_action)
-        
-        file_menu.addSeparator()
-        
-        # 退出
-        exit_action = QAction('退出(&X)', self)
-        exit_action.setShortcut('Ctrl+Q')
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-
-        # 视图菜单
-        view_menu = menubar.addMenu('视图(&V)')
-        
-        # 显示检测区域
-        self.toggle_regions_action = QAction('显示检测区域(&R)', self)
-        self.toggle_regions_action.setShortcut('Ctrl+R')
-        self.toggle_regions_action.setCheckable(True)
-        self.toggle_regions_action.setChecked(True)
-        self.toggle_regions_action.triggered.connect(self.toggle_detection_regions)
-        view_menu.addAction(self.toggle_regions_action)
-
-        # 显示文本行
-        self.toggle_lines_action = QAction('显示文本行(&L)', self)
-        self.toggle_lines_action.setShortcut('Ctrl+L')
-        self.toggle_lines_action.setCheckable(True)
-        self.toggle_lines_action.setChecked(True)
-        self.toggle_lines_action.triggered.connect(self.toggle_text_lines)
-        view_menu.addAction(self.toggle_lines_action)
-
-        # 显示文本块
-        self.toggle_blocks_action = QAction('显示文本块(&B)', self)
-        self.toggle_blocks_action.setShortcut('Ctrl+Shift+B')
-        self.toggle_blocks_action.setCheckable(True)
-        self.toggle_blocks_action.setChecked(True)
-        self.toggle_blocks_action.triggered.connect(self.toggle_text_blocks)
-        view_menu.addAction(self.toggle_blocks_action)
-
-        # 处理菜单
-        process_menu = menubar.addMenu('处理(&P)')
-        
-        # 开始检测
-        detect_action = QAction('开始检测(&D)', self)
-        detect_action.setShortcut('F5')
-        detect_action.triggered.connect(self.start_detection)
-        process_menu.addAction(detect_action)
-        
-        # OCR识别
-        ocr_action = QAction('OCR识别(&O)', self)
-        ocr_action.setShortcut('F6')
-        ocr_action.triggered.connect(self.start_ocr)
-        process_menu.addAction(ocr_action)
-
-        # 帮助菜单
-        help_menu = menubar.addMenu('帮助(&H)')
-        
-        about_action = QAction('关于(&A)', self)
-        about_action.triggered.connect(self.show_about)
-        help_menu.addAction(about_action)
-
-    def open_project_folder(self):
-        """打开项目文件夹"""
-        folder_path = QFileDialog.getExistingDirectory(
-            self, "选择项目文件夹", 
-            str(self.config.examples_dir)
-        )
-        
-        if folder_path:
-            self.load_project_folder(folder_path)
-
-    def load_project_folder(self, folder_path: str):
-        """加载项目文件夹"""
-        try:
-            from src.utils.io_utils import find_all_imgs
-            
-            # 检查文件夹中的图片
-            image_files = find_all_imgs(folder_path, abs_path=True)
-            if not image_files:
-                QMessageBox.warning(self, "警告", f"文件夹中没有找到图片文件: {folder_path}")
-                return
-            
-            # 保存当前项目信息
-            self.current_project_folder = folder_path
-            self.current_image_files = image_files
-            self.current_image_index = 0
-            
-            # 显示第一张图片
-            self.image_viewer.load_image(image_files[0])
-            self.current_image_path = image_files[0]
-            
-            # 更新按钮状态
-            self.prev_button.setEnabled(False)
-            self.next_button.setEnabled(len(image_files) > 1)
-            self.detect_button.setEnabled(True)
-            
-            # 清空之前的结果
-            self.current_results = None
-            self.ocr_button.setEnabled(False)
-            self.save_button.setEnabled(False)
-            
-            # 更新最近文件夹
-            self.add_recent_folder(folder_path)
-            
-            # 更新状态
-            self.statusBar().showMessage(f"项目已加载: {folder_path} ({len(image_files)} 个文件)")
-            self.status_label.setText(f"已加载 {len(image_files)} 个文件")
-            
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"无法加载项目文件夹: {e}")
-
-    def prev_image(self):
-        """切换到上一张图片"""
-        if self.current_image_files and self.current_image_index > 0:
-            self.current_image_index -= 1
-            self.load_current_image()
-
-    def next_image(self):
-        """切换到下一张图片"""
-        if self.current_image_files and self.current_image_index < len(self.current_image_files) - 1:
-            self.current_image_index += 1
-            self.load_current_image()
-
-    def load_current_image(self):
-        """加载当前索引的图片"""
-        if not self.current_image_files:
-            return
-            
-        current_image = self.current_image_files[self.current_image_index]
-        self.image_viewer.load_image(current_image)
-        self.current_image_path = current_image
-        
-        # 清空之前的结果
-        self.current_results = None
-        self.ocr_button.setEnabled(False)
-        self.save_button.setEnabled(False)
-        
-        # 更新按钮状态
-        self.prev_button.setEnabled(self.current_image_index > 0)
-        self.next_button.setEnabled(self.current_image_index < len(self.current_image_files) - 1)
-        
-        # 更新状态显示
-        image_name = Path(current_image).name
-        total_count = len(self.current_image_files)
-        self.statusBar().showMessage(f"图片: {image_name} ({self.current_image_index + 1}/{total_count})")
-        self.status_label.setText(f"图片 {self.current_image_index + 1}/{total_count}: {image_name}")
-
-    def start_detection(self):
-        """开始文字检测"""
-        if not self.current_image_path or not self.detector:
-            QMessageBox.information(self, "提示", "请先选择图片并确保检测器已加载")
-            return
-        
-        # 更新检测器参数
-        params = self.parameter_panel.get_parameters()
-        self.detector.update_parameters(**params)
-        
-        # 禁用按钮
-        self.detect_button.setEnabled(False)
-        self.ocr_button.setEnabled(False)
-        self.save_button.setEnabled(False)
-        
-        # 显示进度
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)  # 不确定进度
-        self.status_label.setText("正在检测...")
-        
-        # 启动检测线程
-        self.detection_worker = DetectionWorker(self.detector, self.current_image_path)
-        self.detection_worker.finished.connect(self.on_detection_finished)
-        self.detection_worker.error.connect(self.on_detection_error)
-        self.detection_worker.progress.connect(self.on_detection_progress)
-        self.detection_worker.start()
-
-    def start_ocr(self):
-        """开始OCR识别"""
-        if not self.current_results or not self.detector:
-            QMessageBox.information(self, "提示", "请先完成文字检测")
-            return
-        
-        if self.current_results.has_ocr_results:
-            reply = QMessageBox.question(
-                self, "确认", "该图片已有OCR结果，是否重新识别？",
-                QMessageBox.Yes | QMessageBox.No
-            )
-            if reply == QMessageBox.No:
-                return
-        
-        # 禁用按钮
-        self.detect_button.setEnabled(False)
-        self.ocr_button.setEnabled(False)
-        self.save_button.setEnabled(False)
-        
-        # 显示进度
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)
-        self.status_label.setText("正在OCR识别...")
-        
-        # 启动OCR线程
-        self.ocr_worker = OCRWorker(self.detector, self.current_results)
-        self.ocr_worker.finished.connect(self.on_ocr_finished)
-        self.ocr_worker.error.connect(self.on_ocr_error)
-        self.ocr_worker.progress.connect(self.on_ocr_progress)
-        self.ocr_worker.start()
-
-    def on_detection_progress(self, message: str):
-        """检测进度更新"""
-        self.status_label.setText(message)
-
-    def on_detection_finished(self, results: DetectionResults):
-        """检测完成回调"""
-        self.current_results = results
-        
-        # 显示结果图片
-        self.image_viewer.set_result_image(results.result_image)
-        self.image_viewer.set_detection_regions(results.text_regions)
-        
-        # 更新状态信息
-        region_count = len(results.text_regions)
-        detection_time = results.detection_time
-        self.statusBar().showMessage(f"检测完成: 找到 {region_count} 个文字区域, 耗时 {detection_time:.2f}s")
-        self.status_label.setText(f"检测完成: {region_count} 个区域")
-        
-        # 更新参数面板统计信息
-        self.parameter_panel.update_stats(results.to_dict())
-        
-        # 恢复按钮状态
-        self.detect_button.setEnabled(True)
-        self.ocr_button.setEnabled(True)
-        self.save_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
-
-    def on_detection_error(self, error_msg: str):
-        """检测错误回调"""
-        self.statusBar().showMessage("检测失败")
-        self.status_label.setText("检测失败")
-        QMessageBox.critical(self, "检测失败", f"检测过程中发生错误: {error_msg}")
-        
-        # 恢复按钮状态
-        self.detect_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
-
-    def on_ocr_progress(self, message: str):
-        """OCR进度更新"""
-        self.status_label.setText(message)
-
-    def on_ocr_finished(self, results: DetectionResults):
-        """OCR完成回调"""
-        self.current_results = results
-        
-        # 更新显示（现在包含OCR文本）
-        self.image_viewer.set_result_image(results.result_image)
-        self.image_viewer.set_detection_regions(results.text_regions)
-        
-        # 更新状态信息
-        ocr_time = results.ocr_time
-        total_text_length = sum(len(text) for text in results.ocr_results.values())
-        self.statusBar().showMessage(f"OCR完成: 识别了 {total_text_length} 个字符, 耗时 {ocr_time:.2f}s")
-        self.status_label.setText(f"OCR完成: {total_text_length} 个字符")
-        
-        # 更新参数面板统计信息
-        self.parameter_panel.update_stats(results.to_dict())
-        
-        # 恢复按钮状态
-        self.detect_button.setEnabled(True)
-        self.ocr_button.setEnabled(True)
-        self.save_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
-
-    def on_ocr_error(self, error_msg: str):
-        """OCR错误回调"""
-        self.statusBar().showMessage("OCR识别失败")
-        self.status_label.setText("OCR失败")
-        QMessageBox.critical(self, "OCR失败", f"OCR过程中发生错误: {error_msg}")
-        
-        # 恢复按钮状态
-        self.detect_button.setEnabled(True)
-        self.ocr_button.setEnabled(True)
-        self.save_button.setEnabled(True)
-        self.progress_bar.setVisible(False)
+    def get_button_style(self, bg_color: str, hover_color: str) -> str:
+        """获取按钮样式"""
+        return f"""
+            QPushButton {{
+                background-color: {bg_color};
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 5px;
+            }}
+            QPushButton:hover {{
+                background-color: {hover_color};
+            }}
+            QPushButton:disabled {{
+                background-color: #cccccc;
+                color: #666666;
+            }}
+        """
     
-    def save_results(self):
-        """保存检测结果"""
-        if not self.current_results:
-            QMessageBox.information(self, "提示", "没有检测结果可保存")
-            return
+    def init_managers(self):
+        """初始化管理器和处理器"""
+        # 创建菜单管理器
+        self.menu_manager = MenuManager(self)
+        self.menu_manager.create_menu_bar()
         
-        # 选择保存目录
-        output_dir = QFileDialog.getExistingDirectory(
-            self, "选择保存目录", str(self.config.results_dir)
-        )
+        # 创建事件处理器
+        self.event_handlers = EventHandlers(self)
         
-        if output_dir:
-            try:
-                saved_dir = self.detector.save_results(self.current_results, output_dir)
-                
-                # 构建保存信息
-                save_info = f"结果已保存到: {saved_dir}\n\n包含内容:\n"
-                save_info += f"- 检测结果图片\n"
-                save_info += f"- 文字掩码\n" 
-                save_info += f"- JSON格式结果\n"
-                if self.current_results.has_ocr_results:
-                    save_info += f"- OCR识别结果"
-                
-                QMessageBox.information(self, "成功", save_info)
-                self.statusBar().showMessage(f"结果已保存: {saved_dir}")
-                
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"保存失败: {e}")
+        # 连接信号
+        self.connect_signals()
     
-    def toggle_text_lines(self):
-        """切换文本行显示"""
-        self.image_viewer.toggle_lines()
-        if self.image_viewer.show_lines:
-            self.toggle_lines_action.setText('隐藏文本行(&L)')
-        else:
-            self.toggle_lines_action.setText('显示文本行(&L)')
-
-    def toggle_text_blocks(self):
-        """切换文本块显示"""
-        self.image_viewer.toggle_blocks()
-        if self.image_viewer.show_blocks:
-            self.toggle_blocks_action.setText('隐藏文本块(&B)')
-        else:
-            self.toggle_blocks_action.setText('显示文本块(&B)')
-
-    def toggle_detection_regions(self):
-        """切换检测区域显示"""
-        self.image_viewer.toggle_regions()
-        if self.image_viewer.show_regions:
-            self.toggle_regions_action.setText('隐藏检测区域(&R)')
-        else:
-            self.toggle_regions_action.setText('显示检测区域(&R)')
+    def connect_signals(self):
+        """连接所有信号"""
+        # 菜单信号
+        self.menu_manager.open_folder_requested.connect(
+            self.event_handlers.handle_open_folder)
+        self.menu_manager.batch_detection_requested.connect(
+            self.event_handlers.handle_batch_detection)
+        self.menu_manager.batch_ocr_requested.connect(
+            self.event_handlers.handle_batch_ocr)
+        self.menu_manager.save_results_requested.connect(
+            self.event_handlers.handle_save_results)
+        self.menu_manager.exit_requested.connect(self.close)
+        
+        self.menu_manager.toggle_regions_requested.connect(
+            self.event_handlers.handle_toggle_regions)
+        self.menu_manager.toggle_lines_requested.connect(
+            self.event_handlers.handle_toggle_lines)
+        self.menu_manager.toggle_blocks_requested.connect(
+            self.event_handlers.handle_toggle_blocks)
+        
+        self.menu_manager.start_detection_requested.connect(
+            self.event_handlers.handle_start_detection)
+        self.menu_manager.start_ocr_requested.connect(
+            self.event_handlers.handle_start_ocr)
+        
+        self.menu_manager.about_requested.connect(
+            self.event_handlers.handle_show_about)
+        
+        # 按钮信号
+        self.detect_button.clicked.connect(
+            self.event_handlers.handle_start_detection)
+        self.ocr_button.clicked.connect(
+            self.event_handlers.handle_start_ocr)
+        self.save_button.clicked.connect(
+            self.event_handlers.handle_save_results)
+        
+        # 导航按钮信号
+        self.prev_button.clicked.connect(
+            self.event_handlers.handle_prev_image)
+        self.next_button.clicked.connect(
+            self.event_handlers.handle_next_image)
+        
+        # 参数面板信号
+        self.parameter_panel.parameters_changed.connect(self.on_parameters_changed)
+        self.parameter_panel.ocr_text_modified.connect(self.on_ocr_text_modified)
     
     def init_detector(self):
         """初始化检测器"""
@@ -3161,211 +3265,19 @@ class ComicTextDetectorGUI(QMainWindow):
                     self.detector.update_parameters(**params)
             except Exception as e:
                 QMessageBox.warning(self, "警告", f"参数更新失败: {e}")
-    
-    def add_recent_folder(self, folder_path: str):
-        """添加到最近项目文件夹"""
-        if folder_path in self.recent_files:
-            self.recent_files.remove(folder_path)
-        
-        self.recent_files.insert(0, folder_path)
-        
-        # 限制最近文件数量
-        max_recent = self.config.gui_params.get('recent_files_count', 10)
-        if len(self.recent_files) > max_recent:
-            self.recent_files = self.recent_files[:max_recent]
-        
-        self.update_recent_menu()
-    
-    def update_recent_menu(self):
-        """更新最近项目文件夹菜单"""
-        self.recent_menu.clear()
-        
-        for i, folder_path in enumerate(self.recent_files):
-            if Path(folder_path).exists():
-                # 显示文件夹名 + 上级目录，避免路径过长
-                folder_name = Path(folder_path).name
-                parent_name = Path(folder_path).parent.name
-                display_name = f"{parent_name}/{folder_name}" if parent_name != folder_name else folder_name
+
+    def on_ocr_text_modified(self, region_idx: int, new_text: str):
+        """OCR文本修改回调 - 自动保存"""
+        if self.current_results:
+            try:
+                # 更新可视化（如果需要重新生成带OCR文本的结果图）
+                self.image_viewer.set_detection_regions(self.current_results.text_regions)
                 
-                action = QAction(f"{i+1}. {display_name}", self)
-                # 设置工具提示显示完整路径
-                action.setToolTip(folder_path)
-                action.triggered.connect(lambda checked, path=folder_path: self.load_project_folder(path))
-                self.recent_menu.addAction(action)
-        
-        if not self.recent_files:
-            action = QAction("(空)", self)
-            action.setEnabled(False)
-            self.recent_menu.addAction(action)
-
-    def start_batch_detection(self):
-        """开始批量检测（不含OCR）"""
-        self._start_batch_processing(include_ocr=False)
-
-    def start_batch_with_ocr(self):
-        """开始批量处理（含OCR）"""
-        self._start_batch_processing(include_ocr=True)
-
-    def _start_batch_processing(self, include_ocr: bool = True):
-        """开始批量处理 - 使用新的项目结构"""
-        if not self.current_image_files or not self.detector:
-            QMessageBox.information(self, "提示", "请先选择项目文件夹并确保检测器已加载")
-            return
-        
-        if not self.current_project_folder:
-            QMessageBox.warning(self, "错误", "当前没有选择项目文件夹")
-            return
-        
-        # 自动生成项目名称和输出路径
-        input_folder = Path(self.current_project_folder)
-        project_name = f"{input_folder.name}_out"
-        output_dir = str(input_folder.parent)  # 输出到输入文件夹的父目录
-        
-        # 检查输出目录是否可写
-        if not os.access(output_dir, os.W_OK):
-            QMessageBox.warning(self, "错误", f"输出目录没有写入权限：{output_dir}")
-            return
-        
-        # 更新检测器参数
-        params = self.parameter_panel.get_parameters()
-        self.detector.update_parameters(**params)
-        
-        # 显示进度
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, len(self.current_image_files))
-        
-        # 禁用控件
-        self.detect_button.setEnabled(False)
-        self.ocr_button.setEnabled(False)
-        self.save_button.setEnabled(False)
-        
-        operation_name = "批量处理（含OCR）" if include_ocr else "批量检测"
-        self.status_label.setText(f"正在{operation_name}...")
-        
-        # 显示自动生成的路径信息
-        self.statusBar().showMessage(f"开始{operation_name} -> 输出到: {Path(output_dir) / project_name}")
-        
-        # 启动批量处理线程
-        self.batch_worker = BatchProcessWorker(
-            self.detector, 
-            self.current_image_files, 
-            project_name,
-            output_dir,
-            include_ocr=include_ocr
-        )
-        self.batch_worker.finished.connect(self.on_batch_finished)
-        self.batch_worker.error.connect(self.on_batch_error)
-        self.batch_worker.progress.connect(self.on_batch_progress)
-        self.batch_worker.start()
-
-    def on_batch_progress(self, current, total, message):
-        """批量处理进度回调"""
-        self.progress_bar.setValue(current)
-        self.statusBar().showMessage(f"批量处理进度: {current}/{total} - {message}")
-        self.status_label.setText(f"处理中: {current}/{total}")
-
-    def on_batch_finished(self, project_results: ProjectResults):
-        """批量处理完成回调 - 适配新的ProjectResults"""
-        total_files = len(project_results.detection_results)
-        successful = sum(1 for result in project_results.detection_results if len(result.text_regions) > 0)
-        
-        self.statusBar().showMessage(f"批量处理完成: {successful}/{total_files} 成功")
-        self.status_label.setText(f"批量完成: {successful}/{total_files}")
-        
-        # 获取项目统计信息
-        project_stats = project_results.get_project_detection_results()['stats']
-        
-        # 计算输出路径（用于显示）
-        if self.current_project_folder:
-            input_folder = Path(self.current_project_folder)
-            expected_output_path = input_folder.parent / f"{input_folder.name}_out"
-        else:
-            expected_output_path = "未知路径"
-        
-        completion_msg = f"项目 '{project_results.project_name}' 批量处理完成！\n\n"
-        completion_msg += f"输出路径: {expected_output_path}\n\n"
-        completion_msg += f"处理统计:\n"
-        completion_msg += f"• 总文件数: {total_files}\n"
-        completion_msg += f"• 检测成功: {successful}\n"
-        completion_msg += f"• 总文字区域: {project_stats['total_regions']}\n"
-        completion_msg += f"• OCR处理: {project_stats['images_with_ocr']}/{total_files}\n"
-        completion_msg += f"• 总处理时间: {project_stats['total_detection_time']:.1f}s\n"
-        
-        if project_stats['total_ocr_time'] > 0:
-            completion_msg += f"• OCR总时间: {project_stats['total_ocr_time']:.1f}s\n"
-        
-        completion_msg += f"\n结果已自动保存到输入文件夹同级目录！"
-        
-        QMessageBox.information(self, "批量处理完成", completion_msg)
-        
-        # 恢复控件状态
-        self.detect_button.setEnabled(True)
-        self.ocr_button.setEnabled(self.current_results is not None)
-        self.save_button.setEnabled(self.current_results is not None)
-        self.progress_bar.setVisible(False)
-
-    def on_batch_error(self, error_msg: str):
-        """批量处理错误回调"""
-        self.statusBar().showMessage("批量处理失败")
-        self.status_label.setText("批量处理失败")
-        QMessageBox.critical(self, "批量处理失败", f"处理过程中发生错误: {error_msg}")
-        
-        # 恢复控件状态
-        self.detect_button.setEnabled(True)
-        self.ocr_button.setEnabled(self.current_results is not None)
-        self.save_button.setEnabled(self.current_results is not None)
-        self.progress_bar.setVisible(False)
-
-    def show_about(self):
-        """显示关于对话框"""
-        about_text = """
-        <h3>漫画文本检测器 v1.0 (项目结构优化版)</h3>
-        <p>基于深度学习的漫画文本检测工具</p>
-        <p><b>特性:</b></p>
-        <ul>
-        <li>支持中文和日文文本检测</li>
-        <li>高精度的文本区域定位</li>
-        <li>分离的检测和OCR流程</li>
-        <li>可视化文本块和文本行预览</li>
-        <li>友好的图形用户界面</li>
-        <li>可配置的检测参数</li>
-        <li>优化的项目结构输出</li>
-        </ul>
-        <p><b>项目输出结构:</b></p>
-        <p>• 按项目名称创建输出文件夹<br>
-        • result_images/ - 检测结果图片<br>
-        • masks/ - 文字掩码<br>
-        • detection_results.json - 检测结果摘要<br>
-        • ocr_results.json - OCR识别结果</p>
-        <p><b>使用流程:</b></p>
-        <p>1. 打开项目文件夹<br>
-        2. 点击"开始检测"预览文本区域<br>
-        3. 点击"OCR识别"进行文字识别<br>
-        4. 批量处理整个项目</p>
-        <p><b>技术支持:</b> PyQt5, PyTorch, OpenCV, PaddleX</p>
-        """
-        QMessageBox.about(self, "关于", about_text)
-    
-    def load_settings(self):
-        """加载设置"""
-        settings = QSettings("ComicTextDetector", "MainWindow")
-        
-        # 恢复窗口几何
-        geometry = settings.value("geometry")
-        if geometry:
-            self.restoreGeometry(geometry)
-        
-        # 恢复最近文件
-        recent_files = settings.value("recent_files", [])
-        if isinstance(recent_files, list):
-            self.recent_files = recent_files
-            self.update_recent_menu()
-    
-    def save_settings(self):
-        """保存设置"""
-        settings = QSettings("ComicTextDetector", "MainWindow")
-        settings.setValue("geometry", self.saveGeometry())
-        settings.setValue("recent_files", self.recent_files)
+                # 更新状态栏
+                self.statusBar().showMessage(f"区域{region_idx}的OCR文本已修改并保存")
+                
+            except Exception as e:
+                print(f"保存OCR修改时出错: {e}")
     
     def closeEvent(self, event):
         """关闭事件处理"""
@@ -3402,7 +3314,8 @@ class ComicTextDetectorGUI(QMainWindow):
                         worker.wait()
         
         # 保存设置并清理资源
-        self.save_settings()
+        if self.event_handlers:
+            self.event_handlers.save_settings()
         
         if self.detector:
             del self.detector
@@ -3411,8 +3324,6 @@ class ComicTextDetectorGUI(QMainWindow):
 
 
 if __name__ == "__main__":
-    import time  # 添加import
-    
     app = QApplication(sys.argv)
     app.setApplicationName("漫画文本检测器")
     app.setApplicationVersion("1.0")
@@ -3421,6 +3332,192 @@ if __name__ == "__main__":
     window.show()
     
     sys.exit(app.exec_())
+```
+
+### `menu_manager.py`
+
+```py
+"""
+菜单管理器 - 负责创建和管理所有菜单
+"""
+
+from pathlib import Path
+from typing import List, Callable
+from PyQt5.QtWidgets import QAction, QMenu
+from PyQt5.QtCore import QObject, pyqtSignal
+
+
+class MenuManager(QObject):
+    """菜单管理器"""
+    
+    # 信号定义
+    open_folder_requested = pyqtSignal()
+    batch_detection_requested = pyqtSignal()
+    batch_ocr_requested = pyqtSignal()
+    save_results_requested = pyqtSignal()
+    exit_requested = pyqtSignal()
+    
+    toggle_regions_requested = pyqtSignal()
+    toggle_lines_requested = pyqtSignal()
+    toggle_blocks_requested = pyqtSignal()
+    
+    start_detection_requested = pyqtSignal()
+    start_ocr_requested = pyqtSignal()
+    
+    about_requested = pyqtSignal()
+    
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_window = main_window
+        self.recent_menu = None
+        
+        # 菜单动作存储
+        self.toggle_regions_action = None
+        self.toggle_lines_action = None
+        self.toggle_blocks_action = None
+        
+    def create_menu_bar(self):
+        """创建菜单栏"""
+        menubar = self.main_window.menuBar()
+        
+        # 文件菜单
+        self._create_file_menu(menubar)
+        
+        # 视图菜单
+        self._create_view_menu(menubar)
+        
+        # 处理菜单
+        self._create_process_menu(menubar)
+        
+        # 帮助菜单
+        self._create_help_menu(menubar)
+    
+    def _create_file_menu(self, menubar):
+        """创建文件菜单"""
+        file_menu = menubar.addMenu('文件(&F)')
+        
+        # 打开项目文件夹
+        open_action = QAction('打开项目文件夹(&O)', self.main_window)
+        open_action.setShortcut('Ctrl+O')
+        open_action.triggered.connect(self.open_folder_requested.emit)
+        file_menu.addAction(open_action)
+        
+        # 最近项目菜单
+        self.recent_menu = file_menu.addMenu('最近项目(&R)')
+        
+        file_menu.addSeparator()
+        
+        # 批量处理
+        batch_action = QAction('批量处理（仅检测）- 自动输出(&B)', self.main_window)
+        batch_action.triggered.connect(self.batch_detection_requested.emit)
+        file_menu.addAction(batch_action)
+
+        # 批量处理（包含OCR）
+        batch_ocr_action = QAction('批量处理（含OCR）- 自动输出(&M)', self.main_window)
+        batch_ocr_action.triggered.connect(self.batch_ocr_requested.emit)
+        file_menu.addAction(batch_ocr_action)
+        
+        # 保存结果
+        save_action = QAction('保存结果(&S)', self.main_window)
+        save_action.setShortcut('Ctrl+S')
+        save_action.triggered.connect(self.save_results_requested.emit)
+        file_menu.addAction(save_action)
+        
+        file_menu.addSeparator()
+        
+        # 退出
+        exit_action = QAction('退出(&X)', self.main_window)
+        exit_action.setShortcut('Ctrl+Q')
+        exit_action.triggered.connect(self.exit_requested.emit)
+        file_menu.addAction(exit_action)
+
+    def _create_view_menu(self, menubar):
+        """创建视图菜单"""
+        view_menu = menubar.addMenu('视图(&V)')
+        
+        # 显示检测区域
+        self.toggle_regions_action = QAction('显示检测区域(&R)', self.main_window)
+        self.toggle_regions_action.setShortcut('Ctrl+R')
+        self.toggle_regions_action.setCheckable(True)
+        self.toggle_regions_action.setChecked(True)
+        self.toggle_regions_action.triggered.connect(self.toggle_regions_requested.emit)
+        view_menu.addAction(self.toggle_regions_action)
+
+        # 显示文本行
+        self.toggle_lines_action = QAction('显示文本行(&L)', self.main_window)
+        self.toggle_lines_action.setShortcut('Ctrl+L')
+        self.toggle_lines_action.setCheckable(True)
+        self.toggle_lines_action.setChecked(True)
+        self.toggle_lines_action.triggered.connect(self.toggle_lines_requested.emit)
+        view_menu.addAction(self.toggle_lines_action)
+
+        # 显示文本块
+        self.toggle_blocks_action = QAction('显示文本块(&B)', self.main_window)
+        self.toggle_blocks_action.setShortcut('Ctrl+Shift+B')
+        self.toggle_blocks_action.setCheckable(True)
+        self.toggle_blocks_action.setChecked(True)
+        self.toggle_blocks_action.triggered.connect(self.toggle_blocks_requested.emit)
+        view_menu.addAction(self.toggle_blocks_action)
+
+    def _create_process_menu(self, menubar):
+        """创建处理菜单"""
+        process_menu = menubar.addMenu('处理(&P)')
+        
+        # 开始检测
+        detect_action = QAction('开始检测(&D)', self.main_window)
+        detect_action.setShortcut('F5')
+        detect_action.triggered.connect(self.start_detection_requested.emit)
+        process_menu.addAction(detect_action)
+        
+        # OCR识别
+        ocr_action = QAction('OCR识别(&O)', self.main_window)
+        ocr_action.setShortcut('F6')
+        ocr_action.triggered.connect(self.start_ocr_requested.emit)
+        process_menu.addAction(ocr_action)
+
+    def _create_help_menu(self, menubar):
+        """创建帮助菜单"""
+        help_menu = menubar.addMenu('帮助(&H)')
+        
+        about_action = QAction('关于(&A)', self.main_window)
+        about_action.triggered.connect(self.about_requested.emit)
+        help_menu.addAction(about_action)
+    
+    def update_recent_menu(self, recent_files: List[str], load_callback: Callable[[str], None]):
+        """更新最近项目文件夹菜单"""
+        if not self.recent_menu:
+            return
+            
+        self.recent_menu.clear()
+        
+        for i, folder_path in enumerate(recent_files):
+            if Path(folder_path).exists():
+                # 显示文件夹名 + 上级目录，避免路径过长
+                folder_name = Path(folder_path).name
+                parent_name = Path(folder_path).parent.name
+                display_name = f"{parent_name}/{folder_name}" if parent_name != folder_name else folder_name
+                
+                action = QAction(f"{i+1}. {display_name}", self.main_window)
+                # 设置工具提示显示完整路径
+                action.setToolTip(folder_path)
+                action.triggered.connect(lambda checked, path=folder_path: load_callback(path))
+                self.recent_menu.addAction(action)
+        
+        if not recent_files:
+            action = QAction("(空)", self.main_window)
+            action.setEnabled(False)
+            self.recent_menu.addAction(action)
+    
+    def update_toggle_actions_text(self, show_regions: bool, show_lines: bool, show_blocks: bool):
+        """更新切换动作的文本"""
+        if self.toggle_regions_action:
+            self.toggle_regions_action.setText('隐藏检测区域(&R)' if show_regions else '显示检测区域(&R)')
+        
+        if self.toggle_lines_action:
+            self.toggle_lines_action.setText('隐藏文本行(&L)' if show_lines else '显示文本行(&L)')
+        
+        if self.toggle_blocks_action:
+            self.toggle_blocks_action.setText('隐藏文本块(&B)' if show_blocks else '显示文本块(&B)')
 ```
 
 ### `widgets`
@@ -3867,6 +3964,7 @@ class ParameterPanel(QWidget):
     """参数控制面板"""
     
     parameters_changed = pyqtSignal()
+    ocr_text_modified = pyqtSignal(int, str)  # 新增：OCR文本修改信号(region_idx, new_text)
     
     def __init__(self, config: Config):
         super().__init__()
@@ -3883,7 +3981,8 @@ class ParameterPanel(QWidget):
         self.min_box_height_spin = None
         self.enable_filter_checkbox = None
         self.lang_checkboxes = {}
-        self.stats_labels = {}
+        self.ocr_results_widgets = {}  # 存储OCR结果编辑控件
+        self.current_detection_results = None  # 当前检测结果对象
         
         # 初始化UI
         self.init_ui()
@@ -3915,9 +4014,9 @@ class ParameterPanel(QWidget):
         language_group = self.create_language_group()
         layout.addWidget(language_group)
         
-        # 统计信息组
-        stats_group = self.create_stats_group()
-        layout.addWidget(stats_group)
+        # OCR结果组
+        ocr_group = self.create_ocr_group()
+        layout.addWidget(ocr_group)
         
         # 弹簧，将控件推到顶部
         layout.addStretch()
@@ -4114,33 +4213,6 @@ class ParameterPanel(QWidget):
         
         return group
     
-    def create_stats_group(self) -> QGroupBox:
-        """创建统计信息组"""
-        group = QGroupBox("统计信息")
-        layout = QVBoxLayout(group)
-        
-        stats_items = [
-            ("total_regions", "检测区域:"),
-            ("detection_time", "检测耗时:"),
-            ("avg_confidence", "平均置信度:"),
-            ("languages", "检测语言:")
-        ]
-        
-        for key, label_text in stats_items:
-            item_layout = QHBoxLayout()
-            
-            label = QLabel(label_text)
-            value_label = QLabel("-")
-            value_label.setAlignment(Qt.AlignRight)
-            
-            item_layout.addWidget(label)
-            item_layout.addWidget(value_label)
-            
-            self.stats_labels[key] = value_label
-            layout.addLayout(item_layout)
-        
-        return group
-    
     def browse_model(self):
         """浏览模型文件"""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -4284,44 +4356,128 @@ class ParameterPanel(QWidget):
                 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"更新默认配置时发生错误：{e}")
-    
-    def update_stats(self, stats: Dict[str, Any]):
-        """更新统计信息"""
-        if "stats" in stats:
-            stats_data = stats["stats"]
-        else:
-            stats_data = stats
+
+    def create_ocr_group(self) -> QGroupBox:
+        """创建OCR结果显示组"""
+        group = QGroupBox("OCR结果")
+        self.ocr_layout = QVBoxLayout(group)
         
-        # 更新各项统计
-        if "total_regions" in stats_data:
-            self.stats_labels["total_regions"].setText(str(stats_data["total_regions"]))
+        # 滚动区域用于显示多个OCR结果
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setMinimumHeight(300)  # 从200改为300
+        scroll_area.setMaximumHeight(400)  # 从300改为400
         
-        # 检测时间
-        detection_time = None
-        if "detection_time" in stats_data:
-            detection_time = stats_data["detection_time"]
-        elif "detection_time" in stats:
-            detection_time = stats["detection_time"]
+        # 创建OCR结果容器
+        self.ocr_container = QWidget()
+        self.ocr_container_layout = QVBoxLayout(self.ocr_container)
+        self.ocr_container_layout.setContentsMargins(5, 5, 5, 5)
+        
+        scroll_area.setWidget(self.ocr_container)
+        self.ocr_layout.addWidget(scroll_area)
+        
+        # 提示标签
+        self.ocr_hint_label = QLabel("请先完成检测和OCR识别")
+        self.ocr_hint_label.setAlignment(Qt.AlignCenter)
+        self.ocr_hint_label.setStyleSheet("color: #888888; font-style: italic;")
+        self.ocr_container_layout.addWidget(self.ocr_hint_label)
+        
+        return group
+
+    def update_ocr_results(self, detection_results):
+        """更新OCR结果显示"""
+        from src.core.detector import DetectionResults
+        
+        self.current_detection_results = detection_results
+        
+        # 清空现有的OCR控件
+        self.clear_ocr_results()
+        
+        if not isinstance(detection_results, DetectionResults) or not detection_results.has_ocr_results:
+            self.ocr_hint_label.setText("暂无OCR结果")
+            self.ocr_hint_label.setVisible(True)
+            return
+        
+        self.ocr_hint_label.setVisible(False)
+        
+        # 根据text_regions创建OCR结果编辑控件
+        for i, region in enumerate(detection_results.text_regions):
+            ocr_text = region.get('ocr_text', '')
             
-        if detection_time is not None:
-            self.stats_labels["detection_time"].setText(f"{detection_time:.2f}s")
+            # 创建每个OCR结果的控件组
+            result_widget = QWidget()
+            result_layout = QVBoxLayout(result_widget)
+            result_layout.setContentsMargins(5, 5, 5, 5)
+            
+            # 次序标签（从1开始，不显示置信度）
+            sequence_label = QLabel(f"{i+1}")  # 从区域0改为1，区域1改为2
+            sequence_label.setFont(QFont("Arial", 10, QFont.Bold))
+            sequence_label.setStyleSheet("color: #333333; padding: 2px 0px;")
+            result_layout.addWidget(sequence_label)
+            
+            # 文本编辑框
+            text_edit = QTextEdit()
+            text_edit.setPlainText(ocr_text)
+            text_edit.setMaximumHeight(80)
+            text_edit.setMinimumHeight(50)
+            
+            # 连接文本变化信号到自动保存
+            text_edit.textChanged.connect(
+                lambda region_idx=i: self.on_ocr_text_changed(region_idx)
+            )
+            
+            result_layout.addWidget(text_edit)
+            
+            # 分隔线
+            if i < len(detection_results.text_regions) - 1:
+                line = QFrame()
+                line.setFrameShape(QFrame.HLine)
+                line.setFrameShadow(QFrame.Sunken)
+                line.setStyleSheet("color: #cccccc;")
+                result_layout.addWidget(line)
+            
+            # 保存控件引用
+            self.ocr_results_widgets[i] = text_edit
+            
+            # 添加到容器
+            self.ocr_container_layout.addWidget(result_widget)
+
+    def on_ocr_text_changed(self, region_idx: int):
+        """OCR文本变化时的回调"""
+        if (self.current_detection_results and 
+            region_idx < len(self.current_detection_results.text_regions)):
+            
+            # 获取修改后的文本
+            if region_idx in self.ocr_results_widgets:
+                new_text = self.ocr_results_widgets[region_idx].toPlainText()
+                
+                # 更新检测结果中的OCR文本
+                self.current_detection_results.text_regions[region_idx]['ocr_text'] = new_text
+                
+                # 更新OCR结果字典
+                region_key = f"region_{region_idx}"
+                self.current_detection_results.ocr_results[region_key] = new_text
+                
+                # 发射信号通知主窗口保存更改
+                self.ocr_text_modified.emit(region_idx, new_text)
+
+    def clear_ocr_results(self):
+        """清空OCR结果显示"""
+        # 清空控件引用
+        self.ocr_results_widgets.clear()
         
-        # 平均置信度
-        if "avg_confidence" in stats_data:
-            conf_val = stats_data["avg_confidence"]
-            self.stats_labels["avg_confidence"].setText(f"{conf_val:.3f}")
+        # 清空布局中的所有控件
+        while self.ocr_container_layout.count():
+            child = self.ocr_container_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
         
-        # 检测语言
-        if "languages" in stats_data:
-            langs = stats_data["languages"]
-            lang_str = ", ".join(langs) if langs else "无"
-            self.stats_labels["languages"].setText(lang_str)
-    
-    def clear_stats(self):
-        """清空统计信息"""
-        for label in self.stats_labels.values():
-            label.setText("-")
-    
+        # 重新添加提示标签
+        self.ocr_hint_label = QLabel("请先完成检测和OCR识别")
+        self.ocr_hint_label.setAlignment(Qt.AlignCenter)
+        self.ocr_hint_label.setStyleSheet("color: #888888; font-style: italic;")
+        self.ocr_container_layout.addWidget(self.ocr_hint_label)
+     
     def validate_parameters(self) -> tuple[bool, str]:
         """验证参数有效性"""
         # 检查模型文件
@@ -4379,6 +4535,2154 @@ if __name__ == "__main__":
 
 ```py
 
+```
+
+### `workers.py`
+
+```py
+"""
+工作线程类 - 处理检测、OCR和批量处理
+"""
+
+from typing import List
+from PyQt5.QtCore import QThread, pyqtSignal
+
+from src.core.detector import ComicTextDetector, DetectionResults, ProjectResults
+
+
+class DetectionWorker(QThread):
+    """仅检测工作线程"""
+    
+    finished = pyqtSignal(object)  # DetectionResults
+    error = pyqtSignal(str)
+    progress = pyqtSignal(str)
+    
+    def __init__(self, detector: ComicTextDetector, image_path: str):
+        super().__init__()
+        self.detector = detector
+        self.image_path = image_path
+    
+    def run(self):
+        try:
+            self.progress.emit("正在执行文字检测...")
+            results = self.detector.detect_only(self.image_path)
+            self.finished.emit(results)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class OCRWorker(QThread):
+    """OCR工作线程"""
+    
+    finished = pyqtSignal(object)  # DetectionResults with OCR
+    error = pyqtSignal(str)
+    progress = pyqtSignal(str)
+    
+    def __init__(self, detector: ComicTextDetector, detection_results: DetectionResults):
+        super().__init__()
+        self.detector = detector
+        self.detection_results = detection_results
+    
+    def run(self):
+        try:
+            self.progress.emit("正在进行OCR识别...")
+            results = self.detector.run_ocr_on_results(self.detection_results)
+            self.finished.emit(results)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class BatchProcessWorker(QThread):
+    """批量处理工作线程 - 使用新的项目结构"""
+    
+    finished = pyqtSignal(object)  # ProjectResults
+    error = pyqtSignal(str)
+    progress = pyqtSignal(int, int, str)  # current, total, message
+    
+    def __init__(self, detector: ComicTextDetector, image_files: List[str], 
+                 project_name: str, output_dir: str, include_ocr: bool = True):
+        super().__init__()
+        self.detector = detector
+        self.image_files = image_files
+        self.project_name = project_name
+        self.output_dir = output_dir
+        self.include_ocr = include_ocr
+    
+    def run(self):
+        try:
+            def progress_callback(current, total, message):
+                """进度回调函数"""
+                self.progress.emit(current, total, message)
+            
+            # 使用新的批量处理方法
+            project_results = self.detector.batch_process_project(
+                image_files=self.image_files,
+                project_name=self.project_name,
+                output_dir=self.output_dir,
+                include_ocr=self.include_ocr,
+                progress_callback=progress_callback
+            )
+            
+            self.finished.emit(project_results)
+            
+        except Exception as e:
+            self.error.emit(str(e))
+```
+
+### `__init__.py`
+
+```py
+
+```
+
+## `utils`
+
+### `db_utils.py`
+
+```py
+import cv2
+import numpy as np
+import pyclipper
+from shapely.geometry import Polygon
+from collections import namedtuple
+import torch
+import warnings
+warnings.filterwarnings('ignore')
+
+
+def iou_rotate(box_a, box_b, method='union'):
+    rect_a = cv2.minAreaRect(box_a)
+    rect_b = cv2.minAreaRect(box_b)
+    r1 = cv2.rotatedRectangleIntersection(rect_a, rect_b)
+    if r1[0] == 0:
+        return 0
+    else:
+        inter_area = cv2.contourArea(r1[1])
+        area_a = cv2.contourArea(box_a)
+        area_b = cv2.contourArea(box_b)
+        union_area = area_a + area_b - inter_area
+        if union_area == 0 or inter_area == 0:
+            return 0
+        if method == 'union':
+            iou = inter_area / union_area
+        elif method == 'intersection':
+            iou = inter_area / min(area_a, area_b)
+        else:
+            raise NotImplementedError
+        return iou
+
+class SegDetectorRepresenter():
+    def __init__(self, thresh=0.3, box_thresh=0.7, max_candidates=1000, unclip_ratio=1.5):
+        self.min_size = 3
+        self.thresh = thresh
+        self.box_thresh = box_thresh
+        self.max_candidates = max_candidates
+        self.unclip_ratio = unclip_ratio
+
+    def __call__(self, batch, pred, is_output_polygon=False):
+        '''
+        batch: (image, polygons, ignore_tags
+        batch: a dict produced by dataloaders.
+            image: tensor of shape (N, C, H, W).
+            polygons: tensor of shape (N, K, 4, 2), the polygons of objective regions.
+            ignore_tags: tensor of shape (N, K), indicates whether a region is ignorable or not.
+            shape: the original shape of images.
+            filename: the original filenames of images.
+        pred:
+            binary: text region segmentation map, with shape (N, H, W)
+            thresh: [if exists] thresh hold prediction with shape (N, H, W)
+            thresh_binary: [if exists] binarized with threshold, (N, H, W)
+        '''
+        pred = pred[:, 0, :, :]
+        segmentation = self.binarize(pred)
+        boxes_batch = []
+        scores_batch = []
+        # print(pred.size())
+        batch_size = pred.size(0) if isinstance(pred, torch.Tensor) else pred.shape[0]
+        for batch_index in range(batch_size):
+            # height, width = batch['shape'][batch_index]
+            height, width = pred.shape[1], pred.shape[2]
+            if is_output_polygon:
+                boxes, scores = self.polygons_from_bitmap(pred[batch_index], segmentation[batch_index], width, height)
+            else:
+                boxes, scores = self.boxes_from_bitmap(pred[batch_index], segmentation[batch_index], width, height)
+            boxes_batch.append(boxes)
+            scores_batch.append(scores)
+        return boxes_batch, scores_batch
+
+    def binarize(self, pred):
+        return pred > self.thresh
+
+    def polygons_from_bitmap(self, pred, _bitmap, dest_width, dest_height):
+        '''
+        _bitmap: single map with shape (H, W),
+            whose values are binarized as {0, 1}
+        '''
+
+        assert len(_bitmap.shape) == 2
+        bitmap = _bitmap.cpu().numpy()  # The first channel
+        pred = pred.cpu().detach().numpy()
+        height, width = bitmap.shape
+        boxes = []
+        scores = []
+
+        contours, _ = cv2.findContours((bitmap * 255).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
+        for contour in contours[:self.max_candidates]:
+            epsilon = 0.005 * cv2.arcLength(contour, True)
+            approx = cv2.approxPolyDP(contour, epsilon, True)
+            points = approx.reshape((-1, 2))
+            if points.shape[0] < 4:
+                continue
+            # _, sside = self.get_mini_boxes(contour)
+            # if sside < self.min_size:
+            #     continue
+            score = self.box_score_fast(pred, contour.squeeze(1))
+            if self.box_thresh > score:
+                continue
+
+            if points.shape[0] > 2:
+                box = self.unclip(points, unclip_ratio=self.unclip_ratio)
+                if len(box) > 1:
+                    continue
+            else:
+                continue
+            box = box.reshape(-1, 2)
+            _, sside = self.get_mini_boxes(box.reshape((-1, 1, 2)))
+            if sside < self.min_size + 2:
+                continue
+
+            if not isinstance(dest_width, int):
+                dest_width = dest_width.item()
+                dest_height = dest_height.item()
+
+            box[:, 0] = np.clip(np.round(box[:, 0] / width * dest_width), 0, dest_width)
+            box[:, 1] = np.clip(np.round(box[:, 1] / height * dest_height), 0, dest_height)
+            boxes.append(box)
+            scores.append(score)
+        return boxes, scores
+
+    def boxes_from_bitmap(self, pred, _bitmap, dest_width, dest_height):
+        '''
+        _bitmap: single map with shape (H, W),
+            whose values are binarized as {0, 1}
+        '''
+
+        assert len(_bitmap.shape) == 2
+        if isinstance(pred, torch.Tensor):
+            bitmap = _bitmap.cpu().numpy()  # The first channel
+            pred = pred.cpu().detach().numpy()
+        else:
+            bitmap = _bitmap
+        height, width = bitmap.shape
+        contours, _ = cv2.findContours((bitmap * 255).astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        num_contours = min(len(contours), self.max_candidates)
+        boxes = np.zeros((num_contours, 4, 2), dtype=np.int16)
+        scores = np.zeros((num_contours,), dtype=np.float32)
+
+        for index in range(num_contours):
+            contour = contours[index].squeeze(1)
+            points, sside = self.get_mini_boxes(contour)
+            # if sside < self.min_size:
+            #     continue
+            if sside < 2:
+                continue
+            points = np.array(points)
+            score = self.box_score_fast(pred, contour)
+            # if self.box_thresh > score:
+            #     continue
+
+            box = self.unclip(points, unclip_ratio=self.unclip_ratio).reshape(-1, 1, 2)
+            box, sside = self.get_mini_boxes(box)
+            # if sside < 5:
+            #     continue
+            box = np.array(box)
+            if not isinstance(dest_width, int):
+                dest_width = dest_width.item()
+                dest_height = dest_height.item()
+
+            box[:, 0] = np.clip(np.round(box[:, 0] / width * dest_width), 0, dest_width)
+            box[:, 1] = np.clip(np.round(box[:, 1] / height * dest_height), 0, dest_height)
+            boxes[index, :, :] = box.astype(np.int16)
+            scores[index] = score
+        return boxes, scores
+
+    def unclip(self, box, unclip_ratio=1.5):
+        poly = Polygon(box)
+        distance = poly.area * unclip_ratio / poly.length
+        offset = pyclipper.PyclipperOffset()
+        offset.AddPath(box, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+        expanded = np.array(offset.Execute(distance))
+        return expanded
+
+    def get_mini_boxes(self, contour):
+        bounding_box = cv2.minAreaRect(contour)
+        points = sorted(list(cv2.boxPoints(bounding_box)), key=lambda x: x[0])
+
+        index_1, index_2, index_3, index_4 = 0, 1, 2, 3
+        if points[1][1] > points[0][1]:
+            index_1 = 0
+            index_4 = 1
+        else:
+            index_1 = 1
+            index_4 = 0
+        if points[3][1] > points[2][1]:
+            index_2 = 2
+            index_3 = 3
+        else:
+            index_2 = 3
+            index_3 = 2
+
+        box = [points[index_1], points[index_2], points[index_3], points[index_4]]
+        return box, min(bounding_box[1])
+
+    def box_score_fast(self, bitmap, _box):
+        h, w = bitmap.shape[:2]
+        box = _box.copy()
+        xmin = np.clip(np.floor(box[:, 0].min()).astype(np.int64), 0, w - 1)
+        xmax = np.clip(np.ceil(box[:, 0].max()).astype(np.int64), 0, w - 1)
+        ymin = np.clip(np.floor(box[:, 1].min()).astype(np.int64), 0, h - 1)
+        ymax = np.clip(np.ceil(box[:, 1].max()).astype(np.int64), 0, h - 1)
+
+        mask = np.zeros((ymax - ymin + 1, xmax - xmin + 1), dtype=np.uint8)
+        box[:, 0] = box[:, 0] - xmin
+        box[:, 1] = box[:, 1] - ymin
+        cv2.fillPoly(mask, box.reshape(1, -1, 2).astype(np.int32), 1)
+        if bitmap.dtype == np.float16:
+            bitmap = bitmap.astype(np.float32)
+        return cv2.mean(bitmap[ymin:ymax + 1, xmin:xmax + 1], mask)[0]
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+        return self
+
+
+class DetectionIoUEvaluator(object):
+    def __init__(self, is_output_polygon=False, iou_constraint=0.5, area_precision_constraint=0.5):
+        self.is_output_polygon = is_output_polygon
+        self.iou_constraint = iou_constraint
+        self.area_precision_constraint = area_precision_constraint
+
+    def evaluate_image(self, gt, pred):
+
+        def get_union(pD, pG):
+            return Polygon(pD).union(Polygon(pG)).area
+
+        def get_intersection_over_union(pD, pG):
+            return get_intersection(pD, pG) / get_union(pD, pG)
+
+        def get_intersection(pD, pG):
+            return Polygon(pD).intersection(Polygon(pG)).area
+
+        def compute_ap(confList, matchList, numGtCare):
+            correct = 0
+            AP = 0
+            if len(confList) > 0:
+                confList = np.array(confList)
+                matchList = np.array(matchList)
+                sorted_ind = np.argsort(-confList)
+                confList = confList[sorted_ind]
+                matchList = matchList[sorted_ind]
+                for n in range(len(confList)):
+                    match = matchList[n]
+                    if match:
+                        correct += 1
+                        AP += float(correct) / (n + 1)
+
+                if numGtCare > 0:
+                    AP /= numGtCare
+
+            return AP
+
+        perSampleMetrics = {}
+
+        matchedSum = 0
+
+        Rectangle = namedtuple('Rectangle', 'xmin ymin xmax ymax')
+
+        numGlobalCareGt = 0
+        numGlobalCareDet = 0
+
+        arrGlobalConfidences = []
+        arrGlobalMatches = []
+
+        recall = 0
+        precision = 0
+        hmean = 0
+
+        detMatched = 0
+
+        iouMat = np.empty([1, 1])
+
+        gtPols = []
+        detPols = []
+
+        gtPolPoints = []
+        detPolPoints = []
+
+        # Array of Ground Truth Polygons' keys marked as don't Care
+        gtDontCarePolsNum = []
+        # Array of Detected Polygons' matched with a don't Care GT
+        detDontCarePolsNum = []
+
+        pairs = []
+        detMatchedNums = []
+
+        arrSampleConfidences = []
+        arrSampleMatch = []
+
+        evaluationLog = ""
+
+        for n in range(len(gt)):
+            points = gt[n]['points']
+            # transcription = gt[n]['text']
+            dontCare = gt[n]['ignore']
+
+            if not Polygon(points).is_valid or not Polygon(points).is_simple:
+                continue
+
+            gtPol = points
+            gtPols.append(gtPol)
+            gtPolPoints.append(points)
+            if dontCare:
+                gtDontCarePolsNum.append(len(gtPols) - 1)
+
+        evaluationLog += "GT polygons: " + str(len(gtPols)) + (" (" + str(len(
+            gtDontCarePolsNum)) + " don't care)\n" if len(gtDontCarePolsNum) > 0 else "\n")
+
+        for n in range(len(pred)):
+            points = pred[n]['points']
+            if not Polygon(points).is_valid or not Polygon(points).is_simple:
+                continue
+
+            detPol = points
+            detPols.append(detPol)
+            detPolPoints.append(points)
+            if len(gtDontCarePolsNum) > 0:
+                for dontCarePol in gtDontCarePolsNum:
+                    dontCarePol = gtPols[dontCarePol]
+                    intersected_area = get_intersection(dontCarePol, detPol)
+                    pdDimensions = Polygon(detPol).area
+                    precision = 0 if pdDimensions == 0 else intersected_area / pdDimensions
+                    if (precision > self.area_precision_constraint):
+                        detDontCarePolsNum.append(len(detPols) - 1)
+                        break
+
+        evaluationLog += "DET polygons: " + str(len(detPols)) + (" (" + str(len(
+            detDontCarePolsNum)) + " don't care)\n" if len(detDontCarePolsNum) > 0 else "\n")
+
+        if len(gtPols) > 0 and len(detPols) > 0:
+            # Calculate IoU and precision matrixs
+            outputShape = [len(gtPols), len(detPols)]
+            iouMat = np.empty(outputShape)
+            gtRectMat = np.zeros(len(gtPols), np.int8)
+            detRectMat = np.zeros(len(detPols), np.int8)
+            if self.is_output_polygon:
+                for gtNum in range(len(gtPols)):
+                    for detNum in range(len(detPols)):
+                        pG = gtPols[gtNum]
+                        pD = detPols[detNum]
+                        iouMat[gtNum, detNum] = get_intersection_over_union(pD, pG)
+            else:
+                # gtPols = np.float32(gtPols)
+                # detPols = np.float32(detPols)
+                for gtNum in range(len(gtPols)):
+                    for detNum in range(len(detPols)):
+                        pG = np.float32(gtPols[gtNum])
+                        pD = np.float32(detPols[detNum])
+                        iouMat[gtNum, detNum] = iou_rotate(pD, pG)
+            for gtNum in range(len(gtPols)):
+                for detNum in range(len(detPols)):
+                    if gtRectMat[gtNum] == 0 and detRectMat[
+                        detNum] == 0 and gtNum not in gtDontCarePolsNum and detNum not in detDontCarePolsNum:
+                        if iouMat[gtNum, detNum] > self.iou_constraint:
+                            gtRectMat[gtNum] = 1
+                            detRectMat[detNum] = 1
+                            detMatched += 1
+                            pairs.append({'gt': gtNum, 'det': detNum})
+                            detMatchedNums.append(detNum)
+                            evaluationLog += "Match GT #" + \
+                                             str(gtNum) + " with Det #" + str(detNum) + "\n"
+
+        numGtCare = (len(gtPols) - len(gtDontCarePolsNum))
+        numDetCare = (len(detPols) - len(detDontCarePolsNum))
+        if numGtCare == 0:
+            recall = float(1)
+            precision = float(0) if numDetCare > 0 else float(1)
+        else:
+            recall = float(detMatched) / numGtCare
+            precision = 0 if numDetCare == 0 else float(
+                detMatched) / numDetCare
+
+        hmean = 0 if (precision + recall) == 0 else 2.0 * \
+                                                    precision * recall / (precision + recall)
+
+        matchedSum += detMatched
+        numGlobalCareGt += numGtCare
+        numGlobalCareDet += numDetCare
+
+        perSampleMetrics = {
+            'precision': precision,
+            'recall': recall,
+            'hmean': hmean,
+            'pairs': pairs,
+            'iouMat': [] if len(detPols) > 100 else iouMat.tolist(),
+            'gtPolPoints': gtPolPoints,
+            'detPolPoints': detPolPoints,
+            'gtCare': numGtCare,
+            'detCare': numDetCare,
+            'gtDontCare': gtDontCarePolsNum,
+            'detDontCare': detDontCarePolsNum,
+            'detMatched': detMatched,
+            'evaluationLog': evaluationLog
+        }
+
+        return perSampleMetrics
+
+    def combine_results(self, results):
+        numGlobalCareGt = 0
+        numGlobalCareDet = 0
+        matchedSum = 0
+        for result in results:
+            numGlobalCareGt += result['gtCare']
+            numGlobalCareDet += result['detCare']
+            matchedSum += result['detMatched']
+
+        methodRecall = 0 if numGlobalCareGt == 0 else float(
+            matchedSum) / numGlobalCareGt
+        methodPrecision = 0 if numGlobalCareDet == 0 else float(
+            matchedSum) / numGlobalCareDet
+        methodHmean = 0 if methodRecall + methodPrecision == 0 else 2 * \
+                                                                    methodRecall * methodPrecision / (
+                                                                            methodRecall + methodPrecision)
+
+        methodMetrics = {'precision': methodPrecision,
+                         'recall': methodRecall, 'hmean': methodHmean}
+
+        return methodMetrics
+
+class QuadMetric():
+    def __init__(self, is_output_polygon=False):
+        self.is_output_polygon = is_output_polygon
+        self.evaluator = DetectionIoUEvaluator(is_output_polygon=is_output_polygon)
+
+    def measure(self, batch, output, box_thresh=0.6):
+        '''
+        batch: (image, polygons, ignore_tags
+        batch: a dict produced by dataloaders.
+            image: tensor of shape (N, C, H, W).
+            polygons: tensor of shape (N, K, 4, 2), the polygons of objective regions.
+            ignore_tags: tensor of shape (N, K), indicates whether a region is ignorable or not.
+            shape: the original shape of images.
+            filename: the original filenames of images.
+        output: (polygons, ...)
+        '''
+        results = []
+        gt_polyons_batch = batch['text_polys']
+        ignore_tags_batch = batch['ignore_tags']
+        pred_polygons_batch = np.array(output[0])
+        pred_scores_batch = np.array(output[1])
+        for polygons, pred_polygons, pred_scores, ignore_tags in zip(gt_polyons_batch, pred_polygons_batch, pred_scores_batch, ignore_tags_batch):
+            gt = [dict(points=np.int64(polygons[i]), ignore=ignore_tags[i]) for i in range(len(polygons))]
+            if self.is_output_polygon:
+                pred = [dict(points=pred_polygons[i]) for i in range(len(pred_polygons))]
+            else:
+                pred = []
+                # print(pred_polygons.shape)
+                for i in range(pred_polygons.shape[0]):
+                    if pred_scores[i] >= box_thresh:
+                        # print(pred_polygons[i,:,:].tolist())
+                        pred.append(dict(points=pred_polygons[i, :, :].astype(np.int64)))
+                # pred = [dict(points=pred_polygons[i,:,:].tolist()) if pred_scores[i] >= box_thresh for i in range(pred_polygons.shape[0])]
+            results.append(self.evaluator.evaluate_image(gt, pred))
+        return results
+
+    def validate_measure(self, batch, output, box_thresh=0.6):
+        return self.measure(batch, output, box_thresh)
+
+    def evaluate_measure(self, batch, output):
+        return self.measure(batch, output), np.linspace(0, batch['image'].shape[0]).tolist()
+
+    def gather_measure(self, raw_metrics):
+        raw_metrics = [image_metrics
+                       for batch_metrics in raw_metrics
+                       for image_metrics in batch_metrics]
+
+        result = self.evaluator.combine_results(raw_metrics)
+
+        precision = AverageMeter()
+        recall = AverageMeter()
+        fmeasure = AverageMeter()
+
+        precision.update(result['precision'], n=len(raw_metrics))
+        recall.update(result['recall'], n=len(raw_metrics))
+        fmeasure_score = 2 * precision.val * recall.val / (precision.val + recall.val + 1e-8)
+        fmeasure.update(fmeasure_score)
+
+        return {
+            'precision': precision,
+            'recall': recall,
+            'fmeasure': fmeasure
+        }
+
+def shrink_polygon_py(polygon, shrink_ratio):
+    """
+    对框进行缩放，返回去的比例为1/shrink_ratio 即可
+    """
+    cx = polygon[:, 0].mean()
+    cy = polygon[:, 1].mean()
+    polygon[:, 0] = cx + (polygon[:, 0] - cx) * shrink_ratio
+    polygon[:, 1] = cy + (polygon[:, 1] - cy) * shrink_ratio
+    return polygon
+
+
+def shrink_polygon_pyclipper(polygon, shrink_ratio):
+    from shapely.geometry import Polygon
+    import pyclipper
+    polygon_shape = Polygon(polygon)
+    distance = polygon_shape.area * (1 - np.power(shrink_ratio, 2)) / polygon_shape.length
+    subject = [tuple(l) for l in polygon]
+    padding = pyclipper.PyclipperOffset()
+    padding.AddPath(subject, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+    shrunk = padding.Execute(-distance)
+    if shrunk == []:
+        shrunk = np.array(shrunk)
+    else:
+        shrunk = np.array(shrunk[0]).reshape(-1, 2)
+    return shrunk
+
+class MakeShrinkMap():
+    r'''
+    Making binary mask from detection data with ICDAR format.
+    Typically following the process of class `MakeICDARData`.
+    '''
+
+    def __init__(self, min_text_size=4, shrink_ratio=0.4, shrink_type='pyclipper'):
+        shrink_func_dict = {'py': shrink_polygon_py, 'pyclipper': shrink_polygon_pyclipper}
+        self.shrink_func = shrink_func_dict[shrink_type]
+        self.min_text_size = min_text_size
+        self.shrink_ratio = shrink_ratio
+
+    def __call__(self, data: dict) -> dict:
+        """
+        从scales中随机选择一个尺度，对图片和文本框进行缩放
+        :param data: {'imgs':,'text_polys':,'texts':,'ignore_tags':}
+        :return:
+        """
+        image = data['imgs']
+        text_polys = data['text_polys']
+        ignore_tags = data['ignore_tags']
+
+        h, w = image.shape[:2]
+        text_polys, ignore_tags = self.validate_polygons(text_polys, ignore_tags, h, w)
+        gt = np.zeros((h, w), dtype=np.float32)
+        mask = np.ones((h, w), dtype=np.float32)
+        for i in range(len(text_polys)):
+            polygon = text_polys[i]
+            height = max(polygon[:, 1]) - min(polygon[:, 1])
+            width = max(polygon[:, 0]) - min(polygon[:, 0])
+            if ignore_tags[i] or min(height, width) < self.min_text_size:
+                cv2.fillPoly(mask, polygon.astype(np.int32)[np.newaxis, :, :], 0)
+                ignore_tags[i] = True
+            else:
+                shrunk = self.shrink_func(polygon, self.shrink_ratio)
+                if shrunk.size == 0:
+                    cv2.fillPoly(mask, polygon.astype(np.int32)[np.newaxis, :, :], 0)
+                    ignore_tags[i] = True
+                    continue
+                cv2.fillPoly(gt, [shrunk.astype(np.int32)], 1)
+
+        data['shrink_map'] = gt
+        data['shrink_mask'] = mask
+        return data
+
+    def validate_polygons(self, polygons, ignore_tags, h, w):
+        '''
+        polygons (numpy.array, required): of shape (num_instances, num_points, 2)
+        '''
+        if len(polygons) == 0:
+            return polygons, ignore_tags
+        assert len(polygons) == len(ignore_tags)
+        for polygon in polygons:
+            polygon[:, 0] = np.clip(polygon[:, 0], 0, w - 1)
+            polygon[:, 1] = np.clip(polygon[:, 1], 0, h - 1)
+
+        for i in range(len(polygons)):
+            area = self.polygon_area(polygons[i])
+            if abs(area) < 1:
+                ignore_tags[i] = True
+            if area > 0:
+                polygons[i] = polygons[i][::-1, :]
+        return polygons, ignore_tags
+
+    def polygon_area(self, polygon):
+        return cv2.contourArea(polygon)
+
+
+class MakeBorderMap():
+    def __init__(self, shrink_ratio=0.4, thresh_min=0.3, thresh_max=0.7):
+        self.shrink_ratio = shrink_ratio
+        self.thresh_min = thresh_min
+        self.thresh_max = thresh_max
+
+    def __call__(self, data: dict) -> dict:
+        """
+        从scales中随机选择一个尺度，对图片和文本框进行缩放
+        :param data: {'imgs':,'text_polys':,'texts':,'ignore_tags':}
+        :return:
+        """
+        im = data['imgs']
+        text_polys = data['text_polys']
+        ignore_tags = data['ignore_tags']
+
+        canvas = np.zeros(im.shape[:2], dtype=np.float32)
+        mask = np.zeros(im.shape[:2], dtype=np.float32)
+
+        for i in range(len(text_polys)):
+            if ignore_tags[i]:
+                continue
+            self.draw_border_map(text_polys[i], canvas, mask=mask)
+        canvas = canvas * (self.thresh_max - self.thresh_min) + self.thresh_min
+
+        data['threshold_map'] = canvas
+        data['threshold_mask'] = mask
+        return data
+
+    def draw_border_map(self, polygon, canvas, mask):
+        polygon = np.array(polygon)
+        assert polygon.ndim == 2
+        assert polygon.shape[1] == 2
+
+        polygon_shape = Polygon(polygon)
+        if polygon_shape.area <= 0:
+            return
+        distance = polygon_shape.area * (1 - np.power(self.shrink_ratio, 2)) / polygon_shape.length
+        subject = [tuple(l) for l in polygon]
+        padding = pyclipper.PyclipperOffset()
+        padding.AddPath(subject, pyclipper.JT_ROUND,
+                        pyclipper.ET_CLOSEDPOLYGON)
+
+        padded_polygon = np.array(padding.Execute(distance)[0])
+        cv2.fillPoly(mask, [padded_polygon.astype(np.int32)], 1.0)
+
+        xmin = padded_polygon[:, 0].min()
+        xmax = padded_polygon[:, 0].max()
+        ymin = padded_polygon[:, 1].min()
+        ymax = padded_polygon[:, 1].max()
+        width = xmax - xmin + 1
+        height = ymax - ymin + 1
+
+        polygon[:, 0] = polygon[:, 0] - xmin
+        polygon[:, 1] = polygon[:, 1] - ymin
+
+        xs = np.broadcast_to(
+            np.linspace(0, width - 1, num=width).reshape(1, width), (height, width))
+        ys = np.broadcast_to(
+            np.linspace(0, height - 1, num=height).reshape(height, 1), (height, width))
+
+        distance_map = np.zeros(
+            (polygon.shape[0], height, width), dtype=np.float32)
+        for i in range(polygon.shape[0]):
+            j = (i + 1) % polygon.shape[0]
+            absolute_distance = self.distance(xs, ys, polygon[i], polygon[j])
+            distance_map[i] = np.clip(absolute_distance / distance, 0, 1)
+        distance_map = distance_map.min(axis=0)
+
+        xmin_valid = min(max(0, xmin), canvas.shape[1] - 1)
+        xmax_valid = min(max(0, xmax), canvas.shape[1] - 1)
+        ymin_valid = min(max(0, ymin), canvas.shape[0] - 1)
+        ymax_valid = min(max(0, ymax), canvas.shape[0] - 1)
+        canvas[ymin_valid:ymax_valid + 1, xmin_valid:xmax_valid + 1] = np.fmax(
+            1 - distance_map[
+                ymin_valid - ymin:ymax_valid - ymax + height,
+                xmin_valid - xmin:xmax_valid - xmax + width],
+            canvas[ymin_valid:ymax_valid + 1, xmin_valid:xmax_valid + 1])
+
+    def distance(self, xs, ys, point_1, point_2):
+        '''
+        compute the distance from point to a line
+        ys: coordinates in the first axis
+        xs: coordinates in the second axis
+        point_1, point_2: (x, y), the end of the line
+        '''
+        height, width = xs.shape[:2]
+        square_distance_1 = np.square(xs - point_1[0]) + np.square(ys - point_1[1])
+        square_distance_2 = np.square(xs - point_2[0]) + np.square(ys - point_2[1])
+        square_distance = np.square(point_1[0] - point_2[0]) + np.square(point_1[1] - point_2[1])
+
+        cosin = (square_distance - square_distance_1 - square_distance_2) / (2 * np.sqrt(square_distance_1 * square_distance_2))
+        square_sin = 1 - np.square(cosin)
+        square_sin = np.nan_to_num(square_sin)
+
+        result = np.sqrt(square_distance_1 * square_distance_2 * square_sin / square_distance)
+        result[cosin < 0] = np.sqrt(np.fmin(square_distance_1, square_distance_2))[cosin < 0]
+        return result
+
+    def extend_line(self, point_1, point_2, result):
+        ex_point_1 = (int(round(point_1[0] + (point_1[0] - point_2[0]) * (1 + self.shrink_ratio))),
+                      int(round(point_1[1] + (point_1[1] - point_2[1]) * (1 + self.shrink_ratio))))
+        cv2.line(result, tuple(ex_point_1), tuple(point_1), 4096.0, 1, lineType=cv2.LINE_AA, shift=0)
+        ex_point_2 = (int(round(point_2[0] + (point_2[0] - point_1[0]) * (1 + self.shrink_ratio))),
+                      int(round(point_2[1] + (point_2[1] - point_1[1]) * (1 + self.shrink_ratio))))
+        cv2.line(result, tuple(ex_point_2), tuple(point_2), 4096.0, 1, lineType=cv2.LINE_AA, shift=0)
+        return ex_point_1, ex_point_2
+```
+
+### `general.py`
+
+```py
+# utils/general.py - 简化版
+import os
+import logging
+import torch
+
+def set_logging(name=None, verbose=True):
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    logging.basicConfig(format="%(message)s", level=logging.INFO if verbose else logging.WARNING)
+    return logging.getLogger(name)
+
+LOGGER = set_logging(__name__)
+
+CUDA = True if torch.cuda.is_available() else False
+DEVICE = 'cuda' if CUDA else 'cpu'
+
+# 删除 Loggers 类和其他训练相关功能
+```
+
+### `imgproc_utils.py`
+
+```py
+import numpy as np
+import cv2
+import random
+
+def hex2bgr(hex):
+    gmask = 254 << 8
+    rmask = 254
+    b = hex >> 16
+    g = (hex & gmask) >> 8
+    r = hex & rmask
+    return np.stack([b, g, r]).transpose()
+
+def union_area(bboxa, bboxb):
+    x1 = max(bboxa[0], bboxb[0])
+    y1 = max(bboxa[1], bboxb[1])
+    x2 = min(bboxa[2], bboxb[2])
+    y2 = min(bboxa[3], bboxb[3])
+    if y2 < y1 or x2 < x1:
+        return -1
+    return (y2 - y1) * (x2 - x1)
+
+def get_yololabel_strings(clslist, labellist):
+    content = ''
+    for cls, xywh in zip(clslist, labellist):
+        content += str(int(cls)) + ' ' + ' '.join([str(e) for e in xywh]) + '\n'
+    if len(content) != 0:
+        content = content[:-1]
+    return content
+
+# 4 points bbox to 8 points polygon
+def xywh2xyxypoly(xywh, to_int=True):
+    xyxypoly = np.tile(xywh[:, [0, 1]], 4)
+    xyxypoly[:, [2, 4]] += xywh[:, [2]]
+    xyxypoly[:, [5, 7]] += xywh[:, [3]]
+    if to_int:
+        xyxypoly = xyxypoly.astype(np.int64)
+    return xyxypoly
+
+def xyxy2yolo(xyxy, w: int, h: int):
+    if xyxy == [] or len(xyxy) == 0:
+        return None
+    if isinstance(xyxy, list):
+        xyxy = np.array(xyxy)
+    if len(xyxy.shape) == 1:
+        xyxy = np.array([xyxy])
+    yolo = np.copy(xyxy).astype(np.float64)
+    yolo[:, [0, 2]] =  yolo[:, [0, 2]] / w
+    yolo[:, [1, 3]] = yolo[:, [1, 3]] / h
+    yolo[:, [2, 3]] -= yolo[:, [0, 1]]
+    yolo[:, [0, 1]] += yolo[:, [2, 3]] / 2
+    return yolo
+
+def yolo_xywh2xyxy(xywh: np.array, w: int, h:  int, to_int=True):
+    if xywh is None:
+        return None
+    if len(xywh) == 0:
+        return None
+    if len(xywh.shape) == 1:
+        xywh = np.array([xywh])
+    xywh[:, [0, 2]] *= w
+    xywh[:, [1, 3]] *= h
+    xywh[:, [0, 1]] -= xywh[:, [2, 3]] / 2
+    xywh[:, [2, 3]] += xywh[:, [0, 1]]
+    if to_int:
+        xywh = xywh.astype(np.int64)
+    return xywh
+
+def rotate_polygons(center, polygons, rotation, new_center=None, to_int=True):
+    if new_center is None:
+        new_center = center
+    rotation = np.deg2rad(rotation)
+    s, c = np.sin(rotation), np.cos(rotation)
+    polygons = polygons.astype(np.float32)
+    
+    polygons[:, 1::2] -= center[1]
+    polygons[:, ::2] -= center[0]
+    rotated = np.copy(polygons)
+    rotated[:, 1::2] = polygons[:, 1::2] * c - polygons[:, ::2] * s
+    rotated[:, ::2] = polygons[:, 1::2] * s + polygons[:, ::2] * c
+    rotated[:, 1::2] += new_center[1]
+    rotated[:, ::2] += new_center[0]
+    if to_int:
+        return rotated.astype(np.int64)
+    return rotated
+
+def letterbox(im, new_shape=(640, 640), color=(0, 0, 0), auto=False, scaleFill=False, scaleup=True, stride=128):
+    # Resize and pad image while meeting stride-multiple constraints
+    shape = im.shape[:2]  # current shape [height, width]
+    if not isinstance(new_shape, tuple):
+        new_shape = (new_shape, new_shape)
+
+    # Scale ratio (new / old)
+    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+    if not scaleup:  # only scale down, do not scale up (for better val mAP)
+        r = min(r, 1.0)
+
+    # Compute padding
+    ratio = r, r  # width, height ratios
+    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
+    dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]  # wh padding
+    if auto:  # minimum rectangle
+        dw, dh = np.mod(dw, stride), np.mod(dh, stride)  # wh padding
+    elif scaleFill:  # stretch
+        dw, dh = 0.0, 0.0
+        new_unpad = (new_shape[1], new_shape[0])
+        ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]  # width, height ratios
+
+    # dw /= 2  # divide padding into 2 sides
+    # dh /= 2
+    dh, dw = int(dh), int(dw)
+
+    if shape[::-1] != new_unpad:  # resize
+        im = cv2.resize(im, new_unpad, interpolation=cv2.INTER_LINEAR)
+    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    im = cv2.copyMakeBorder(im, 0, dh, 0, dw, cv2.BORDER_CONSTANT, value=color)  # add border
+    return im, ratio, (dw, dh)
+
+def resize_keepasp(im, new_shape=640, scaleup=True, interpolation=cv2.INTER_LINEAR, stride=None):
+    shape = im.shape[:2]  # current shape [height, width]
+
+    if new_shape is not None:
+        if not isinstance(new_shape, tuple):
+            new_shape = (new_shape, new_shape)
+    else:
+        new_shape = shape
+
+    # Scale ratio (new / old)
+    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+    if not scaleup:  # only scale down, do not scale up (for better val mAP)
+        r = min(r, 1.0)
+
+    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
+
+    if stride is not None:
+        h, w = new_unpad
+        if new_shape[0] % stride != 0 :
+            new_h = (stride - (new_shape[0] % stride)) + h
+        else :
+            new_h = h
+        if w % stride != 0 :
+            new_w = (stride - (w % stride)) + w
+        else :
+            new_w = w
+        new_unpad = (new_h, new_w)
+
+    if shape[::-1] != new_unpad:  # resize
+        im = cv2.resize(im, new_unpad, interpolation=interpolation)
+    return im
+
+def expand_textwindow(img_size, xyxy, expand_r=8, shrink=False):
+    im_h, im_w = img_size[:2]
+    x1, y1 , x2, y2 = xyxy
+    w = x2 - x1
+    h = y2 - y1
+    paddings = int(round((max(h, w) * 0.25 + min(h, w) * 0.75) / expand_r))
+    if shrink:
+        paddings *= -1
+    x1, y1 = max(0, x1 - paddings), max(0, y1 - paddings)
+    x2, y2 = min(im_w-1, x2+paddings), min(im_h-1, y2+paddings)
+    return [x1, y1, x2, y2]
+
+def draw_connected_labels(num_labels, labels, stats, centroids, names="draw_connected_labels", skip_background=True):
+    labdraw = np.zeros((labels.shape[0], labels.shape[1], 3), dtype=np.uint8)
+    max_ind = 0
+    if isinstance(num_labels, int):
+        num_labels = range(num_labels)
+    
+    # for ind, lab in enumerate((range(num_labels))):
+    for lab in num_labels:
+        if skip_background and lab == 0:
+            continue
+        randcolor = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+        labdraw[np.where(labels==lab)] = randcolor
+        maxr, minr = 0.5, 0.001
+        maxw, maxh = stats[max_ind][2] * maxr, stats[max_ind][3] * maxr
+        minarea = labdraw.shape[0] * labdraw.shape[1] * minr
+
+        stat = stats[lab]
+        bboxarea = stat[2] * stat[3]
+        if stat[2] < maxw and stat[3] < maxh and bboxarea > minarea:
+            pix = np.zeros((labels.shape[0], labels.shape[1]), dtype=np.uint8)
+            pix[np.where(labels==lab)] = 255
+
+            rect = cv2.minAreaRect(cv2.findNonZero(pix))
+            box = np.int0(cv2.boxPoints(rect))
+            labdraw = cv2.drawContours(labdraw, [box], 0, randcolor, 2)
+            labdraw = cv2.circle(labdraw, (int(centroids[lab][0]),int(centroids[lab][1])), radius=5, color=(random.randint(0,255), random.randint(0,255), random.randint(0,255)), thickness=-1)                
+
+    cv2.imshow(names, labdraw)
+    return labdraw
+
+
+```
+
+### `io_utils.py`
+
+```py
+import os
+import os.path as osp
+import glob
+from pathlib import Path  # 添加这行
+import cv2
+import numpy as np
+import json
+
+IMG_EXT = ['.bmp', '.jpg', '.png', '.jpeg']
+
+NP_BOOL_TYPES = (np.bool_, bool)
+NP_FLOAT_TYPES = (np.float_, np.float16, np.float32, np.float64)
+NP_INT_TYPES = (np.int_, np.int8, np.int16, np.int32, np.int64, np.uint, np.uint8, np.uint16, np.uint32, np.uint64)
+
+# https://stackoverflow.com/questions/26646362/numpy-array-is-not-json-serializable
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.ScalarType):
+            if isinstance(obj, NP_BOOL_TYPES):
+                return bool(obj)
+            elif isinstance(obj, NP_FLOAT_TYPES):
+                return float(obj)
+            elif isinstance(obj, NP_INT_TYPES):
+                return int(obj)
+        return json.JSONEncoder.default(self, obj)
+
+def find_all_imgs(img_dir, abs_path=False):
+    imglist = list()
+    for filep in glob.glob(osp.join(img_dir, "*")):
+        filename = osp.basename(filep)
+        file_suffix = Path(filename).suffix
+        if file_suffix.lower() not in IMG_EXT:
+            continue
+        if abs_path:
+            imglist.append(filep)
+        else:
+            imglist.append(filename)
+    return imglist
+
+imread = lambda imgpath, read_type=cv2.IMREAD_COLOR: cv2.imdecode(np.fromfile(imgpath, dtype=np.uint8), read_type)
+# def imread(imgpath, read_type=cv2.IMREAD_COLOR):
+#     img = cv2.imdecode(np.fromfile(imgpath, dtype=np.uint8), read_type)
+#     return img
+
+def imwrite(img_path, img, ext='.png'):
+    suffix = Path(img_path).suffix
+    if suffix != '':
+        img_path = img_path.replace(suffix, ext)
+    else:
+        img_path += ext
+    cv2.imencode(ext, img)[1].tofile(img_path)
+```
+
+### `textblock.py`
+
+```py
+from typing import List
+import numpy as np
+from shapely.geometry import Polygon
+import math
+import copy
+from src.utils.imgproc_utils import union_area, xywh2xyxypoly, rotate_polygons
+import cv2
+
+LANG_LIST = ['eng', 'ja', 'unknown']
+LANGCLS2IDX = {'eng': 0, 'ja': 1, 'unknown': 2}
+
+class TextBlock(object):
+    def __init__(self, xyxy: List, 
+                       lines: List = None, 
+                       language: str = 'unknown',
+                       vertical: bool = False, 
+                       font_size: float = -1,
+                       distance: List = None,
+                       angle: int = 0,
+                       vec: List = None,
+                       norm: float = -1,
+                       merged: bool = False,
+                       weight: float = -1,
+                       text: List = None,
+                       translation: str = "",
+                       fg_r = 0,
+                       fg_g = 0,
+                       fg_b = 0,
+                       bg_r = 0,
+                       bg_g = 0,
+                       bg_b = 0,                
+                       line_spacing = 1.,
+                       font_family: str = "",
+                       bold: bool = False,
+                       underline: bool = False,
+                       italic: bool = False,
+                       alignment: int = -1,
+                       alpha: float = 255,
+                       rich_text: str = "",
+                       _bounding_rect: List = None,
+                       accumulate_color = True,
+                       default_stroke_width = 0.2,
+                       target_lang: str = "",
+                       **kwargs) -> None:
+        self.xyxy = [int(num) for num in xyxy]                    # boundingbox of textblock
+        self.lines = [] if lines is None else lines     # polygons of textlines
+        self.vertical = vertical            # orientation of textlines
+        self.language = language
+        self.font_size = font_size          # font pixel size
+        self.distance = None if distance is None else np.array(distance, np.float64)   # distance between textlines and "origin"          
+        self.angle = angle                  # rotation angle of textlines
+
+        self.vec = None if vec is None else np.array(vec, np.float64) # primary vector of textblock
+        self.norm = norm                    # primary norm of textblock
+        self.merged = merged
+        self.weight = weight
+
+        self.text = text if text is not None else []
+        self.prob = 1
+
+        self.translation = translation
+
+        # note they're accumulative rgb values of textlines
+        self.fg_r = fg_r                       
+        self.fg_g = fg_g
+        self.fg_b = fg_b
+        self.bg_r = bg_r
+        self.bg_g = bg_g
+        self.bg_b = bg_b
+
+        # self.stroke_width = stroke_width
+        self.font_family: str = font_family
+        self.bold: bool = bold
+        self.underline: bool = underline
+        self.italic: bool = italic
+        self.alpha = alpha
+        self.rich_text = rich_text
+        self.line_spacing = line_spacing
+        # self.alignment = alignment
+        self._alignment = alignment
+        self._target_lang = target_lang
+
+        self._bounding_rect = _bounding_rect
+        self.default_stroke_width = default_stroke_width
+        self.accumulate_color = accumulate_color
+
+    def adjust_bbox(self, with_bbox=False):
+        lines = self.lines_array().astype(np.int32)
+        if with_bbox:
+            self.xyxy[0] = min(lines[..., 0].min(), self.xyxy[0])
+            self.xyxy[1] = min(lines[..., 1].min(), self.xyxy[1])
+            self.xyxy[2] = max(lines[..., 0].max(), self.xyxy[2])
+            self.xyxy[3] = max(lines[..., 1].max(), self.xyxy[3])
+        else:
+            self.xyxy[0] = lines[..., 0].min()
+            self.xyxy[1] = lines[..., 1].min()
+            self.xyxy[2] = lines[..., 0].max()
+            self.xyxy[3] = lines[..., 1].max()
+
+    def sort_lines(self):
+        if self.distance is not None:
+            idx = np.argsort(self.distance)
+            self.distance = self.distance[idx]
+            lines = np.array(self.lines, dtype=np.int32)
+            self.lines = lines[idx].tolist()
+
+    def lines_array(self, dtype=np.float64):
+        return np.array(self.lines, dtype=dtype)
+
+    def aspect_ratio(self) -> float:
+        min_rect = self.min_rect()
+        middle_pnts = (min_rect[:, [1, 2, 3, 0]] + min_rect) / 2
+        norm_v = np.linalg.norm(middle_pnts[:, 2] - middle_pnts[:, 0])
+        norm_h = np.linalg.norm(middle_pnts[:, 1] - middle_pnts[:, 3])
+        return norm_v / norm_h
+
+    def center(self):
+        xyxy = np.array(self.xyxy)
+        return (xyxy[:2] + xyxy[2:]) / 2
+    
+    def min_rect(self, rotate_back=True):
+        angled = self.angle != 0
+        center = self.center()
+        polygons = self.lines_array().reshape(-1, 8)
+        if angled:
+            polygons = rotate_polygons(center, polygons, self.angle)
+        min_x = polygons[:, ::2].min()
+        min_y = polygons[:, 1::2].min()
+        max_x = polygons[:, ::2].max()
+        max_y = polygons[:, 1::2].max()
+        min_bbox = np.array([[min_x, min_y, max_x, min_y, max_x, max_y, min_x, max_y]])
+        if angled and rotate_back:
+            min_bbox = rotate_polygons(center, min_bbox, -self.angle)
+        return min_bbox.reshape(-1, 4, 2).astype(np.int64)
+
+    # equivalent to qt's boundingRect, ignore angle
+    def bounding_rect(self):
+        if self._bounding_rect is None:
+        # if True:
+            min_bbox = self.min_rect(rotate_back=False)[0]
+            x, y = min_bbox[0]
+            w, h = min_bbox[2] - min_bbox[0]
+            return [x, y, w, h]
+        return self._bounding_rect
+
+    def __getattribute__(self, name: str):
+        if name == 'pts':
+            return self.lines_array()
+        # else:
+        return object.__getattribute__(self, name)
+
+    def __len__(self):
+        return len(self.lines)
+
+    def __getitem__(self, idx):
+        return self.lines[idx]
+
+    def to_dict(self):
+        blk_dict = copy.deepcopy(vars(self))
+        return blk_dict
+
+    def get_transformed_region(self, img, idx, textheight) -> np.ndarray :
+        im_h, im_w = img.shape[:2]
+        direction = 'v' if self.vertical else 'h'
+        src_pts = np.array(self.lines[idx], dtype=np.float64)
+
+        if self.language == 'eng' or (self.language == 'unknown' and not self.vertical):
+            e_size = self.font_size / 3
+            src_pts[..., 0] += np.array([-e_size, e_size, e_size, -e_size])
+            src_pts[..., 1] += np.array([-e_size, -e_size, e_size, e_size])
+            src_pts[..., 0] = np.clip(src_pts[..., 0], 0, im_w)
+            src_pts[..., 1] = np.clip(src_pts[..., 1], 0, im_h)
+
+        middle_pnt = (src_pts[[1, 2, 3, 0]] + src_pts) / 2
+        vec_v = middle_pnt[2] - middle_pnt[0]   # vertical vectors of textlines
+        vec_h = middle_pnt[1] - middle_pnt[3]   # horizontal vectors of textlines
+        ratio = np.linalg.norm(vec_v) / np.linalg.norm(vec_h)
+
+        if direction == 'h' :
+            h = int(textheight)
+            w = int(round(textheight / ratio))
+            dst_pts = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]]).astype(np.float32)
+            M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+            region = cv2.warpPerspective(img, M, (w, h))
+        elif direction == 'v' :
+            w = int(textheight)
+            h = int(round(textheight * ratio))
+            dst_pts = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]]).astype(np.float32)
+            M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+            region = cv2.warpPerspective(img, M, (w, h))
+            region = cv2.rotate(region, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            
+        return region
+
+    def get_text(self):
+        if isinstance(self.text, str):
+            return self.text
+        return ' '.join(self.text).strip()
+
+    def set_font_colors(self, frgb, srgb, accumulate=True):
+        self.accumulate_color = accumulate
+        num_lines = len(self.lines) if accumulate and len(self.lines) > 0 else 1
+        # set font color
+        frgb = np.array(frgb) * num_lines
+        self.fg_r, self.fg_g, self.fg_b = frgb
+        # set stroke color  
+        srgb = np.array(srgb) * num_lines
+        self.bg_r, self.bg_g, self.bg_b = srgb
+
+    def get_font_colors(self, bgr=False):
+        num_lines = len(self.lines)
+        frgb = np.array([self.fg_r, self.fg_g, self.fg_b])
+        brgb = np.array([self.bg_r, self.bg_g, self.bg_b])
+        if self.accumulate_color:
+            if num_lines > 0:
+                frgb = (frgb / num_lines).astype(np.int32)
+                brgb = (brgb / num_lines).astype(np.int32)
+                if bgr:
+                    return frgb[::-1], brgb[::-1]
+                else:
+                    return frgb, brgb
+            else:
+                return [0, 0, 0], [0, 0, 0]
+        else:
+            return frgb, brgb
+
+    def xywh(self):
+        x, y, w, h = self.xyxy
+        return [x, y, w-x, h-y]
+
+    # alignleft: 0, center: 1, right: 2 
+    def alignment(self):
+        if self._alignment >= 0:
+            return self._alignment
+        elif self.vertical:
+            return 0
+        lines = self.lines_array()
+        if len(lines) == 1:
+            return 0
+        angled = self.angle != 0
+        polygons = lines.reshape(-1, 8)
+        if angled:
+            polygons = rotate_polygons((0, 0), polygons, self.angle)
+        polygons = polygons.reshape(-1, 4, 2)
+        
+        left_std = np.std(polygons[:, 0, 0])
+        # right_std = np.std(polygons[:, 1, 0])
+        center_std = np.std((polygons[:, 0, 0] + polygons[:, 1, 0]) / 2)
+        if left_std < center_std:
+            return 0
+        else:
+            return 1
+
+    def target_lang(self):
+        return self.target_lang
+
+    @property
+    def stroke_width(self):
+        var = np.array([self.fg_r, self.fg_g, self.fg_b]) \
+            - np.array([self.bg_r, self.bg_g, self.bg_b])
+        var = np.abs(var).sum()
+        if var > 40:
+            return self.default_stroke_width
+        return 0
+
+def sort_textblk_list(blk_list: List[TextBlock], im_w: int, im_h: int) -> List[TextBlock]:
+    if len(blk_list) == 0:
+        return blk_list
+    num_ja = 0
+    xyxy = []
+    for blk in blk_list:
+        if blk.language == 'ja':
+            num_ja += 1
+        xyxy.append(blk.xyxy)
+    xyxy = np.array(xyxy)
+    flip_lr = num_ja > len(blk_list) / 2
+    im_oriw = im_w
+    if im_w > im_h:
+        im_w /= 2
+    num_gridy, num_gridx = 4, 3
+    img_area = im_h * im_w
+    center_x = (xyxy[:, 0] + xyxy[:, 2]) / 2
+    if flip_lr:
+        if im_w != im_oriw:
+            center_x = im_oriw - center_x
+        else:
+            center_x = im_w - center_x
+    grid_x = (center_x / im_w * num_gridx).astype(np.int32)
+    center_y = (xyxy[:, 1] + xyxy[:, 3]) / 2
+    grid_y = (center_y / im_h * num_gridy).astype(np.int32)
+    grid_indices = grid_y * num_gridx + grid_x
+    grid_weights = grid_indices * img_area + 1.2 * (center_x - grid_x * im_w / num_gridx) + (center_y - grid_y * im_h / num_gridy)
+    if im_w != im_oriw:
+        grid_weights[np.where(grid_x >= num_gridx)] += img_area * num_gridy * num_gridx
+    
+    for blk, weight in zip(blk_list, grid_weights):
+        blk.weight = weight
+    blk_list.sort(key=lambda blk: blk.weight)
+    return blk_list
+
+def examine_textblk(blk: TextBlock, im_w: int, im_h: int, sort: bool = False) -> None:
+    lines = blk.lines_array()
+    middle_pnts = (lines[:, [1, 2, 3, 0]] + lines) / 2
+    vec_v = middle_pnts[:, 2] - middle_pnts[:, 0]   # vertical vectors of textlines
+    vec_h = middle_pnts[:, 1] - middle_pnts[:, 3]   # horizontal vectors of textlines
+    # if sum of vertical vectors is longer, then text orientation is vertical, and vice versa.
+    center_pnts = (lines[:, 0] + lines[:, 2]) / 2
+    v = np.sum(vec_v, axis=0)
+    h = np.sum(vec_h, axis=0)
+    norm_v, norm_h = np.linalg.norm(v), np.linalg.norm(h)
+    if blk.language == 'ja':
+        vertical = norm_v > norm_h
+    else:
+        vertical = norm_v > norm_h * 2
+    # calculate distance between textlines and origin 
+    if vertical:
+        primary_vec, primary_norm = v, norm_v
+        distance_vectors = center_pnts - np.array([[im_w, 0]], dtype=np.float64)   # vertical manga text is read from right to left, so origin is (imw, 0)
+        font_size = int(round(norm_h / len(lines)))
+    else:
+        primary_vec, primary_norm = h, norm_h
+        distance_vectors = center_pnts - np.array([[0, 0]], dtype=np.float64)
+        font_size = int(round(norm_v / len(lines)))
+    
+    rotation_angle = int(math.atan2(primary_vec[1], primary_vec[0]) / math.pi * 180)     # rotation angle of textlines
+    distance = np.linalg.norm(distance_vectors, axis=1)     # distance between textlinecenters and origin
+    rad_matrix = np.arccos(np.einsum('ij, j->i', distance_vectors, primary_vec) / (distance * primary_norm))
+    distance = np.abs(np.sin(rad_matrix) * distance)
+    blk.lines = lines.astype(np.int32).tolist()
+    blk.distance = distance
+    blk.angle = rotation_angle
+    if vertical:
+        blk.angle -= 90
+    if abs(blk.angle) < 3:
+        blk.angle = 0
+    blk.font_size = font_size
+    blk.vertical = vertical
+    blk.vec = primary_vec
+    blk.norm = primary_norm
+    if sort:
+        blk.sort_lines()
+
+def try_merge_textline(blk: TextBlock, blk2: TextBlock, fntsize_tol=1.3, distance_tol=2) -> bool:
+    if blk2.merged:
+        return False
+    fntsize_div = blk.font_size / blk2.font_size
+    num_l1, num_l2 = len(blk), len(blk2)
+    fntsz_avg = (blk.font_size * num_l1 + blk2.font_size * num_l2) / (num_l1 + num_l2)
+    vec_prod = blk.vec @ blk2.vec
+    vec_sum = blk.vec + blk2.vec
+    cos_vec = vec_prod / blk.norm / blk2.norm
+    distance = blk2.distance[-1] - blk.distance[-1]
+    distance_p1 = np.linalg.norm(np.array(blk2.lines[-1][0]) - np.array(blk.lines[-1][0]))
+    l1, l2 = Polygon(blk.lines[-1]), Polygon(blk2.lines[-1])
+    if not l1.intersects(l2):
+        if fntsize_div > fntsize_tol or 1 / fntsize_div > fntsize_tol:
+            return False
+        if abs(cos_vec) < 0.866:   # cos30
+            return False
+        if distance > distance_tol * fntsz_avg or distance_p1 > fntsz_avg * 2.5:
+            return False
+    # merge
+    blk.lines.append(blk2.lines[0])
+    blk.vec = vec_sum
+    blk.angle = int(round(np.rad2deg(math.atan2(vec_sum[1], vec_sum[0]))))
+    if blk.vertical:
+        blk.angle -= 90
+    blk.norm = np.linalg.norm(vec_sum)
+    blk.distance = np.append(blk.distance, blk2.distance[-1])
+    blk.font_size = fntsz_avg
+    blk2.merged = True
+    return True
+
+def merge_textlines(blk_list: List[TextBlock]) -> List[TextBlock]:
+    if len(blk_list) < 2:
+        return blk_list
+    blk_list.sort(key=lambda blk: blk.distance[0])
+    merged_list = []
+    for ii, current_blk in enumerate(blk_list):
+        if current_blk.merged:
+            continue
+        for jj, blk in enumerate(blk_list[ii+1:]):
+            try_merge_textline(current_blk, blk)
+        merged_list.append(current_blk)
+    for blk in merged_list:
+        blk.adjust_bbox(with_bbox=False)
+    return merged_list
+
+def split_textblk(blk: TextBlock):
+    font_size, distance, lines = blk.font_size, blk.distance, blk.lines
+    l0 = np.array(blk.lines[0])
+    lines.sort(key=lambda line: np.linalg.norm(np.array(line[0]) - l0[0]))
+    distance_tol = font_size * 2
+    current_blk = copy.deepcopy(blk)
+    current_blk.lines = [l0]
+    sub_blk_list = [current_blk]
+    textblock_splitted = False
+    for jj, line in enumerate(lines[1:]):
+        l1, l2 = Polygon(lines[jj]), Polygon(line)
+        split = False
+        if not l1.intersects(l2):
+            line_disance = abs(distance[jj+1] - distance[jj])
+            if line_disance > distance_tol:
+                split = True
+            elif blk.vertical and abs(blk.angle) < 15:
+                if len(current_blk.lines) > 1 or line_disance > font_size:
+                    split = abs(lines[jj][0][1] - line[0][1]) > font_size
+        if split:
+            current_blk = copy.deepcopy(current_blk)
+            current_blk.lines = [line]
+            sub_blk_list.append(current_blk)
+        else:
+            current_blk.lines.append(line)
+    if len(sub_blk_list) > 1:
+        textblock_splitted = True
+        for current_blk in sub_blk_list:
+            current_blk.adjust_bbox(with_bbox=False)
+    return textblock_splitted, sub_blk_list
+
+def group_output(blks, lines, im_w, im_h, mask=None, sort_blklist=True) -> List[TextBlock]:
+    blk_list: List[TextBlock] = []
+    scattered_lines = {'ver': [], 'hor': []}
+    for bbox, cls, conf in zip(*blks):
+        # cls could give wrong result
+        blk = TextBlock(bbox, language=LANG_LIST[cls])
+        blk.confidence = float(conf)  # 设置真实置信度
+        blk.prob = float(conf)        # 保持兼容性
+        blk_list.append(blk)
+
+    # step1: filter & assign lines to textblocks
+    bbox_score_thresh = 0.4
+    mask_score_thresh = 0.1
+    for ii, line in enumerate(lines):
+        bx1, bx2 = line[:, 0].min(), line[:, 0].max()
+        by1, by2 = line[:, 1].min(), line[:, 1].max()
+        bbox_score, bbox_idx = -1, -1
+        line_area = (by2-by1) * (bx2-bx1)
+        for jj, blk in enumerate(blk_list):
+            score = union_area(blk.xyxy, [bx1, by1, bx2, by2]) / line_area
+            if bbox_score < score:
+                bbox_score = score
+                bbox_idx = jj
+        if bbox_score > bbox_score_thresh:
+            blk_list[bbox_idx].lines.append(line)
+        else:   # if no textblock was assigned, check whether there is "enough" textmask
+            if mask is not None:
+                mask_score = mask[by1: by2, bx1: bx2].mean() / 255
+                if mask_score < mask_score_thresh:
+                    continue
+            blk = TextBlock([bx1, by1, bx2, by2], [line])
+            examine_textblk(blk, im_w, im_h, sort=False)
+            if blk.vertical:
+                scattered_lines['ver'].append(blk)
+            else:
+                scattered_lines['hor'].append(blk)
+
+    # step2: filter textblocks, sort & split textlines
+    final_blk_list = []
+    for blk in blk_list:
+        # filter textblocks 
+        if len(blk.lines) == 0:
+            bx1, by1, bx2, by2 = blk.xyxy
+            if mask is not None:
+                mask_score = mask[by1: by2, bx1: bx2].mean() / 255
+                if mask_score < mask_score_thresh:
+                    continue
+            xywh = np.array([[bx1, by1, bx2-bx1, by2-by1]])
+            blk.lines = xywh2xyxypoly(xywh).reshape(-1, 4, 2).tolist()
+        examine_textblk(blk, im_w, im_h, sort=True)
+        
+        # split manga text if there is a distance gap
+        textblock_splitted = False
+        if len(blk.lines) > 1:
+            if blk.language == 'ja':
+                textblock_splitted = True
+            elif blk.vertical:
+                textblock_splitted = True
+        if textblock_splitted:
+            textblock_splitted, sub_blk_list = split_textblk(blk)
+        else:
+            sub_blk_list = [blk]
+        # modify textblock to fit its textlines
+        if not textblock_splitted:
+            for blk in sub_blk_list:
+                blk.adjust_bbox(with_bbox=True)
+        final_blk_list += sub_blk_list
+
+    # step3: merge scattered lines, sort textblocks by "grid"
+    final_blk_list += merge_textlines(scattered_lines['hor'])
+    final_blk_list += merge_textlines(scattered_lines['ver'])
+    if sort_blklist:
+        final_blk_list = sort_textblk_list(final_blk_list, im_w, im_h)
+
+    for blk in final_blk_list:
+        if blk.language == 'eng' and not blk.vertical:
+            num_lines = len(blk.lines)
+            if num_lines == 0:
+                continue
+            # blk.line_spacing = blk.bounding_rect()[3] / num_lines / blk.font_size
+            expand_size = max(int(blk.font_size * 0.1), 2)
+            rad = np.deg2rad(blk.angle)
+            shifted_vec = np.array([[[-1, -1],[1, -1],[1, 1],[-1, 1]]])
+            shifted_vec = shifted_vec * np.array([[[np.sin(rad), np.cos(rad)]]]) * expand_size
+            lines = blk.lines_array() + shifted_vec
+            lines[..., 0] = np.clip(lines[..., 0], 0, im_w-1)
+            lines[..., 1] = np.clip(lines[..., 1], 0, im_h-1)
+            blk.lines = lines.astype(np.int64).tolist()
+            blk.font_size += expand_size
+            
+    return final_blk_list
+
+def visualize_textblocks(canvas, blk_list:  List[TextBlock]):
+    lw = max(round(sum(canvas.shape) / 2 * 0.003), 2)  # line width
+    for ii, blk in enumerate(blk_list):
+        bx1, by1, bx2, by2 = blk.xyxy
+        cv2.rectangle(canvas, (bx1, by1), (bx2, by2), (127, 255, 127), lw)
+        lines = blk.lines_array(dtype=np.int32)
+        for jj, line in enumerate(lines):
+            cv2.putText(canvas, str(jj), line[0], cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,127,0), 1)
+            cv2.polylines(canvas, [line], True, (0,127,255), 2)
+        cv2.polylines(canvas, [blk.min_rect()], True, (127,127,0), 2)
+        center = [int((bx1 + bx2)/2), int((by1 + by2)/2)]
+        cv2.putText(canvas, str(blk.angle), center, cv2.FONT_HERSHEY_SIMPLEX, 1, (127,127,255), 2)
+        cv2.putText(canvas, str(ii), (bx1, by1 + lw + 2), 0, lw / 3, (255,127,127), max(lw-1, 1), cv2.LINE_AA)
+    return canvas
+
+
+```
+
+### `textmask.py`
+
+```py
+from os import stat
+from typing import List
+import cv2
+import numpy as np
+from .textblock import TextBlock
+from .imgproc_utils import draw_connected_labels, expand_textwindow, union_area
+
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+LANG_ENG = 0
+LANG_JPN = 1
+
+REFINEMASK_INPAINT = 0
+REFINEMASK_ANNOTATION = 1
+
+def get_topk_color(color_list, bins, k=3, color_var=10, bin_tol=0.001):
+    idx = np.argsort(bins * -1)
+    color_list, bins = color_list[idx], bins[idx]
+    top_colors = [color_list[0]]
+    bin_tol = np.sum(bins) * bin_tol
+    if len(color_list) > 1:
+        for color, bin in zip(color_list[1:], bins[1:]):
+            if np.abs(np.array(top_colors) - color).min() > color_var:
+                top_colors.append(color)
+            if len(top_colors) >= k or bin < bin_tol:
+                break
+    return top_colors
+
+def minxor_thresh(threshed, mask, dilate=False):
+    neg_threshed = 255 - threshed
+    e_size = 1
+    if dilate:
+        element = cv2.getStructuringElement(cv2.MORPH_RECT, (2 * e_size + 1, 2 * e_size + 1),(e_size, e_size))
+        neg_threshed = cv2.dilate(neg_threshed, element, iterations=1)
+        threshed = cv2.dilate(threshed, element, iterations=1)
+    neg_xor_sum = cv2.bitwise_xor(neg_threshed, mask).sum()
+    xor_sum = cv2.bitwise_xor(threshed, mask).sum()
+    if neg_xor_sum < xor_sum:
+        return neg_threshed, neg_xor_sum
+    else:
+        return threshed, xor_sum
+
+def get_otsuthresh_masklist(img, pred_mask, per_channel=False) -> List[np.ndarray]:
+    channels = [img[..., 0], img[..., 1], img[..., 2]]
+    mask_list = []
+    for c in channels:
+        _, threshed = cv2.threshold(c, 1, 255, cv2.THRESH_OTSU+cv2.THRESH_BINARY)
+        threshed, xor_sum = minxor_thresh(threshed, pred_mask, dilate=False)
+        mask_list.append([threshed, xor_sum])
+    mask_list.sort(key=lambda x: x[1])
+    if per_channel:
+        return mask_list
+    else:
+        return [mask_list[0]]
+
+def get_topk_masklist(im_grey, pred_mask):
+    if len(im_grey.shape) == 3 and im_grey.shape[-1] == 3:
+        im_grey = cv2.cvtColor(im_grey, cv2.COLOR_BGR2GRAY)
+    msk = np.ascontiguousarray(pred_mask)
+    candidate_grey_px = im_grey[np.where(cv2.erode(msk, np.ones((3,3), np.uint8), iterations=1) > 127)]
+    bin, his = np.histogram(candidate_grey_px, bins=255)
+    topk_color = get_topk_color(his, bin, color_var=10, k=3)
+    color_range = 30
+    mask_list = list()
+    for ii, color in enumerate(topk_color):
+        c_top = min(color+color_range, 255)
+        c_bottom = c_top - 2 * color_range
+        threshed = cv2.inRange(im_grey, c_bottom, c_top)
+        threshed, xor_sum = minxor_thresh(threshed, msk)
+        mask_list.append([threshed, xor_sum])
+    return mask_list
+
+def merge_mask_list(mask_list, pred_mask, blk: TextBlock = None, pred_thresh=30, text_window=None, filter_with_lines=False, refine_mode=REFINEMASK_INPAINT):
+    mask_list.sort(key=lambda x: x[1])
+    linemask = None
+    if blk is not None and filter_with_lines:
+        linemask = np.zeros_like(pred_mask)
+        lines = blk.lines_array(dtype=np.int64)
+        for line in lines:
+            line[..., 0] -= text_window[0]
+            line[..., 1] -= text_window[1]
+            cv2.fillPoly(linemask, [line], 255)
+        linemask = cv2.dilate(linemask, np.ones((3, 3), np.uint8), iterations=3)
+    
+    if pred_thresh > 0:
+        e_size = 1
+        element = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * e_size + 1, 2 * e_size + 1),(e_size, e_size))      
+        pred_mask = cv2.erode(pred_mask, element, iterations=1)
+        _, pred_mask = cv2.threshold(pred_mask, 60, 255, cv2.THRESH_BINARY)
+    connectivity = 8
+    mask_merged = np.zeros_like(pred_mask)
+    for ii, (candidate_mask, xor_sum) in enumerate(mask_list):
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(candidate_mask, connectivity, cv2.CV_16U)
+        for label_index, stat, centroid in zip(range(num_labels), stats, centroids):
+            if label_index != 0: # skip background label
+                x, y, w, h, area = stat
+                if w * h < 3:
+                    continue
+                x1, y1, x2, y2 = x, y, x+w, y+h
+                label_local = labels[y1: y2, x1: x2]
+                label_coordinates = np.where(label_local==label_index)
+                tmp_merged = np.zeros_like(label_local, np.uint8)
+                tmp_merged[label_coordinates] = 255
+                tmp_merged = cv2.bitwise_or(mask_merged[y1: y2, x1: x2], tmp_merged)
+                xor_merged = cv2.bitwise_xor(tmp_merged, pred_mask[y1: y2, x1: x2]).sum()
+                xor_origin = cv2.bitwise_xor(mask_merged[y1: y2, x1: x2], pred_mask[y1: y2, x1: x2]).sum()
+                if xor_merged < xor_origin:
+                    mask_merged[y1: y2, x1: x2] = tmp_merged
+
+    if refine_mode == REFINEMASK_INPAINT:
+        mask_merged = cv2.dilate(mask_merged, np.ones((3, 3), np.uint8), iterations=1)
+    # fill holes
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(255-mask_merged, connectivity, cv2.CV_16U)
+    sorted_area = np.sort(stats[:, -1])
+    if len(sorted_area) > 1:
+        area_thresh = sorted_area[-2]
+    else:
+        area_thresh = sorted_area[-1]
+    for label_index, stat, centroid in zip(range(num_labels), stats, centroids):
+        x, y, w, h, area = stat
+        if area < area_thresh:
+            x1, y1, x2, y2 = x, y, x+w, y+h
+            label_local = labels[y1: y2, x1: x2]
+            label_coordinates = np.where(label_local==label_index)
+            tmp_merged = np.zeros_like(label_local, np.uint8)
+            tmp_merged[label_coordinates] = 255
+            tmp_merged = cv2.bitwise_or(mask_merged[y1: y2, x1: x2], tmp_merged)
+            xor_merged = cv2.bitwise_xor(tmp_merged, pred_mask[y1: y2, x1: x2]).sum()
+            xor_origin = cv2.bitwise_xor(mask_merged[y1: y2, x1: x2], pred_mask[y1: y2, x1: x2]).sum()
+            if xor_merged < xor_origin:
+                mask_merged[y1: y2, x1: x2] = tmp_merged
+    return mask_merged
+
+
+def refine_undetected_mask(img: np.ndarray, mask_pred: np.ndarray, mask_refined: np.ndarray, blk_list: List[TextBlock], refine_mode=REFINEMASK_INPAINT):
+    mask_pred[np.where(mask_refined > 30)] = 0
+    _, pred_mask_t = cv2.threshold(mask_pred, 30, 255, cv2.THRESH_BINARY)
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(pred_mask_t, 4, cv2.CV_16U)
+    valid_labels = np.where(stats[:, -1] > 50)[0]
+    seg_blk_list = []
+    if len(valid_labels) > 0:
+        for lab_index in valid_labels[1:]:
+            x, y, w, h, area = stats[lab_index]
+            bx1, by1 = x, y
+            bx2, by2 = x+w, y+h
+            bbox = [bx1, by1, bx2, by2]
+            bbox_score = -1
+            for blk in blk_list:
+                bbox_s = union_area(blk.xyxy, bbox)
+                if bbox_s > bbox_score:
+                    bbox_score = bbox_s
+            if bbox_score / w / h < 0.5:
+                seg_blk_list.append(TextBlock(bbox))
+    if len(seg_blk_list) > 0:
+        mask_refined = cv2.bitwise_or(mask_refined, refine_mask(img, mask_pred, seg_blk_list, refine_mode=refine_mode))
+    return mask_refined
+
+
+def refine_mask(img: np.ndarray, pred_mask: np.ndarray, blk_list: List[TextBlock], refine_mode: int = REFINEMASK_INPAINT) -> np.ndarray:
+    mask_refined = np.zeros_like(pred_mask)
+    for blk in blk_list:
+        bx1, by1, bx2, by2 = expand_textwindow(img.shape, blk.xyxy, expand_r=16)
+        im = np.ascontiguousarray(img[by1: by2, bx1: bx2])
+        msk = np.ascontiguousarray(pred_mask[by1: by2, bx1: bx2])
+        mask_list = get_topk_masklist(im, msk)
+        mask_list += get_otsuthresh_masklist(im, msk, per_channel=False)
+        mask_merged = merge_mask_list(mask_list, msk, blk=blk, text_window=[bx1, by1, bx2, by2], refine_mode=refine_mode)
+        mask_refined[by1: by2, bx1: bx2] = cv2.bitwise_or(mask_refined[by1: by2, bx1: bx2], mask_merged)
+    return mask_refined
+
+```
+
+### `weight_init.py`
+
+```py
+import torch.nn as nn
+import torch
+
+def constant_init(module, val, bias=0):
+    nn.init.constant_(module.weight, val)
+    if hasattr(module, 'bias') and module.bias is not None:
+        nn.init.constant_(module.bias, bias)
+
+def xavier_init(module, gain=1, bias=0, distribution='normal'):
+    assert distribution in ['uniform', 'normal']
+    if distribution == 'uniform':
+        nn.init.xavier_uniform_(module.weight, gain=gain)
+    else:
+        nn.init.xavier_normal_(module.weight, gain=gain)
+    if hasattr(module, 'bias') and module.bias is not None:
+        nn.init.constant_(module.bias, bias)
+
+
+def normal_init(module, mean=0, std=1, bias=0):
+    nn.init.normal_(module.weight, mean, std)
+    if hasattr(module, 'bias') and module.bias is not None:
+        nn.init.constant_(module.bias, bias)
+
+
+def uniform_init(module, a=0, b=1, bias=0):
+    nn.init.uniform_(module.weight, a, b)
+    if hasattr(module, 'bias') and module.bias is not None:
+        nn.init.constant_(module.bias, bias)
+
+
+def kaiming_init(module,
+                 a=0,
+                 is_rnn=False,
+                 mode='fan_in',
+                 nonlinearity='leaky_relu',
+                 bias=0,
+                 distribution='normal'):
+    assert distribution in ['uniform', 'normal']
+    if distribution == 'uniform':
+        if is_rnn:
+            for name, param in module.named_parameters():
+                if 'bias' in name:
+                    nn.init.constant_(param, bias)
+                elif 'weight' in name:
+                    nn.init.kaiming_uniform_(param,
+                                             a=a,
+                                             mode=mode,
+                                             nonlinearity=nonlinearity)
+        else:
+            nn.init.kaiming_uniform_(module.weight,
+                                     a=a,
+                                     mode=mode,
+                                     nonlinearity=nonlinearity)
+
+    else:
+        if is_rnn:
+            for name, param in module.named_parameters():
+                if 'bias' in name:
+                    nn.init.constant_(param, bias)
+                elif 'weight' in name:
+                    nn.init.kaiming_normal_(param,
+                                            a=a,
+                                            mode=mode,
+                                            nonlinearity=nonlinearity)
+        else:
+            nn.init.kaiming_normal_(module.weight,
+                                    a=a,
+                                    mode=mode,
+                                    nonlinearity=nonlinearity)
+
+    if not is_rnn and hasattr(module, 'bias') and module.bias is not None:
+        nn.init.constant_(module.bias, bias)
+
+
+def bilinear_kernel(in_channels, out_channels, kernel_size):
+    factor = (kernel_size + 1) // 2
+    if kernel_size % 2 == 1:
+        center = factor - 1
+    else:
+        center = factor - 0.5
+    og = (torch.arange(kernel_size).reshape(-1, 1),
+          torch.arange(kernel_size).reshape(1, -1))
+    filt = (1 - torch.abs(og[0] - center) / factor) * \
+           (1 - torch.abs(og[1] - center) / factor)
+    weight = torch.zeros((in_channels, out_channels,
+                          kernel_size, kernel_size))
+    weight[range(in_channels), range(out_channels), :, :] = filt
+    return weight
+
+
+def init_weights(m):
+    # for m in modules:
+
+    if isinstance(m, nn.Conv2d):
+        kaiming_init(m)
+    elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+        constant_init(m, 1)
+    elif isinstance(m, nn.Linear):
+        xavier_init(m)
+    elif isinstance(m, (nn.LSTM, nn.LSTMCell)):
+        kaiming_init(m, is_rnn=True)
+    # elif isinstance(m, nn.ConvTranspose2d):
+    #     m.weight.data.copy_(bilinear_kernel(m.in_channels, m.out_channels, 4));
+
+```
+
+### `yolov5_utils.py`
+
+```py
+import math
+import torch
+import torch.nn as nn
+import pkg_resources as pkg
+import torch.nn.functional as F
+import cv2
+import numpy as np
+import time
+import torchvision
+
+def scale_img(img, ratio=1.0, same_shape=False, gs=32):  # img(16,3,256,416)
+    # scales img(bs,3,y,x) by ratio constrained to gs-multiple
+    if ratio == 1.0:
+        return img
+    else:
+        h, w = img.shape[2:]
+        s = (int(h * ratio), int(w * ratio))  # new size
+        img = F.interpolate(img, size=s, mode='bilinear', align_corners=False)  # resize
+        if not same_shape:  # pad/crop img
+            h, w = (math.ceil(x * ratio / gs) * gs for x in (h, w))
+        return F.pad(img, [0, w - s[1], 0, h - s[0]], value=0.447)  # value = imagenet mean
+
+def fuse_conv_and_bn(conv, bn):
+    # Fuse convolution and batchnorm layers https://tehnokv.com/posts/fusing-batchnorm-and-conv/
+    fusedconv = nn.Conv2d(conv.in_channels,
+                          conv.out_channels,
+                          kernel_size=conv.kernel_size,
+                          stride=conv.stride,
+                          padding=conv.padding,
+                          groups=conv.groups,
+                          bias=True).requires_grad_(False).to(conv.weight.device)
+
+    # prepare filters
+    w_conv = conv.weight.clone().view(conv.out_channels, -1)
+    w_bn = torch.diag(bn.weight.div(torch.sqrt(bn.eps + bn.running_var)))
+    fusedconv.weight.copy_(torch.mm(w_bn, w_conv).view(fusedconv.weight.shape))
+
+    # prepare spatial bias
+    b_conv = torch.zeros(conv.weight.size(0), device=conv.weight.device) if conv.bias is None else conv.bias
+    b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
+    fusedconv.bias.copy_(torch.mm(w_bn, b_conv.reshape(-1, 1)).reshape(-1) + b_bn)
+
+    return fusedconv
+
+def check_anchor_order(m):
+    # Check anchor order against stride order for YOLOv5 Detect() module m, and correct if necessary
+    a = m.anchors.prod(-1).view(-1)  # anchor area
+    da = a[-1] - a[0]  # delta a
+    ds = m.stride[-1] - m.stride[0]  # delta s
+    if da.sign() != ds.sign():  # same order
+        m.anchors[:] = m.anchors.flip(0)
+
+def initialize_weights(model):
+    for m in model.modules():
+        t = type(m)
+        if t is nn.Conv2d:
+            pass  # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        elif t is nn.BatchNorm2d:
+            m.eps = 1e-3
+            m.momentum = 0.03
+        elif t in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU]:
+            m.inplace = True
+
+def make_divisible(x, divisor):
+    # Returns nearest x divisible by divisor
+    if isinstance(divisor, torch.Tensor):
+        divisor = int(divisor.max())  # to int
+    return math.ceil(x / divisor) * divisor
+
+def intersect_dicts(da, db, exclude=()):
+    # Dictionary intersection of matching keys and shapes, omitting 'exclude' keys, using da values
+    return {k: v for k, v in da.items() if k in db and not any(x in k for x in exclude) and v.shape == db[k].shape}
+
+def check_version(current='0.0.0', minimum='0.0.0', name='version ', pinned=False, hard=False):
+    # Check version vs. required version
+    current, minimum = (pkg.parse_version(x) for x in (current, minimum))
+    result = (current == minimum) if pinned else (current >= minimum)  # bool
+    if hard:  # assert min requirements met
+        assert result, f'{name}{minimum} required by YOLOv5, but {name}{current} is currently installed'
+    else:
+        return result
+
+class Colors:
+    # Ultralytics color palette https://ultralytics.com/
+    def __init__(self):
+        # hex = matplotlib.colors.TABLEAU_COLORS.values()
+        hex = ('FF3838', 'FF9D97', 'FF701F', 'FFB21D', 'CFD231', '48F90A', '92CC17', '3DDB86', '1A9334', '00D4BB',
+               '2C99A8', '00C2FF', '344593', '6473FF', '0018EC', '8438FF', '520085', 'CB38FF', 'FF95C8', 'FF37C7')
+        self.palette = [self.hex2rgb('#' + c) for c in hex]
+        self.n = len(self.palette)
+
+    def __call__(self, i, bgr=False):
+        c = self.palette[int(i) % self.n]
+        return (c[2], c[1], c[0]) if bgr else c
+
+    @staticmethod
+    def hex2rgb(h):  # rgb order (PIL)
+        return tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4))
+
+def box_iou(box1, box2):
+    # https://github.com/pytorch/vision/blob/master/torchvision/ops/boxes.py
+    """
+    Return intersection-over-union (Jaccard index) of boxes.
+    Both sets of boxes are expected to be in (x1, y1, x2, y2) format.
+    Arguments:
+        box1 (Tensor[N, 4])
+        box2 (Tensor[M, 4])
+    Returns:
+        iou (Tensor[N, M]): the NxM matrix containing the pairwise
+            IoU values for every element in boxes1 and boxes2
+    """
+
+    def box_area(box):
+        # box = 4xn
+        return (box[2] - box[0]) * (box[3] - box[1])
+
+    area1 = box_area(box1.T)
+    area2 = box_area(box2.T)
+
+    # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
+    inter = (torch.min(box1[:, None, 2:], box2[:, 2:]) - torch.max(box1[:, None, :2], box2[:, :2])).clamp(0).prod(2)
+    return inter / (area1[:, None] + area2 - inter)  # iou = inter / (area1 + area2 - inter)
+
+def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False,
+                        labels=(), max_det=300):
+    """Runs Non-Maximum Suppression (NMS) on inference results
+
+    Returns:
+         list of detections, on (n,6) tensor per image [xyxy, conf, cls]
+    """
+
+    if isinstance(prediction, np.ndarray):
+        prediction = torch.from_numpy(prediction)
+
+    nc = prediction.shape[2] - 5  # number of classes
+    xc = prediction[..., 4] > conf_thres  # candidates
+
+    # Checks
+    assert 0 <= conf_thres <= 1, f'Invalid Confidence threshold {conf_thres}, valid values are between 0.0 and 1.0'
+    assert 0 <= iou_thres <= 1, f'Invalid IoU {iou_thres}, valid values are between 0.0 and 1.0'
+
+    # Settings
+    min_wh, max_wh = 2, 4096  # (pixels) minimum and maximum box width and height
+    max_nms = 30000  # maximum number of boxes into torchvision.ops.nms()
+    time_limit = 10.0  # seconds to quit after
+    redundant = True  # require redundant detections
+    multi_label &= nc > 1  # multiple labels per box (adds 0.5ms/img)
+    merge = False  # use merge-NMS
+
+    t = time.time()
+    output = [torch.zeros((0, 6), device=prediction.device)] * prediction.shape[0]
+    for xi, x in enumerate(prediction):  # image index, image inference
+        # Apply constraints
+        # x[((x[..., 2:4] < min_wh) | (x[..., 2:4] > max_wh)).any(1), 4] = 0  # width-height
+        x = x[xc[xi]]  # confidence
+
+        # Cat apriori labels if autolabelling
+        if labels and len(labels[xi]):
+            l = labels[xi]
+            v = torch.zeros((len(l), nc + 5), device=x.device)
+            v[:, :4] = l[:, 1:5]  # box
+            v[:, 4] = 1.0  # conf
+            v[range(len(l)), l[:, 0].long() + 5] = 1.0  # cls
+            x = torch.cat((x, v), 0)
+
+        # If none remain process next image
+        if not x.shape[0]:
+            continue
+
+        # Compute conf
+        x[:, 5:] *= x[:, 4:5]  # conf = obj_conf * cls_conf
+
+        # Box (center x, center y, width, height) to (x1, y1, x2, y2)
+        box = xywh2xyxy(x[:, :4])
+
+        # Detections matrix nx6 (xyxy, conf, cls)
+        if multi_label:
+            i, j = (x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
+            x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
+        else:  # best class only
+            conf, j = x[:, 5:].max(1, keepdim=True)
+            x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
+
+        # Filter by class
+        if classes is not None:
+            x = x[(x[:, 5:6] == torch.tensor(classes, device=x.device)).any(1)]
+
+        # Apply finite constraint
+        # if not torch.isfinite(x).all():
+        #     x = x[torch.isfinite(x).all(1)]
+
+        # Check shape
+        n = x.shape[0]  # number of boxes
+        if not n:  # no boxes
+            continue
+        elif n > max_nms:  # excess boxes
+            x = x[x[:, 4].argsort(descending=True)[:max_nms]]  # sort by confidence
+
+        # Batched NMS
+        c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
+        boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
+        i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+        if i.shape[0] > max_det:  # limit detections
+            i = i[:max_det]
+        if merge and (1 < n < 3E3):  # Merge NMS (boxes merged using weighted mean)
+            # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
+            iou = box_iou(boxes[i], boxes) > iou_thres  # iou matrix
+            weights = iou * scores[None]  # box weights
+            x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(1, keepdim=True)  # merged boxes
+            if redundant:
+                i = i[iou.sum(1) > 1]  # require redundancy
+
+        output[xi] = x[i]
+        if (time.time() - t) > time_limit:
+            print(f'WARNING: NMS time limit {time_limit}s exceeded')
+            break  # time limit exceeded
+
+    return output
+
+def xywh2xyxy(x):
+    # Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[:, 0] = x[:, 0] - x[:, 2] / 2  # top left x
+    y[:, 1] = x[:, 1] - x[:, 3] / 2  # top left y
+    y[:, 2] = x[:, 0] + x[:, 2] / 2  # bottom right x
+    y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y
+    return y
+
+DEFAULT_LANG_LIST = ['eng', 'ja']
+def draw_bbox(pred, img, lang_list=None):
+    if lang_list is None:
+        lang_list = DEFAULT_LANG_LIST
+    lw = max(round(sum(img.shape) / 2 * 0.003), 2)  # line width
+    pred = pred.astype(np.int32)
+    colors = Colors()
+    img = np.copy(img)
+    for ii, obj in enumerate(pred):
+        p1, p2 = (obj[0], obj[1]), (obj[2], obj[3])
+        label = lang_list[obj[-1]] + str(ii+1)
+        cv2.rectangle(img, p1, p2, colors(obj[-1], bgr=True), lw, lineType=cv2.LINE_AA)
+        t_w, t_h = cv2.getTextSize(label, 0, fontScale=lw / 3, thickness=lw)[0]
+        cv2.putText(img, label, (p1[0], p1[1] + t_h + 2), 0, lw / 3, colors(obj[-1], bgr=True), max(lw-1, 1), cv2.LINE_AA)
+    return img
 ```
 
 ### `__init__.py`
