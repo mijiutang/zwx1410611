@@ -5,7 +5,7 @@
 from typing import List
 from PyQt5.QtCore import QThread, pyqtSignal
 
-from src.core.detector import ComicTextDetector, DetectionResults, ProjectResults
+from core.detector import ComicTextDetector, DetectionResults, ProjectResults
 
 
 class DetectionWorker(QThread):

@@ -61,14 +61,6 @@ class Config:
                 "save_json": True,
                 "image_format": "jpg",
                 "mask_format": "png"
-            },
-            
-            # 日志配置
-            "logging": {
-                "level": "INFO",
-                "file": "logs/app.log",
-                "max_file_size": "10MB",
-                "backup_count": 3
             }
         }
         
@@ -154,7 +146,6 @@ class Config:
             self.models_dir,
             self.examples_dir,
             self.results_dir,
-            self.project_root / "logs"
         ]
         
         for dir_path in dirs_to_create:

@@ -20,7 +20,7 @@ from PIL import Image
 from torch.cuda import amp
 
 # 修复导入路径
-from src.utils.yolov5_utils import make_divisible, initialize_weights, check_anchor_order, check_version, fuse_conv_and_bn
+from utils.yolov5_utils import make_divisible, initialize_weights, check_anchor_order, check_version, fuse_conv_and_bn
 
 def autopad(k, p=None):  # kernel, padding
     # Pad to 'same'

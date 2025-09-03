@@ -70,14 +70,6 @@ class Config:
                 "save_json": True,
                 "image_format": "jpg",
                 "mask_format": "png"
-            },
-            
-            # 日志配置
-            "logging": {
-                "level": "INFO",
-                "file": "logs/app.log",
-                "max_file_size": "10MB",
-                "backup_count": 3
             }
         }
         
@@ -163,7 +155,6 @@ class Config:
             self.models_dir,
             self.examples_dir,
             self.results_dir,
-            self.project_root / "logs"
         ]
         
         for dir_path in dirs_to_create:
@@ -274,226 +265,286 @@ if __name__ == "__main__":
 
 ```
 
-# `fix_imports.py`
+# `core`
+
+## `basemodel.py`
 
 ```py
+# 修复后的 basemodel.py - 更新所有导入路径
+
+from utils.general import CUDA, DEVICE
+from src.models.yolov5.yolo import Model
+import torch
 import cv2
 import numpy as np
-import json
-import os
-from pathlib import Path
+from src.models.yolov5.yolo import load_yolov5_ckpt  # 修复导入路径
+from utils.yolov5_utils import fuse_conv_and_bn  # 修复导入路径
+import glob
+import torch.nn as nn
+from utils.weight_init import init_weights  # 修复导入路径
+from src.models.yolov5.common import C3, Conv  # 修复导入路径
+from torchsummary import summary
+import torch.nn.functional as F
+import copy
 
-def extract_text_regions_from_json(json_file_path, output_dir="output_text_blocks"):
-    """
-    根据JSON文件中的文本行坐标提取文本区域：
-    1. 原图文字行以外部分涂白
-    2. 按 bbox 裁剪每个文本块，保存到指定文件夹
-    """
-    
-    # 读取JSON文件
-    with open(json_file_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    
-    # 获取原图路径和图片名
-    image_path = data['image_path']
-    image_name = data['image_name']
-    
-    # 检查原图是否存在
-    if not os.path.exists(image_path):
-        print(f"原图不存在: {image_path}")
-        return
-    
-    # 读取原图
-    original_img = cv2.imread(image_path)
-    if original_img is None:
-        print(f"无法读取图像: {image_path}")
-        return
-    
-    height, width = original_img.shape[:2]
-    
-    # 创建白色背景图像
-    result_img = np.full((height, width, 3), 255, dtype=np.uint8)
-    
-    # 创建掩码
-    mask = np.zeros((height, width), dtype=np.uint8)
-    
-    # 创建输出文件夹
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # 处理每个文本区域
-    for idx, region in enumerate(data['text_regions']):
-        lines = region['lines']
+TEXTDET_MASK = 0
+TEXTDET_DET = 1
+TEXTDET_INFERENCE = 2
+
+class double_conv_up_c3(nn.Module):
+    def __init__(self, in_ch, mid_ch, out_ch, act=True):
+        super(double_conv_up_c3, self).__init__()
+        self.conv = nn.Sequential(
+        C3(in_ch+mid_ch, mid_ch, act=act),
+        nn.ConvTranspose2d(mid_ch, out_ch, kernel_size=4, stride = 2, padding=1, bias=False),
+        nn.BatchNorm2d(out_ch),
+        nn.ReLU(inplace=True),
+        )
+
+    def forward(self, x):
+        return self.conv(x)
+
+class double_conv_c3(nn.Module):
+    def __init__(self, in_ch, out_ch, stride=1, act=True):
+        super(double_conv_c3, self).__init__()
+        if stride > 1 :
+            self.down = nn.AvgPool2d(2,stride=2) if stride > 1 else None
+        self.conv = C3(in_ch, out_ch, act=act)
+
+    def forward(self, x):
+        if self.down is not None :
+            x = self.down(x)
+        x = self.conv(x)
+        return x
+
+class UnetHead(nn.Module):
+    def __init__(self, act=True) -> None:
+
+        super(UnetHead, self).__init__()
+        self.down_conv1 = double_conv_c3(512, 512, 2, act=act)
+        self.upconv0 = double_conv_up_c3(0, 512, 256, act=act)
+        self.upconv2 = double_conv_up_c3(256, 512, 256, act=act)
+        self.upconv3 = double_conv_up_c3(0, 512, 256, act=act)
+        self.upconv4 = double_conv_up_c3(128, 256, 128, act=act)
+        self.upconv5 = double_conv_up_c3(64, 128, 64, act=act)
+        self.upconv6 = nn.Sequential(
+            nn.ConvTranspose2d(64, 1, kernel_size=4, stride = 2, padding=1, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, f160, f80, f40, f20, f3, forward_mode=TEXTDET_MASK):
+        # input: 640@3
+        d10 = self.down_conv1(f3) # 512@10
+        u20 = self.upconv0(d10)  # 256@10
+        u40 = self.upconv2(torch.cat([f20, u20], dim = 1)) # 256@40
+
+        if forward_mode == TEXTDET_DET:
+            return f80, f40, u40
+        else:
+            u80 = self.upconv3(torch.cat([f40, u40], dim = 1)) # 256@80
+            u160 = self.upconv4(torch.cat([f80, u80], dim = 1)) # 128@160
+            u320 = self.upconv5(torch.cat([f160, u160], dim = 1)) # 64@320
+            mask = self.upconv6(u320)
+            if forward_mode == TEXTDET_MASK:
+                return mask
+            else:
+                return mask, [f80, f40, u40]
+            
+    def init_weight(self, init_func):
+        self.apply(init_func)
+
+class DBHead(nn.Module):
+    def __init__(self, in_channels, k = 50, shrink_with_sigmoid=True, act=True):
+        super().__init__()
+        self.k = k
+        self.shrink_with_sigmoid = shrink_with_sigmoid
+        self.upconv3 = double_conv_up_c3(0, 512, 256, act=act)
+        self.upconv4 = double_conv_up_c3(128, 256, 128, act=act)
+        self.conv = nn.Sequential(
+            nn.Conv2d(128, in_channels, 1),
+            nn.BatchNorm2d(in_channels),
+            nn.ReLU(inplace=True)
+        )
+        self.binarize = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels // 4, 3, padding=1),
+            nn.BatchNorm2d(in_channels // 4),
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(in_channels // 4, in_channels // 4, 2, 2),
+            nn.BatchNorm2d(in_channels // 4),
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(in_channels // 4, 1, 2, 2)
+            )
+        self.thresh = self._init_thresh(in_channels)
+
+    def forward(self, f80, f40, u40, shrink_with_sigmoid=True, step_eval=False):
+        shrink_with_sigmoid = self.shrink_with_sigmoid
+        u80 = self.upconv3(torch.cat([f40, u40], dim = 1)) # 256@80
+        x = self.upconv4(torch.cat([f80, u80], dim = 1)) # 128@160
+        x = self.conv(x)
+        threshold_maps = self.thresh(x)
+        x = self.binarize(x)
+        shrink_maps = torch.sigmoid(x)
         
-        # 处理每条文本行
-        for line in lines:
-            points = np.array(line, dtype=np.int32)
-            cv2.fillPoly(mask, [points], 255)
-        
-        # 按 bbox 裁剪文本块
-        x1, y1, x2, y2 = region['bbox']
-        cropped = original_img[y1:y2, x1:x2]
-        
-        crop_filename = f"{image_name}_{idx}.jpg"
-        crop_path = os.path.join(output_dir, crop_filename)
-        cv2.imwrite(crop_path, cropped)
-    
-    # 将原图中的文本区域复制到白底图像
-    result_img[mask == 255] = original_img[mask == 255]
-    
-    # 保存涂白结果
-    output_full_path = os.path.join(os.getcwd(), f"{image_name}_text_only.jpg")
-    cv2.imwrite(output_full_path, result_img)
-    
-    print(f"文本区域涂白结果已保存到: {output_full_path}")
-    print(f"按 bbox 裁剪的文本块已保存到: {output_dir}")
-    
-    # 打印统计信息
-    total_regions = data['stats']['total_regions']
-    avg_confidence = data['stats']['avg_confidence']
-    print(f"处理了 {total_regions} 个文本区域，平均置信度: {avg_confidence:.3f}")
+        if self.training:
+            binary_maps = self.step_function(shrink_maps, threshold_maps)
+            if shrink_with_sigmoid:
+                return torch.cat((shrink_maps, threshold_maps, binary_maps), dim=1)
+            else:
+                return torch.cat((shrink_maps, threshold_maps, binary_maps, x), dim=1)
+        else:
+            if step_eval:
+                return self.step_function(shrink_maps, threshold_maps)
+            else:
+                return torch.cat((shrink_maps, threshold_maps), dim=1)
 
+    def init_weight(self, init_func):
+        self.apply(init_func)
 
-if __name__ == "__main__":
-    json_file = r"comic_text_detector\data\results\132_result.json"  # 请修改为实际的JSON文件路径
+    def _init_thresh(self, inner_channels, serial=False, smooth=False, bias=False):
+        in_channels = inner_channels
+        if serial:
+            in_channels += 1
+        self.thresh = nn.Sequential(
+            nn.Conv2d(in_channels, inner_channels // 4, 3, padding=1, bias=bias),
+            nn.BatchNorm2d(inner_channels // 4),
+            nn.ReLU(inplace=True),
+            self._init_upsample(inner_channels // 4, inner_channels // 4, smooth=smooth, bias=bias),
+            nn.BatchNorm2d(inner_channels // 4),
+            nn.ReLU(inplace=True),
+            self._init_upsample(inner_channels // 4, 1, smooth=smooth, bias=bias),
+            nn.Sigmoid())
+        return self.thresh
+
+    def _init_upsample(self, in_channels, out_channels, smooth=False, bias=False):
+        if smooth:
+            inter_out_channels = out_channels
+            if out_channels == 1:
+                inter_out_channels = in_channels
+            module_list = [
+                nn.Upsample(scale_factor=2, mode='nearest'),
+                nn.Conv2d(in_channels, inter_out_channels, 3, 1, 1, bias=bias)]
+            if out_channels == 1:
+                module_list.append(nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=1, bias=True))
+            return nn.Sequential(module_list)
+        else:
+            return nn.ConvTranspose2d(in_channels, out_channels, 2, 2)
+
+    def step_function(self, x, y):
+        return torch.reciprocal(1 + torch.exp(-self.k * (x - y)))
+
+class TextDetector(nn.Module):
+    def __init__(self, weights, map_location='cpu', forward_mode=TEXTDET_MASK, act=True):
+        super(TextDetector, self).__init__()
+
+        yolov5s_backbone = load_yolov5_ckpt(weights=weights, map_location=map_location)
+        yolov5s_backbone.eval()
+        out_indices = [1, 3, 5, 7, 9]
+        yolov5s_backbone.out_indices = out_indices
+        yolov5s_backbone.model = yolov5s_backbone.model[:max(out_indices)+1]
+        self.act = act
+        self.seg_net = UnetHead(act=act)
+        self.backbone = yolov5s_backbone
+        self.dbnet = None
+        self.forward_mode = forward_mode
+
+    def train_mask(self):
+        self.forward_mode = TEXTDET_MASK
+        self.backbone.eval()
+        self.seg_net.train()
+
+    def initialize_db(self, unet_weights):
+        self.dbnet = DBHead(64, act=self.act)
+        self.seg_net.load_state_dict(torch.load(unet_weights, map_location='cpu')['weights'])
+        self.dbnet.init_weight(init_weights)
+        self.dbnet.upconv3 = copy.deepcopy(self.seg_net.upconv3)
+        self.dbnet.upconv4 = copy.deepcopy(self.seg_net.upconv4)
+        del self.seg_net.upconv3
+        del self.seg_net.upconv4
+        del self.seg_net.upconv5
+        del self.seg_net.upconv6
+        # del self.seg_net.conv_mask
     
-    if os.path.exists(json_file):
-        extract_text_regions_from_json(json_file)
-    else:
-        print(f"JSON文件不存在: {json_file}")
+    def train_db(self):
+        self.forward_mode = TEXTDET_DET
+        self.backbone.eval()
+        self.seg_net.eval()
+        self.dbnet.train()
 
+    def forward(self, x):
+        forward_mode = self.forward_mode
+        with torch.no_grad():
+            outs = self.backbone(x)
+        if forward_mode == TEXTDET_MASK:
+            return self.seg_net(*outs, forward_mode=forward_mode)
+        elif forward_mode == TEXTDET_DET:
+            with torch.no_grad():
+                outs = self.seg_net(*outs, forward_mode=forward_mode)
+            return self.dbnet(*outs)
+
+def get_base_det_models(model_path, device='cpu', half=False, act='leaky'):
+    textdetector_dict = torch.load(model_path, map_location=device)
+    blk_det = load_yolov5_ckpt(textdetector_dict['blk_det'], map_location=device)
+    text_seg = UnetHead(act=act)
+    text_seg.load_state_dict(textdetector_dict['text_seg'])
+    text_det = DBHead(64, act=act)
+    text_det.load_state_dict(textdetector_dict['text_det'])
+    if half:
+        return blk_det.eval().half(), text_seg.eval().half(), text_det.eval().half()
+    return blk_det.eval().to(device), text_seg.eval().to(device), text_det.eval().to(device)
+
+class TextDetBase(nn.Module):
+    def __init__(self, model_path, device='cpu', half=False, fuse=False, act='leaky'):
+        super(TextDetBase, self).__init__()
+        self.blk_det, self.text_seg, self.text_det = get_base_det_models(model_path, device, half, act=act)
+        if fuse:
+            self.fuse()
+
+    def fuse(self):
+        def _fuse(model):
+            for m in model.modules():
+                if isinstance(m, (Conv)) and hasattr(m, 'bn'):
+                    m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
+                    delattr(m, 'bn')  # remove batchnorm
+                    m.forward = m.forward_fuse  # update forward
+            return model
+        self.text_seg = _fuse(self.text_seg)
+        self.text_det = _fuse(self.text_det)
+
+    def forward(self, features):
+        blks, features = self.blk_det(features, detect=True)
+        mask, features = self.text_seg(*features, forward_mode=TEXTDET_INFERENCE)
+        lines = self.text_det(*features, step_eval=False)
+        return blks[0], mask, lines
+
+class TextDetBaseDNN:
+    def __init__(self, input_size, model_path):
+        self.input_size = input_size
+        self.model = cv2.dnn.readNetFromONNX(model_path)
+        self.uoln = self.model.getUnconnectedOutLayersNames()
+    
+    def __call__(self, im_in):
+        blob = cv2.dnn.blobFromImage(im_in, scalefactor=1 / 255.0, size=(self.input_size, self.input_size))
+        self.model.setInput(blob)
+        blks, mask, lines_map  = self.model.forward(self.uoln)
+        return blks, mask, lines_map
+
+if __name__ == '__main__':
+    device = 'cuda'
+    weights = r'data/yolov5sblk.ckpt'
+
+    # yolov5s_backbone = load_yolov5_ckpt(weights=weights, map_location='cpu')
+
+    model = TextDetector(weights, map_location=DEVICE)
+    model.to(DEVICE)
+    model.train_mask()
+    summary(model, (3, 640, 640), device=DEVICE)
+
+    # model.initialize_db(unet_weights='data/unet_head.pt')
+    # model.train_db()
+    # summary(model, (3, 640, 640), device=DEVICE)
 ```
 
-# `main.py`
-
-```py
-#!/usr/bin/env python3
-"""
-漫画文本检测器 - GUI模式
-"""
-
-import sys
-from pathlib import Path
-
-# 添加项目根目录到路径
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
-
-from src.ui.main_window import ComicTextDetectorGUI
-from config.config import Config
-from src.utils.general import set_logging
-
-def main():
-    """主函数 - 只启动GUI"""
-    # 设置日志
-    set_logging(verbose=False)
-    
-    try:
-        from PyQt5.QtWidgets import QApplication
-        
-        app = QApplication(sys.argv)
-        app.setApplicationName("漫画文本检测器")
-        app.setApplicationVersion("1.0")
-        
-        # 创建主窗口
-        window = ComicTextDetectorGUI()
-        window.show()
-        
-        return app.exec_()
-        
-    except ImportError:
-        print("错误：GUI模式需要安装PyQt5")
-        print("请运行：pip install PyQt5")
-        return 1
-    except Exception as e:
-        print(f"启动失败：{e}")
-        return 1
-
-if __name__ == "__main__":
-    sys.exit(main())
-```
-
-# `src`
-
-## `api`
-
-### `convenience.py`
-
-```py
-"""
-便捷函数和API接口
-"""
-
-from typing import List, Optional, Union
-from pathlib import Path
-
-from src.core.detector import ComicTextDetector
-from src.core.results import DetectionResults, ProjectResults
-
-
-def quick_detect_only(image_path: Union[str, Path], 
-                     model_path: Optional[str] = None,
-                     output_dir: Optional[str] = None,
-                     **kwargs) -> DetectionResults:
-    """
-    快速检测函数（仅检测，不OCR）
-    
-    Args:
-        image_path: 图片路径
-        model_path: 模型路径
-        output_dir: 输出目录
-        **kwargs: 检测参数
-        
-    Returns:
-        DetectionResults: 检测结果
-    """
-    detector = ComicTextDetector(model_path=model_path, enable_ocr=False, **kwargs)
-    results = detector.detect_only(image_path)
-    
-    if output_dir:
-        detector.save_results(results, output_dir)
-    
-    return results
-
-
-def batch_process_project(image_files: List[str], 
-                         project_name: str,
-                         output_dir: str,
-                         model_path: Optional[str] = None,
-                         include_ocr: bool = True,
-                         **kwargs) -> ProjectResults:
-    """
-    批量处理项目的便捷函数
-    
-    Args:
-        image_files: 图片文件列表
-        project_name: 项目名称
-        output_dir: 输出目录
-        model_path: 模型路径
-        include_ocr: 是否包含OCR
-        **kwargs: 其他检测参数
-        
-    Returns:
-        ProjectResults: 项目结果对象
-    """
-    detector = ComicTextDetector(model_path=model_path, enable_ocr=include_ocr, **kwargs)
-    return detector.batch_process_project(image_files, project_name, output_dir, include_ocr)
-```
-
-### `__init__.py`
-
-```py
-"""
-API接口模块
-"""
-
-from .convenience import quick_detect_only, batch_process_project
-
-__all__ = ['quick_detect_only', 'batch_process_project']
-```
-
-## `core`
-
-### `detector.py`
+## `detector.py`
 
 ```py
 """
@@ -508,14 +559,14 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Union
 import time
 
-from src.core.inference import TextDetector
-from src.utils.textmask import refine_mask, refine_undetected_mask, REFINEMASK_ANNOTATION
-from src.utils.io_utils import imread, imwrite, NumpyEncoder
-from src.utils.textblock import TextBlock, visualize_textblocks
+from core.inference import TextDetector
+from utils.textmask import refine_mask, refine_undetected_mask, REFINEMASK_ANNOTATION
+from utils.io_utils import imread, imwrite, NumpyEncoder
+from utils.textblock import TextBlock, visualize_textblocks
 from config.config import Config
-from src.utils.detection_utils import filter_and_merge_boxes
+from utils.detection_utils import filter_and_merge_boxes
 from src.processors.ocr_processor import OCRProcessor
-from src.core.results import DetectionResults, ProjectResults
+from core.results import DetectionResults, ProjectResults
 
 
 # OCR相关导入
@@ -1021,7 +1072,7 @@ if __name__ == "__main__":
     
     try:
         # 获取图片文件列表
-        from src.utils.io_utils import find_all_imgs
+        from utils.io_utils import find_all_imgs
         image_files = find_all_imgs(str(image_dir), abs_path=True)
         
         if not image_files:
@@ -1045,11 +1096,11 @@ if __name__ == "__main__":
         sys.exit(1)
 ```
 
-### `inference.py`
+## `inference.py`
 
 ```py
 import json
-from src.core.basemodel import TextDetBase, TextDetBaseDNN  # 修复导入路径
+from core.basemodel import TextDetBase, TextDetBaseDNN  # 修复导入路径
 import os.path as osp
 from tqdm import tqdm
 import numpy as np
@@ -1057,12 +1108,12 @@ import cv2
 import torch
 from pathlib import Path
 import torch
-from src.utils.yolov5_utils import non_max_suppression  # 修复导入路径
-from src.utils.db_utils import SegDetectorRepresenter  # 修复导入路径
-from src.utils.io_utils import imread, imwrite, find_all_imgs, NumpyEncoder  # 修复导入路径
-from src.utils.imgproc_utils import letterbox, xyxy2yolo, get_yololabel_strings  # 修复导入路径
-from src.utils.textblock import TextBlock, group_output, visualize_textblocks  # 修复导入路径
-from src.utils.textmask import refine_mask, refine_undetected_mask, REFINEMASK_INPAINT, REFINEMASK_ANNOTATION  # 修复导入路径
+from utils.yolov5_utils import non_max_suppression  # 修复导入路径
+from utils.db_utils import SegDetectorRepresenter  # 修复导入路径
+from utils.io_utils import imread, imwrite, find_all_imgs, NumpyEncoder  # 修复导入路径
+from utils.imgproc_utils import letterbox, xyxy2yolo, get_yololabel_strings  # 修复导入路径
+from utils.textblock import TextBlock, group_output, visualize_textblocks  # 修复导入路径
+from utils.textmask import refine_mask, refine_undetected_mask, REFINEMASK_INPAINT, REFINEMASK_ANNOTATION  # 修复导入路径
 from pathlib import Path
 from typing import Union
 
@@ -1251,7 +1302,7 @@ if __name__ == '__main__':
     traverse_by_dict(img_dir, save_dir)
 ```
 
-### `results.py`
+## `results.py`
 
 ```py
 """
@@ -1264,8 +1315,8 @@ import numpy as np
 from pathlib import Path
 from typing import List, Dict, Any, Union
 
-from src.utils.io_utils import imwrite, NumpyEncoder
-from src.utils.textblock import TextBlock
+from utils.io_utils import imwrite, NumpyEncoder
+from utils.textblock import TextBlock
 
 
 class DetectionResults:
@@ -1455,10 +1506,138 @@ class ProjectResults:
         return project_dir
 ```
 
-### `__init__.py`
+## `__init__.py`
 
 ```py
 
+```
+
+# `main.py`
+
+```py
+#!/usr/bin/env python3
+"""
+漫画文本检测器 - GUI模式
+"""
+
+import sys
+from pathlib import Path
+
+# 添加项目根目录到路径
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root))
+
+from ui.main_window import ComicTextDetectorGUI
+from config.config import Config
+from utils.general import set_logging
+
+def main():
+    """主函数 - 只启动GUI"""
+    # 设置日志
+    set_logging(verbose=False)
+    
+    try:
+        from PyQt5.QtWidgets import QApplication
+        
+        app = QApplication(sys.argv)
+        app.setApplicationName("漫画文本检测器")
+        app.setApplicationVersion("1.0")
+        
+        # 创建主窗口
+        window = ComicTextDetectorGUI()
+        window.show()
+        
+        return app.exec_()
+        
+    except ImportError:
+        print("错误：GUI模式需要安装PyQt5")
+        print("请运行：pip install PyQt5")
+        return 1
+    except Exception as e:
+        print(f"启动失败：{e}")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+# `src`
+
+## `api`
+
+### `convenience.py`
+
+```py
+"""
+便捷函数和API接口
+"""
+
+from typing import List, Optional, Union
+from pathlib import Path
+
+from core.detector import ComicTextDetector
+from core.results import DetectionResults, ProjectResults
+
+
+def quick_detect_only(image_path: Union[str, Path], 
+                     model_path: Optional[str] = None,
+                     output_dir: Optional[str] = None,
+                     **kwargs) -> DetectionResults:
+    """
+    快速检测函数（仅检测，不OCR）
+    
+    Args:
+        image_path: 图片路径
+        model_path: 模型路径
+        output_dir: 输出目录
+        **kwargs: 检测参数
+        
+    Returns:
+        DetectionResults: 检测结果
+    """
+    detector = ComicTextDetector(model_path=model_path, enable_ocr=False, **kwargs)
+    results = detector.detect_only(image_path)
+    
+    if output_dir:
+        detector.save_results(results, output_dir)
+    
+    return results
+
+
+def batch_process_project(image_files: List[str], 
+                         project_name: str,
+                         output_dir: str,
+                         model_path: Optional[str] = None,
+                         include_ocr: bool = True,
+                         **kwargs) -> ProjectResults:
+    """
+    批量处理项目的便捷函数
+    
+    Args:
+        image_files: 图片文件列表
+        project_name: 项目名称
+        output_dir: 输出目录
+        model_path: 模型路径
+        include_ocr: 是否包含OCR
+        **kwargs: 其他检测参数
+        
+    Returns:
+        ProjectResults: 项目结果对象
+    """
+    detector = ComicTextDetector(model_path=model_path, enable_ocr=include_ocr, **kwargs)
+    return detector.batch_process_project(image_files, project_name, output_dir, include_ocr)
+```
+
+### `__init__.py`
+
+```py
+"""
+API接口模块
+"""
+
+from .convenience import quick_detect_only, batch_process_project
+
+__all__ = ['quick_detect_only', 'batch_process_project']
 ```
 
 ## `models`
@@ -1475,7 +1654,7 @@ class ProjectResults:
 
 ```py
 """
-OCR处理器模块
+OCR处理器模块 - 修复数组比较问题
 """
 
 import numpy as np
@@ -1493,7 +1672,7 @@ except ImportError:
 
 
 class OCRProcessor:
-    """OCR处理器类"""
+    """OCR处理器类 - 修复数组比较问题"""
     
     def __init__(self, enable_ocr=True):
         self.enable_ocr = enable_ocr and PADDLEX_AVAILABLE
@@ -1571,44 +1750,57 @@ class OCRProcessor:
         return ocr_results
     
     def _parse_ocr_result(self, ocr_result, language='unknown') -> str:
-        """解析OCR结果"""
+        """解析OCR结果 - 修复数组比较问题"""
         try:
             texts = []
+            
+            # 检查 ocr_result 是否为空或None
+            if not ocr_result:
+                return ""
+            
             for result in ocr_result:
-                if 'rec_texts' in result:
-                    rec_texts = result['rec_texts']
-                    boxes = result.get('rec_boxes', [])
+                # 安全获取识别文本和位置框
+                rec_texts = result.get('rec_texts', [])
+                rec_boxes = result.get('rec_boxes', [])
+                
+                # 修复：安全检查数组内容
+                if self._is_empty_or_none(rec_texts) or self._is_empty_or_none(rec_boxes):
+                    continue
+                
+                # 确保文本和框的数量匹配
+                min_len = min(len(rec_texts), len(rec_boxes))
+                if min_len <= 0:
+                    continue
+                
+                # 创建文本和坐标的配对列表
+                text_box_pairs = []
+                for idx in range(min_len):
+                    text = rec_texts[idx]
+                    box = rec_boxes[idx]
                     
-                    # 安全检查：确保数据存在且不为空
-                    if (rec_texts is not None and len(rec_texts) > 0 and 
-                        boxes is not None and len(boxes) > 0):
-                        
-                        # 确保文本和框的数量匹配
-                        min_len = min(len(rec_texts), len(boxes))
-                        if min_len > 0:
-                            # 创建文本和坐标的配对列表
-                            text_box_pairs = list(zip(rec_texts[:min_len], boxes[:min_len]))
-                            
-                            # 根据语言类型排序
-                            if language == 'ja':  # 日文从右到左
-                                try:
-                                    sorted_pairs = sorted(text_box_pairs, 
-                                                        key=lambda pair: float(pair[1][0]) if len(pair[1]) > 0 else 0, 
-                                                        reverse=True)
-                                except (IndexError, TypeError, ValueError):
-                                    # 如果排序失败，使用原始顺序
-                                    sorted_pairs = text_box_pairs
-                            else:  # 其他语言从左到右
-                                try:
-                                    sorted_pairs = sorted(text_box_pairs, 
-                                                        key=lambda pair: float(pair[1][0]) if len(pair[1]) > 0 else 0)
-                                except (IndexError, TypeError, ValueError):
-                                    # 如果排序失败，使用原始顺序
-                                    sorted_pairs = text_box_pairs
-                            
-                            # 提取排序后的文本
-                            sorted_texts = [str(pair[0]) for pair in sorted_pairs if pair[0]]
-                            texts.extend(sorted_texts)
+                    # 检查文本和框是否有效
+                    if text and self._is_valid_box(box):
+                        text_box_pairs.append((text, box))
+                
+                if not text_box_pairs:
+                    continue
+                
+                # 根据语言类型排序
+                try:
+                    if language == 'ja':  # 日文从右到左
+                        sorted_pairs = sorted(text_box_pairs, 
+                                            key=lambda pair: self._safe_get_x_coord(pair[1]), 
+                                            reverse=True)
+                    else:  # 其他语言从左到右
+                        sorted_pairs = sorted(text_box_pairs, 
+                                            key=lambda pair: self._safe_get_x_coord(pair[1]))
+                except Exception as sort_error:
+                    print(f"排序失败，使用原始顺序: {sort_error}")
+                    sorted_pairs = text_box_pairs
+                
+                # 提取排序后的文本
+                sorted_texts = [str(pair[0]) for pair in sorted_pairs if pair[0]]
+                texts.extend(sorted_texts)
             
             return "".join(texts)
             
@@ -1618,13 +1810,64 @@ class OCRProcessor:
             print(f"详细错误信息: {traceback.format_exc()}")
             return ""
     
+    def _is_empty_or_none(self, data) -> bool:
+        """安全检查数据是否为空或None"""
+        if data is None:
+            return True
+        if isinstance(data, (list, tuple, np.ndarray)):
+            return len(data) == 0
+        return False
+    
+    def _is_valid_box(self, box) -> bool:
+        """检查边界框是否有效"""
+        try:
+            if self._is_empty_or_none(box):
+                return False
+            
+            # 转换为列表以安全访问
+            if isinstance(box, np.ndarray):
+                box_list = box.tolist() if box.size > 0 else []
+            else:
+                box_list = list(box) if box else []
+            
+            return len(box_list) > 0
+        except Exception:
+            return False
+    
+    def _safe_get_x_coord(self, box) -> float:
+        """安全获取边界框的x坐标"""
+        try:
+            if self._is_empty_or_none(box):
+                return 0.0
+            
+            # 转换为列表以安全访问
+            if isinstance(box, np.ndarray):
+                box_list = box.tolist() if box.size > 0 else []
+            else:
+                box_list = list(box) if box else []
+            
+            if len(box_list) > 0:
+                first_element = box_list[0]
+                # 如果第一个元素是列表或数组，取其第一个元素
+                if isinstance(first_element, (list, tuple, np.ndarray)):
+                    return float(first_element[0]) if len(first_element) > 0 else 0.0
+                else:
+                    return float(first_element)
+            
+            return 0.0
+            
+        except (IndexError, TypeError, ValueError):
+            return 0.0
+    
     def _calculate_average_confidence(self, ocr_result) -> float:
         """计算平均置信度"""
         try:
             confidences = []
             for result in ocr_result:
                 if 'rec_scores' in result:
-                    confidences.extend(result['rec_scores'])
+                    scores = result['rec_scores']
+                    if scores and len(scores) > 0:
+                        confidences.extend([float(score) for score in scores if score is not None])
             
             return float(np.mean(confidences)) if confidences else 0.0
             
@@ -1644,9 +1887,15 @@ from .ocr_processor import OCRProcessor
 __all__ = ['OCRProcessor']
 ```
 
-## `ui`
+## `__init__.py`
 
-### `event_handlers.py`
+```py
+
+```
+
+# `ui`
+
+## `event_handlers.py`
 
 ```py
 """
@@ -1660,7 +1909,7 @@ from typing import List, Optional
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from PyQt5.QtCore import QObject, QSettings
 
-from src.core.detector import ComicTextDetector, DetectionResults, ProjectResults
+from core.detector import ComicTextDetector, DetectionResults, ProjectResults
 from config.config import Config
 
 
@@ -1684,7 +1933,7 @@ class EventHandlers(QObject):
     def load_project_folder(self, folder_path: str):
         """加载项目文件夹"""
         try:
-            from src.utils.io_utils import find_all_imgs
+            from utils.io_utils import find_all_imgs
             
             # 检查文件夹中的图片
             image_files = find_all_imgs(folder_path, abs_path=True)
@@ -1783,7 +2032,7 @@ class EventHandlers(QObject):
         self.main_window.status_label.setText("正在检测...")
         
         # 启动检测线程
-        from src.ui.workers import DetectionWorker
+        from ui.workers import DetectionWorker
         self.main_window.detection_worker = DetectionWorker(
             self.main_window.detector, self.main_window.current_image_path)
         self.main_window.detection_worker.finished.connect(self.on_detection_finished)
@@ -1816,7 +2065,7 @@ class EventHandlers(QObject):
         self.main_window.status_label.setText("正在OCR识别...")
         
         # 启动OCR线程
-        from src.ui.workers import OCRWorker
+        from ui.workers import OCRWorker
         self.main_window.ocr_worker = OCRWorker(
             self.main_window.detector, self.main_window.current_results)
         self.main_window.ocr_worker.finished.connect(self.on_ocr_finished)
@@ -1906,7 +2155,7 @@ class EventHandlers(QObject):
             f"开始{operation_name} -> 输出到: {Path(output_dir) / project_name}")
         
         # 启动批量处理线程
-        from src.ui.workers import BatchProcessWorker
+        from ui.workers import BatchProcessWorker
         self.main_window.batch_worker = BatchProcessWorker(
             self.main_window.detector, 
             self.main_window.current_image_files, 
@@ -2156,7 +2405,7 @@ class EventHandlers(QObject):
         settings.setValue("recent_files", self.main_window.recent_files)
 ```
 
-### `main_window.py`
+## `main_window.py`
 
 ```py
 """
@@ -2174,11 +2423,11 @@ try:
 except ImportError:
     raise ImportError("PyQt5未安装，请运行：pip install PyQt5")
 
-from src.core.detector import ComicTextDetector, DetectionResults
-from src.ui.widgets.image_viewer import ImageViewer
-from src.ui.widgets.parameter_panel import ParameterPanel
-from src.ui.menu_manager import MenuManager
-from src.ui.event_handlers import EventHandlers
+from core.detector import ComicTextDetector, DetectionResults
+from ui.widgets.image_viewer import ImageViewer
+from ui.widgets.parameter_panel import ParameterPanel
+from ui.menu_manager import MenuManager
+from ui.event_handlers import EventHandlers
 from config.config import Config
 
 
@@ -2505,7 +2754,7 @@ if __name__ == "__main__":
     sys.exit(app.exec_())
 ```
 
-### `menu_manager.py`
+## `menu_manager.py`
 
 ```py
 """
@@ -2691,9 +2940,9 @@ class MenuManager(QObject):
             self.toggle_blocks_action.setText('隐藏文本块(&B)' if show_blocks else '显示文本块(&B)')
 ```
 
-### `widgets`
+## `widgets`
 
-#### `image_viewer.py`
+### `image_viewer.py`
 
 ```py
 """
@@ -3114,7 +3363,7 @@ class DragDropImageViewer(ImageViewer):
                     break
 ```
 
-#### `parameter_panel.py`
+### `parameter_panel.py`
 
 ```py
 """
@@ -3557,7 +3806,7 @@ class ParameterPanel(QWidget):
 
     def update_ocr_results(self, detection_results):
         """更新OCR结果显示"""
-        from src.core.detector import DetectionResults
+        from core.detector import DetectionResults
         
         self.current_detection_results = detection_results
         
@@ -3702,13 +3951,13 @@ if __name__ == "__main__":
     sys.exit(app.exec_())
 ```
 
-#### `__init__.py`
+### `__init__.py`
 
 ```py
 
 ```
 
-### `workers.py`
+## `workers.py`
 
 ```py
 """
@@ -3718,7 +3967,7 @@ if __name__ == "__main__":
 from typing import List
 from PyQt5.QtCore import QThread, pyqtSignal
 
-from src.core.detector import ComicTextDetector, DetectionResults, ProjectResults
+from core.detector import ComicTextDetector, DetectionResults, ProjectResults
 
 
 class DetectionWorker(QThread):
@@ -3800,15 +4049,15 @@ class BatchProcessWorker(QThread):
             self.error.emit(str(e))
 ```
 
-### `__init__.py`
+## `__init__.py`
 
 ```py
 
 ```
 
-## `utils`
+# `utils`
 
-### `db_utils.py`
+## `db_utils.py`
 
 ```py
 import cv2
@@ -4514,7 +4763,7 @@ class MakeBorderMap():
         return ex_point_1, ex_point_2
 ```
 
-### `detection_utils.py`
+## `detection_utils.py`
 
 ```py
 """
@@ -4597,7 +4846,7 @@ def filter_and_merge_boxes(text_regions, config_params):
     return filtered_regions
 ```
 
-### `general.py`
+## `general.py`
 
 ```py
 # utils/general.py - 简化版
@@ -4619,7 +4868,7 @@ DEVICE = 'cuda' if CUDA else 'cpu'
 # 删除 Loggers 类和其他训练相关功能
 ```
 
-### `imgproc_utils.py`
+## `imgproc_utils.py`
 
 ```py
 import numpy as np
@@ -4817,7 +5066,7 @@ def draw_connected_labels(num_labels, labels, stats, centroids, names="draw_conn
 
 ```
 
-### `io_utils.py`
+## `io_utils.py`
 
 ```py
 import os
@@ -4875,7 +5124,7 @@ def imwrite(img_path, img, ext='.png'):
     cv2.imencode(ext, img)[1].tofile(img_path)
 ```
 
-### `textblock.py`
+## `textblock.py`
 
 ```py
 from typing import List
@@ -4883,7 +5132,7 @@ import numpy as np
 from shapely.geometry import Polygon
 import math
 import copy
-from src.utils.imgproc_utils import union_area, xywh2xyxypoly, rotate_polygons
+from utils.imgproc_utils import union_area, xywh2xyxypoly, rotate_polygons
 import cv2
 
 LANG_LIST = ['eng', 'ja', 'unknown']
@@ -5407,15 +5656,15 @@ def visualize_textblocks(canvas, blk_list:  List[TextBlock]):
 
 ```
 
-### `textmask.py`
+## `textmask.py`
 
 ```py
 from os import stat
 from typing import List
 import cv2
 import numpy as np
-from .textblock import TextBlock
-from .imgproc_utils import draw_connected_labels, expand_textwindow, union_area
+from utils.textblock import TextBlock
+from utils.imgproc_utils import draw_connected_labels, expand_textwindow, union_area
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -5582,7 +5831,7 @@ def refine_mask(img: np.ndarray, pred_mask: np.ndarray, blk_list: List[TextBlock
 
 ```
 
-### `weight_init.py`
+## `weight_init.py`
 
 ```py
 import torch.nn as nn
@@ -5691,7 +5940,7 @@ def init_weights(m):
 
 ```
 
-### `yolov5_utils.py`
+## `yolov5_utils.py`
 
 ```py
 import math
@@ -5937,12 +6186,6 @@ def draw_bbox(pred, img, lang_list=None):
         t_w, t_h = cv2.getTextSize(label, 0, fontScale=lw / 3, thickness=lw)[0]
         cv2.putText(img, label, (p1[0], p1[1] + t_h + 2), 0, lw / 3, colors(obj[-1], bgr=True), max(lw-1, 1), cv2.LINE_AA)
     return img
-```
-
-### `__init__.py`
-
-```py
-
 ```
 
 ## `__init__.py`

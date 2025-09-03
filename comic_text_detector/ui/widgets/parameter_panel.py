@@ -438,7 +438,7 @@ class ParameterPanel(QWidget):
 
     def update_ocr_results(self, detection_results):
         """更新OCR结果显示"""
-        from src.core.detector import DetectionResults
+        from core.detector import DetectionResults
         
         self.current_detection_results = detection_results
         

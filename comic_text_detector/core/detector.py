@@ -10,14 +10,14 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Union
 import time
 
-from src.core.inference import TextDetector
-from src.utils.textmask import refine_mask, refine_undetected_mask, REFINEMASK_ANNOTATION
-from src.utils.io_utils import imread, imwrite, NumpyEncoder
-from src.utils.textblock import TextBlock, visualize_textblocks
+from core.inference import TextDetector
+from utils.textmask import refine_mask, refine_undetected_mask, REFINEMASK_ANNOTATION
+from utils.io_utils import imread, imwrite, NumpyEncoder
+from utils.textblock import TextBlock, visualize_textblocks
 from config.config import Config
-from src.utils.detection_utils import filter_and_merge_boxes
+from utils.detection_utils import filter_and_merge_boxes
 from src.processors.ocr_processor import OCRProcessor
-from src.core.results import DetectionResults, ProjectResults
+from core.results import DetectionResults, ProjectResults
 
 
 # OCR相关导入
@@ -523,7 +523,7 @@ if __name__ == "__main__":
     
     try:
         # 获取图片文件列表
-        from src.utils.io_utils import find_all_imgs
+        from utils.io_utils import find_all_imgs
         image_files = find_all_imgs(str(image_dir), abs_path=True)
         
         if not image_files:

@@ -10,9 +10,9 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from src.ui.main_window import ComicTextDetectorGUI
+from ui.main_window import ComicTextDetectorGUI
 from config.config import Config
-from src.utils.general import set_logging
+from utils.general import set_logging
 
 def main():
     """主函数 - 只启动GUI"""

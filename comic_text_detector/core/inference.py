@@ -1,5 +1,5 @@
 import json
-from src.core.basemodel import TextDetBase, TextDetBaseDNN  # 修复导入路径
+from core.basemodel import TextDetBase, TextDetBaseDNN  # 修复导入路径
 import os.path as osp
 from tqdm import tqdm
 import numpy as np
@@ -7,12 +7,12 @@ import cv2
 import torch
 from pathlib import Path
 import torch
-from src.utils.yolov5_utils import non_max_suppression  # 修复导入路径
-from src.utils.db_utils import SegDetectorRepresenter  # 修复导入路径
-from src.utils.io_utils import imread, imwrite, find_all_imgs, NumpyEncoder  # 修复导入路径
-from src.utils.imgproc_utils import letterbox, xyxy2yolo, get_yololabel_strings  # 修复导入路径
-from src.utils.textblock import TextBlock, group_output, visualize_textblocks  # 修复导入路径
-from src.utils.textmask import refine_mask, refine_undetected_mask, REFINEMASK_INPAINT, REFINEMASK_ANNOTATION  # 修复导入路径
+from utils.yolov5_utils import non_max_suppression  # 修复导入路径
+from utils.db_utils import SegDetectorRepresenter  # 修复导入路径
+from utils.io_utils import imread, imwrite, find_all_imgs, NumpyEncoder  # 修复导入路径
+from utils.imgproc_utils import letterbox, xyxy2yolo, get_yololabel_strings  # 修复导入路径
+from utils.textblock import TextBlock, group_output, visualize_textblocks  # 修复导入路径
+from utils.textmask import refine_mask, refine_undetected_mask, REFINEMASK_INPAINT, REFINEMASK_ANNOTATION  # 修复导入路径
 from pathlib import Path
 from typing import Union
 

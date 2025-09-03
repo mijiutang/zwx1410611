@@ -5,8 +5,8 @@
 from typing import List, Optional, Union
 from pathlib import Path
 
-from src.core.detector import ComicTextDetector
-from src.core.results import DetectionResults, ProjectResults
+from core.detector import ComicTextDetector
+from core.results import DetectionResults, ProjectResults
 
 
 def quick_detect_only(image_path: Union[str, Path], 

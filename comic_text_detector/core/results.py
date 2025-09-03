@@ -8,8 +8,8 @@ import numpy as np
 from pathlib import Path
 from typing import List, Dict, Any, Union
 
-from src.utils.io_utils import imwrite, NumpyEncoder
-from src.utils.textblock import TextBlock
+from utils.io_utils import imwrite, NumpyEncoder
+from utils.textblock import TextBlock
 
 
 class DetectionResults:

@@ -1,15 +1,15 @@
 # 修复后的 basemodel.py - 更新所有导入路径
 
-from ..utils.general import CUDA, DEVICE
-from ..models.yolov5.yolo import Model
+from utils.general import CUDA, DEVICE
+from src.models.yolov5.yolo import Model
 import torch
 import cv2
 import numpy as np
 from src.models.yolov5.yolo import load_yolov5_ckpt  # 修复导入路径
-from src.utils.yolov5_utils import fuse_conv_and_bn  # 修复导入路径
+from utils.yolov5_utils import fuse_conv_and_bn  # 修复导入路径
 import glob
 import torch.nn as nn
-from src.utils.weight_init import init_weights  # 修复导入路径
+from utils.weight_init import init_weights  # 修复导入路径
 from src.models.yolov5.common import C3, Conv  # 修复导入路径
 from torchsummary import summary
 import torch.nn.functional as F

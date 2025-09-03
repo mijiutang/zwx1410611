@@ -13,11 +13,11 @@ try:
 except ImportError:
     raise ImportError("PyQt5未安装，请运行：pip install PyQt5")
 
-from src.core.detector import ComicTextDetector, DetectionResults
-from src.ui.widgets.image_viewer import ImageViewer
-from src.ui.widgets.parameter_panel import ParameterPanel
-from src.ui.menu_manager import MenuManager
-from src.ui.event_handlers import EventHandlers
+from core.detector import ComicTextDetector, DetectionResults
+from ui.widgets.image_viewer import ImageViewer
+from ui.widgets.parameter_panel import ParameterPanel
+from ui.menu_manager import MenuManager
+from ui.event_handlers import EventHandlers
 from config.config import Config
 
 

@@ -9,7 +9,7 @@ from typing import List, Optional
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from PyQt5.QtCore import QObject, QSettings
 
-from src.core.detector import ComicTextDetector, DetectionResults, ProjectResults
+from core.detector import ComicTextDetector, DetectionResults, ProjectResults
 from config.config import Config
 
 
@@ -33,7 +33,7 @@ class EventHandlers(QObject):
     def load_project_folder(self, folder_path: str):
         """加载项目文件夹"""
         try:
-            from src.utils.io_utils import find_all_imgs
+            from utils.io_utils import find_all_imgs
             
             # 检查文件夹中的图片
             image_files = find_all_imgs(folder_path, abs_path=True)
@@ -132,7 +132,7 @@ class EventHandlers(QObject):
         self.main_window.status_label.setText("正在检测...")
         
         # 启动检测线程
-        from src.ui.workers import DetectionWorker
+        from ui.workers import DetectionWorker
         self.main_window.detection_worker = DetectionWorker(
             self.main_window.detector, self.main_window.current_image_path)
         self.main_window.detection_worker.finished.connect(self.on_detection_finished)
@@ -165,7 +165,7 @@ class EventHandlers(QObject):
         self.main_window.status_label.setText("正在OCR识别...")
         
         # 启动OCR线程
-        from src.ui.workers import OCRWorker
+        from ui.workers import OCRWorker
         self.main_window.ocr_worker = OCRWorker(
             self.main_window.detector, self.main_window.current_results)
         self.main_window.ocr_worker.finished.connect(self.on_ocr_finished)
@@ -255,7 +255,7 @@ class EventHandlers(QObject):
             f"开始{operation_name} -> 输出到: {Path(output_dir) / project_name}")
         
         # 启动批量处理线程
-        from src.ui.workers import BatchProcessWorker
+        from ui.workers import BatchProcessWorker
         self.main_window.batch_worker = BatchProcessWorker(
             self.main_window.detector, 
             self.main_window.current_image_files, 
