@@ -1,15 +1,15 @@
 {
-  "project_name": "examples",
+  "project_name": "examples_out",
   "total_images": 14,
   "processing_time": 0.0,
-  "created_at": "2025-09-03 17:14:47",
+  "created_at": "2025-09-03 19:38:22",
   "images": [
     {
       "image_name": "009",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\009.jpg",
       "text_regions_count": 3,
-      "detection_time": 0.6365060806274414,
-      "ocr_time": 1.9427518844604492,
+      "detection_time": 0.7574188709259033,
+      "ocr_time": 1.9903810024261475,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -20,8 +20,8 @@
       "image_name": "010",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\010.jpg",
       "text_regions_count": 9,
-      "detection_time": 0.44811582565307617,
-      "ocr_time": 4.8055291175842285,
+      "detection_time": 0.6281707286834717,
+      "ocr_time": 4.727658271789551,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -32,8 +32,8 @@
       "image_name": "016",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\016.jpg",
       "text_regions_count": 14,
-      "detection_time": 0.7233855724334717,
-      "ocr_time": 6.036747455596924,
+      "detection_time": 0.5770466327667236,
+      "ocr_time": 5.960697412490845,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -44,8 +44,8 @@
       "image_name": "069",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\069.jpg",
       "text_regions_count": 11,
-      "detection_time": 0.6579318046569824,
-      "ocr_time": 5.315364122390747,
+      "detection_time": 0.7323241233825684,
+      "ocr_time": 5.36294412612915,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -56,8 +56,8 @@
       "image_name": "070",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\070.jpg",
       "text_regions_count": 10,
-      "detection_time": 0.9174816608428955,
-      "ocr_time": 4.601116180419922,
+      "detection_time": 0.873985767364502,
+      "ocr_time": 4.6851584911346436,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -68,8 +68,8 @@
       "image_name": "071",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\071.jpg",
       "text_regions_count": 14,
-      "detection_time": 0.7620449066162109,
-      "ocr_time": 5.759965419769287,
+      "detection_time": 0.4529762268066406,
+      "ocr_time": 5.701577663421631,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -80,8 +80,8 @@
       "image_name": "125",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\125.jpg",
       "text_regions_count": 2,
-      "detection_time": 0.688687801361084,
-      "ocr_time": 1.3464875221252441,
+      "detection_time": 0.5165135860443115,
+      "ocr_time": 1.2744126319885254,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -92,8 +92,8 @@
       "image_name": "126",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\126.jpg",
       "text_regions_count": 11,
-      "detection_time": 0.49443840980529785,
-      "ocr_time": 5.74315619468689,
+      "detection_time": 0.40705084800720215,
+      "ocr_time": 5.591641187667847,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -104,8 +104,8 @@
       "image_name": "127",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\127.jpg",
       "text_regions_count": 10,
-      "detection_time": 0.5819339752197266,
-      "ocr_time": 6.675556659698486,
+      "detection_time": 0.5302197933197021,
+      "ocr_time": 6.701413154602051,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -116,8 +116,8 @@
       "image_name": "128",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\128.jpg",
       "text_regions_count": 7,
-      "detection_time": 0.5805954933166504,
-      "ocr_time": 3.0427141189575195,
+      "detection_time": 0.618267297744751,
+      "ocr_time": 3.140062093734741,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -128,8 +128,8 @@
       "image_name": "129",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\129.jpg",
       "text_regions_count": 1,
-      "detection_time": 0.46232032775878906,
-      "ocr_time": 1.1442842483520508,
+      "detection_time": 0.3301663398742676,
+      "ocr_time": 1.1420660018920898,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -140,8 +140,8 @@
       "image_name": "130",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\130.jpg",
       "text_regions_count": 11,
-      "detection_time": 0.42375659942626953,
-      "ocr_time": 6.04203724861145,
+      "detection_time": 0.40199708938598633,
+      "ocr_time": 6.070714473724365,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -152,8 +152,8 @@
       "image_name": "131",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\131.jpg",
       "text_regions_count": 11,
-      "detection_time": 0.5807738304138184,
-      "ocr_time": 5.6772918701171875,
+      "detection_time": 0.5737953186035156,
+      "ocr_time": 5.726858854293823,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -164,8 +164,8 @@
       "image_name": "132",
       "image_path": "C:/Users/Administrator/Documents/GitHub/zwx1410611/comic_text_detector/data/examples\\132.jpg",
       "text_regions_count": 10,
-      "detection_time": 0.4117746353149414,
-      "ocr_time": 5.409240007400513,
+      "detection_time": 0.606229305267334,
+      "ocr_time": 5.528302431106567,
       "has_ocr": true,
       "languages": [
         "ja"
@@ -177,8 +177,8 @@
     "total_regions": 124,
     "images_with_ocr": 14,
     "avg_regions_per_image": 8.857142857142858,
-    "total_detection_time": 8.369746923446655,
-    "total_ocr_time": 63.5422420501709,
+    "total_detection_time": 8.00616192817688,
+    "total_ocr_time": 63.60388779640198,
     "languages_detected": [
       "ja"
     ]
