@@ -196,7 +196,16 @@ class EventHandlers(QObject):
         # 自动生成项目名称和输出路径
         input_folder = Path(self.main_window.current_project_folder)
         project_name = f"{input_folder.name}_out"
-        output_dir = str(input_folder.parent)  # 输出到输入文件夹的父目录
+        output_dir = str(input_folder.parent)
+        
+        # 【新增】创建项目结果对象并提前创建结构
+        self.main_window.current_project_results = ProjectResults(project_name)
+        try:
+            self.main_window.current_project_results.create_project_structure(
+                output_dir, self.main_window.config.output_params)
+        except Exception as e:
+            QMessageBox.warning(self.main_window, "错误", f"创建项目结构失败：{e}")
+            return
         
         # 检查输出目录是否可写
         if not os.access(output_dir, os.W_OK):
@@ -251,6 +260,12 @@ class EventHandlers(QObject):
         self.main_window.image_viewer.set_result_image(results.result_image)
         self.main_window.image_viewer.set_detection_regions(results.text_regions)
         
+        # 【新增】如果在项目模式下，立即保存检测结果
+        if (self.main_window.current_project_folder and 
+            hasattr(self.main_window, 'current_project_results')):
+            self.main_window.current_project_results.update_image_detection_result(
+                results, self.main_window.config.output_params)
+        
         # 更新状态信息
         region_count = len(results.text_regions)
         detection_time = results.detection_time
@@ -287,6 +302,11 @@ class EventHandlers(QObject):
         # 更新显示（现在包含OCR文本）
         self.main_window.image_viewer.set_result_image(results.result_image)
         self.main_window.image_viewer.set_detection_regions(results.text_regions)
+        
+        # 【新增】如果在项目模式下，立即保存OCR结果
+        if (self.main_window.current_project_folder and 
+            hasattr(self.main_window, 'current_project_results')):
+            self.main_window.current_project_results.update_image_ocr_result(results)
         
         # 更新状态信息
         ocr_time = results.ocr_time

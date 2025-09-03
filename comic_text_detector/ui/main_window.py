@@ -14,6 +14,7 @@ except ImportError:
     raise ImportError("PyQt5未安装，请运行：pip install PyQt5")
 
 from core.detector import ComicTextDetector, DetectionResults
+from core.results import ProjectResults
 from ui.widgets.image_viewer import ImageViewer
 from ui.widgets.parameter_panel import ParameterPanel
 from ui.menu_manager import MenuManager
@@ -40,7 +41,8 @@ class ComicTextDetectorGUI(QMainWindow):
         self.current_project_folder: Optional[str] = None
         self.current_image_files: List[str] = []
         self.current_image_index: int = 0
-        
+        self.current_project_results: Optional[ProjectResults] = None
+
         # 工作线程（由事件处理器管理）
         self.detection_worker = None
         self.ocr_worker = None

@@ -261,18 +261,12 @@ class ComicTextDetector:
                             progress_callback=None) -> ProjectResults:
         """
         批量处理项目，返回项目结果对象
-        
-        Args:
-            image_files: 图片文件路径列表
-            project_name: 项目名称
-            output_dir: 输出目录
-            include_ocr: 是否包含OCR处理
-            progress_callback: 进度回调函数 (current, total, message) -> None
-            
-        Returns:
-            ProjectResults: 项目结果对象
         """
         project_results = ProjectResults(project_name)
+        
+        # 【新增】提前创建项目结构
+        project_results.create_project_structure(output_dir, self.config.output_params)
+        
         total_files = len(image_files)
         
         print(f"开始批量处理项目: {project_name} ({total_files} 个文件)")
@@ -287,11 +281,17 @@ class ComicTextDetector:
                 # 执行检测
                 results = self.detect_only(image_path)
                 
+                # 【新增】立即保存检测结果
+                project_results.update_image_detection_result(results, self.config.output_params)
+                
                 # 如果需要OCR，执行OCR
                 if include_ocr:
                     if progress_callback:
                         progress_callback(i, total_files, f"正在OCR: {file_name}")
                     results = self.run_ocr_on_results(results)
+                    
+                    # 【新增】立即保存OCR结果
+                    project_results.update_image_ocr_result(results)
                 
                 # 添加到项目结果
                 project_results.add_result(results)
@@ -306,12 +306,12 @@ class ComicTextDetector:
                 empty_result.ocr_time = 0.0
                 project_results.add_result(empty_result)
         
-        # 保存项目结果
-        output_project_dir = project_results.save_to_directory(output_dir, self.config.output_params)
+        # 【新增】完成项目处理
+        project_results.finalize_project()
         
         print(f"项目 '{project_name}' 批量处理完成！")
         return project_results
-    
+
     def _process_detection_results(self, blk_list: List[TextBlock], img_shape: Tuple) -> List[Dict]:
         """处理检测结果，转换为标准格式"""
         text_regions = []
