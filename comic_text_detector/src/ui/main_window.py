@@ -211,9 +211,6 @@ class ComicTextDetectorGUI(QMainWindow):
         # 创建菜单栏
         self.create_menu_bar()
         
-        # 创建工具栏
-        self.create_toolbar()
-        
         # 创建状态栏
         self.statusBar().showMessage("就绪")
     
@@ -413,27 +410,6 @@ class ComicTextDetectorGUI(QMainWindow):
             self.toggle_blocks_action.setText('隐藏文本块(&B)')
         else:
             self.toggle_blocks_action.setText('显示文本块(&B)')
-    
-    def create_toolbar(self):
-        """创建工具栏"""
-        toolbar = self.addToolBar('主工具栏')
-        
-        # 打开项目文件夹
-        open_action = QAction(QIcon(), '打开项目', self)
-        open_action.triggered.connect(self.open_project_folder)
-        toolbar.addAction(open_action)
-        
-        toolbar.addSeparator()
-    
-        # 批量处理
-        batch_action = QAction(QIcon(), '批量处理', self)
-        batch_action.triggered.connect(self.start_batch_processing)
-        toolbar.addAction(batch_action)
-        
-        # 保存
-        save_action = QAction(QIcon(), '保存', self)
-        save_action.triggered.connect(self.save_results)
-        toolbar.addAction(save_action)
 
     def toggle_detection_regions(self):
         """切换检测区域显示"""
