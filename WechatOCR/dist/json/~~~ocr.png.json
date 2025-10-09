@@ -1,0 +1,41 @@
+{
+  "taskId": 1,
+  "ocrResult": [
+    {
+      "text": "错误",
+      "location": {
+        "left": null,
+        "top": 0.43020833,
+        "right": 32.69583,
+        "bottom": 17.638542
+      },
+      "pos": {
+        "y": 0.43020833
+      }
+    },
+    {
+      "text": "加载仓库时发生错误: LibraryWidget.load library0 got an",
+      "location": {
+        "left": null,
+        "top": 31.58846,
+        "right": 397.57373,
+        "bottom": 51.19845
+      },
+      "pos": {
+        "y": 31.58846
+      }
+    },
+    {
+      "text": "unexpected keyword argument 'perform deletion'",
+      "location": {
+        "left": null,
+        "top": 54.20625,
+        "right": 367.82812,
+        "bottom": 69.69375
+      },
+      "pos": {
+        "y": 54.20625
+      }
+    }
+  ]
+}

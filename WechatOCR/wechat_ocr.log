@@ -1,0 +1,21 @@
+2025-06-16 20:28:13,161 - ERROR - 配置路径无效，请检查wechat_ocr_dir和wechat_dir
+2025-06-16 20:28:13,162 - ERROR - 程序发生异常
+Traceback (most recent call last):
+  File "d:\2\WechatOCR\main.py", line 68, in <module>
+    raise FileNotFoundError("WeChatOCR或微信路径无效")
+FileNotFoundError: WeChatOCR或微信路径无效
+2025-06-16 20:28:13,164 - INFO - 程序退出
+2025-06-16 20:31:22,477 - ERROR - 微信安装路径不存在: D:\WeChat\[3.9.12.45]
+2025-06-16 20:31:22,480 - CRITICAL - 程序发生严重错误: WeChatOCR或微信路径无效
+Traceback (most recent call last):
+  File "d:\2\WechatOCR\test.py", line 126, in main
+    raise FileNotFoundError("WeChatOCR或微信路径无效")
+FileNotFoundError: WeChatOCR或微信路径无效
+
+2025-06-16 20:31:22,480 - INFO - 程序退出
+2025-06-16 20:34:46,486 - INFO - OCR 服务已启动
+2025-06-16 20:34:46,487 - INFO - 检测到 Ctrl+C
+2025-06-16 20:34:46,487 - WARNING - 剪切板中不包含图片
+2025-06-16 20:34:54,715 - INFO - 检测到 Esc，准备退出
+2025-06-16 20:34:54,716 - INFO - OCR 服务已关闭
+2025-06-16 20:34:54,716 - INFO - 程序退出
