@@ -1,0 +1,365 @@
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mxfile host="km.sankuai.com" modified="2025-10-15T08:54:10.279Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" etag="bPPJu9WJ6Ksk17f0EYjQ" version="24.2.2" type="embed">
+
+  <diagram id="C5RBs43oDa-KdzZeNtuy" name="Page-1">
+
+    <mxGraphModel dx="1176" dy="1720" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" background="#ffffff" math="0" shadow="0">
+
+      <root>
+
+        <mxCell id="WIyWlLk6GJQsqaUBKTNV-0" />
+
+        <mxCell id="WIyWlLk6GJQsqaUBKTNV-1" parent="WIyWlLk6GJQsqaUBKTNV-0" />
+
+        <mxCell id="40" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="WIyWlLk6GJQsqaUBKTNV-3" target="36" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="WIyWlLk6GJQsqaUBKTNV-3" value="骑手提前点击送达" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="160" y="-78" width="120" height="40" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="WIyWlLk6GJQsqaUBKTNV-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;jettySize=auto;orthogonalLoop=1;fontSize=11;endArrow=block;endFill=0;endSize=8;strokeWidth=1;shadow=0;labelBackgroundColor=none;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="WIyWlLk6GJQsqaUBKTNV-6" target="WIyWlLk6GJQsqaUBKTNV-7" edge="1">
+
+          <mxGeometry y="10" relative="1" as="geometry">
+
+            <mxPoint as="offset" />
+
+          </mxGeometry>
+
+        </mxCell>
+
+        <mxCell id="38" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="WIyWlLk6GJQsqaUBKTNV-6" target="22" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="39" value="是" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="38" vertex="1" connectable="0">
+
+          <mxGeometry x="-0.0346" relative="1" as="geometry">
+
+            <mxPoint as="offset" />
+
+          </mxGeometry>
+
+        </mxCell>
+
+        <mxCell id="WIyWlLk6GJQsqaUBKTNV-6" value="判断是否收餐&lt;div&gt;（问商家、隐私号、问用户&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;【外呼用户-引导用户继续收餐&lt;/span&gt;&lt;/div&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;】&lt;/span&gt;）&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;shadow=0;fontFamily=Helvetica;fontSize=12;align=center;strokeWidth=1;spacing=6;spacingTop=-4;fillColor=#f8cecc;strokeColor=#b85450;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="127.5" y="160" width="185" height="110" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="WIyWlLk6GJQsqaUBKTNV-7" target="3" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="WIyWlLk6GJQsqaUBKTNV-7" target="2" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="WIyWlLk6GJQsqaUBKTNV-7" target="1" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="30" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="WIyWlLk6GJQsqaUBKTNV-7" target="24" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="31" value="联系不到骑手" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="30" vertex="1" connectable="0">
+
+          <mxGeometry x="0.0188" y="2" relative="1" as="geometry">
+
+            <mxPoint as="offset" />
+
+          </mxGeometry>
+
+        </mxCell>
+
+        <mxCell id="WIyWlLk6GJQsqaUBKTNV-7" value="联系骑手核实餐品情况&lt;div&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;【外呼骑手-核实是否送达餐品】&lt;/span&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="360" y="188.75" width="190" height="52.5" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="19" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" target="18" edge="1">
+
+          <mxGeometry relative="1" as="geometry">
+
+            <mxPoint x="220" y="378.75" as="sourcePoint" />
+
+          </mxGeometry>
+
+        </mxCell>
+
+        <mxCell id="21" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" target="20" edge="1">
+
+          <mxGeometry relative="1" as="geometry">
+
+            <mxPoint x="269.92857142857156" y="343.79999999999995" as="sourcePoint" />
+
+            <Array as="points">
+
+              <mxPoint x="270" y="330" />
+
+            </Array>
+
+          </mxGeometry>
+
+        </mxCell>
+
+        <mxCell id="0" value="否" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="310" y="218" width="40" height="30" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="1" target="16" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="1" value="餐品丢失（骑手承认丢了、被偷等）" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="590" y="317.5" width="190" height="52.5" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="2" target="5" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="2" value="餐在用户位置，但并未与共识&lt;div&gt;（未经用户同意放餐）&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="590" y="218" width="190" height="52.5" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="3" target="7" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="3" value="餐在骑手处（外呼时核实预计送达时间）" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="590" y="107.5" width="230" height="52.5" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="5" value="安抚用户取餐&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;【外呼用户-引导用户继续收餐&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;】&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;用户不取餐则协商退款（骑手责）；&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;如果用户不同意退款升级纠纷&lt;/span&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="827" y="217.5" width="223" height="52.5" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="6" value="愿意等待，回复商家" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="1070" y="60" width="140" height="40" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="7" target="6" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="7" target="8" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="7" value="核实用户是否要餐&lt;div&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;【外呼用户-引导用户继续收餐&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;】&lt;/span&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="840" y="107.5" width="190" height="52.5" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="8" value="不愿意等待，与商家/用户协商退款（骑手责）；如果用户不同意退款流转纠纷" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="1070" y="120" width="160" height="80" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="16" value="与用户/商家协商退款（骑手责），用户不认可可以升级纠纷&lt;div&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;【外呼用户-协商取消订单&lt;/span&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;】&lt;/span&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;【升级转接】&lt;/span&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="827" y="317.5" width="190" height="52.5" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="18" value="&lt;font color=&quot;#cc0000&quot;&gt;参考话术：1.非常抱歉给您添麻烦了，小袋联系用户已经收餐，这个是骑手的问题，后续平台会加强骑手的监管&lt;/font&gt;&lt;div&gt;&lt;font color=&quot;#cc0000&quot;&gt;2.给您和用户带来不好的体验了，小袋会记录骑手问题由平台监管，平台后续会持续关注，避免因骑手问题导致的问题。&lt;/font&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;align=left;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="80" y="390" width="280" height="111.25" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="20" value="如商家要求投诉骑手，则走投诉骑手流程" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;fillColor=#d5e8d4;strokeColor=#82b366;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="319" y="303.75" width="190" height="52.5" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="23" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="22" target="18" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="22" value="致歉商家" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="160" y="310" width="120" height="40" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="24" value="根据判责条件判责责任方" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="390" y="60" width="130" height="51.25" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="34" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="25" target="28" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="25" value="骑手责" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="328" y="-51" width="80" height="41" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="35" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="26" target="29" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="26" value="无法判责/用户责" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="524" y="-51" width="80" height="41" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="28" value="与用户/商家协商退款，用户不认可可以升级纠纷&lt;div&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;【外呼用户-协商取消订单&lt;/span&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;】【升级转接】&lt;/span&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="273.25" y="-170" width="187.5" height="60" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="29" value="不建议退款，&lt;font color=&quot;#ff3333&quot;&gt;参考话术：小袋联系骑手未接通，这个不是咱们商家问题您不要退款呢，如果用户二次申诉退款会有用户客服介入处理呢&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;glass=0;strokeWidth=1;shadow=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="471" y="-170" width="187.5" height="60" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="32" value="" style="endArrow=classic;html=1;rounded=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" edge="1">
+
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+
+            <mxPoint x="452.75" y="60" as="sourcePoint" />
+
+            <mxPoint x="382.75" y="-10" as="targetPoint" />
+
+            <Array as="points">
+
+              <mxPoint x="452.75" y="20" />
+
+              <mxPoint x="382.75" y="20" />
+
+            </Array>
+
+          </mxGeometry>
+
+        </mxCell>
+
+        <mxCell id="33" value="" style="endArrow=classic;html=1;rounded=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" edge="1">
+
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+
+            <mxPoint x="452.75" y="20" as="sourcePoint" />
+
+            <mxPoint x="542.75" y="-10" as="targetPoint" />
+
+            <Array as="points">
+
+              <mxPoint x="542.75" y="20" />
+
+            </Array>
+
+          </mxGeometry>
+
+        </mxCell>
+
+        <mxCell id="41" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="36" target="WIyWlLk6GJQsqaUBKTNV-6" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="42" value="非自配" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="41" vertex="1" connectable="0">
+
+          <mxGeometry x="-0.0769" y="-1" relative="1" as="geometry">
+
+            <mxPoint as="offset" />
+
+          </mxGeometry>
+
+        </mxCell>
+
+        <mxCell id="43" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="36" target="37" edge="1">
+
+          <mxGeometry relative="1" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="44" value="自配" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="43" vertex="1" connectable="0">
+
+          <mxGeometry x="-0.0452" y="-2" relative="1" as="geometry">
+
+            <mxPoint as="offset" />
+
+          </mxGeometry>
+
+        </mxCell>
+
+        <mxCell id="36" value="判断配送方式" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="180" y="10" width="80" height="80" as="geometry" />
+
+        </mxCell>
+
+        <mxCell id="37" value="属于商家自行配送的，建议自行联系配送人员核实处理" style="rounded=1;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+
+          <mxGeometry x="8.5" y="20" width="110" height="60" as="geometry" />
+
+        </mxCell>
+
+      </root>
+
+    </mxGraphModel>
+
+  </diagram>
+
+</mxfile>

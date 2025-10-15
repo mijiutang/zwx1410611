@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="km.sankuai.com" modified="2025-10-15T08:55:33.388Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" etag="jpyk1BxJR0y2tweqy7qX" version="24.2.2" type="embed">
+  <diagram id="2j8WuFKMbLh5Xt3pSfkd" name="第 1 页">
+    <mxGraphModel dx="1176" dy="1703" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="2" target="3" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2" value="商家要求投诉骑手/站长" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="50" y="220" width="130" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="3" target="4" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="是" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="9" vertex="1" connectable="0">
+          <mxGeometry x="-0.0359" y="-1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="3" target="6" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="12" value="否" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="11" vertex="1" connectable="0">
+          <mxGeometry x="-0.1137" y="2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="3" value="判断是否高危问题（肢体冲突/恐吓威胁/抢夺等等）" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="240" y="205" width="90" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="流转事件中心处理组" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="240" y="100" width="90" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="30" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="5" target="21" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="引导商家后台自行投诉<br><font color="#ff3333">参考话术：老板您好，咱们在商家后台可以自行投诉骑手呢，您点击意见反馈-<font style="font-size: 11px;"><span style="font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, &quot;PingFang SC&quot;, &quot;Heiti SC&quot;, &quot;Hiragino Sans GB&quot;, &quot;Microsoft YaHei&quot;, sans-serif; text-align: start; background-color: rgb(255, 255, 255);">我要投诉—骑手问题—选择对应的场景</span><span style="box-sizing: border-box; font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, &quot;PingFang SC&quot;, &quot;Heiti SC&quot;, &quot;Hiragino Sans GB&quot;, &quot;Microsoft YaHei&quot;, sans-serif; text-align: start; background-color: rgb(255, 255, 255);">提交或查看投诉结果，提交后</span><span style="box-sizing: border-box; font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, &quot;PingFang SC&quot;, &quot;Heiti SC&quot;, &quot;Hiragino Sans GB&quot;, &quot;Microsoft YaHei&quot;, sans-serif; text-align: start; background-color: rgb(255, 255, 255);"><span style="box-sizing: border-box;">审核时间为2个工作日</span><span style="box-sizing: border-box;">，您后台关注下结果呢</span></span></font></font>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="700" y="-60" width="230" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="判断配送类型" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="410" y="200" width="90" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="13" value="判断投诉问题类型" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="570" y="60" width="90" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="14" value="" style="endArrow=classic;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" target="13" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="454" y="199" as="sourcePoint" />
+            <mxPoint x="574" y="169" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="454" y="110" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="15" value="快送（混合快送）/专送（加盟）/跑腿" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="14" vertex="1" connectable="0">
+          <mxGeometry x="-0.4946" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="16" value="" style="endArrow=classic;html=1;rounded=0;" parent="1" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="615" y="62" as="sourcePoint" />
+            <mxPoint x="700" y="-10" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="615" y="-10" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="17" value="投诉态度问题" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="16" vertex="1" connectable="0">
+          <mxGeometry x="-0.5165" y="2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="19" value="认可结束-短信发送商家投诉路径 <font color="#ff3333">参考话术：小袋马上把投诉路径短信发给您，您注意查收呢，您放心，骑手问题平台也会加强监管呢</font>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1020" y="-132" width="250" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="21" value="不认可-话术解释安抚，仍引导后台投诉<br><font color="#ff3333">参考话术：a.<span style="background-color: initial;">老板，平台很重视您反馈的骑手服务问题，但是确实辛苦您在后台投诉下呢，端上提交的投诉系统会完整记录事件细节，确保信息准确性和后续处理依据；其次是端内投诉会直接触发对骑手的工单系统，平台处理时效快，也能第一时间推动骑手管理团队介入呢。</span></font><div><font color="#ff3333">b.老板，确实辛苦您在后台提交下了呢，完整的投诉记录是平台对骑手服务质量考核和改进的重要依据，需要商家侧发起才能形成闭环解决，所以需要您自行在端上完成投诉，感谢您的理解。</font></div>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1010" y="20" width="290" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="36" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="850" y="260" as="sourcePoint" />
+            <mxPoint x="924" y="320" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="880" y="260" />
+              <mxPoint x="880" y="320" />
+              <mxPoint x="915" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="62" value="商家不认可" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="36" vertex="1" connectable="0">
+          <mxGeometry x="-0.1524" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="22" value="安抚商家<br><font color="#ff3333">参考话术：非常抱歉给您带来不便，小袋协助记录骑手问题会对骑手督导改进，并且会对骑手进行绩效扣款惩罚，为了避免此类问题再次发生，我们也会对骑手加大监控力度，提升服务质量，也希望您持续监督，感谢您的支持和理解。</font>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="650" y="210" width="200" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="23" value="认可结束" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="920" y="180" width="90" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="42" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="25" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="930" y="320" as="sourcePoint" />
+            <mxPoint x="1110" y="393" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1050" y="320" />
+              <mxPoint x="1050" y="393" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="63" value="快送/混合快送" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="42" vertex="1" connectable="0">
+          <mxGeometry x="-0.1354" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="50" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="26" target="28" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="26" value="联系站长（非我司）处理，投诉站长联系站长上级协助处理<br><p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="fa9e538197994940afaa682eb499d72f" data-diff-id="ct-diff-id-e7b37c89-44c1-40dd-8a33-9d06c3f3bdb5" style="min-height: 24px;margin: 8px 0;"><span style="background-color: rgb(151, 208, 119);">【外呼站长-协助处理投诉问题】</span></p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1117" y="207.5" width="180" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="51" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="27" target="29" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="27" value="联系站长（我司)处理，投诉站长联系站长上级协助处理<br><span style="background-color: rgb(151, 208, 119);">【外呼站长-协助处理投诉问题】</span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1114" y="345" width="183" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="28" value="跟进结果回复商家" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1350" y="223.75" width="100" height="62.5" as="geometry" />
+        </mxCell>
+        <mxCell id="29" value="跟进结果回复商家" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1350" y="360" width="100" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="31" value="" style="endArrow=classic;html=1;rounded=0;entryX=-0.001;entryY=0.414;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" target="19" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="970" y="-10" as="sourcePoint" />
+            <mxPoint x="1010" y="-110" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="970" y="-90" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="34" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="13" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="610" y="190" as="sourcePoint" />
+            <mxPoint x="650" y="260" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="615" y="260" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="35" value="投诉非态度问题" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="34" vertex="1" connectable="0">
+          <mxGeometry x="-0.4834" y="-1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="37" value="" style="endArrow=classic;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="880" y="260" as="sourcePoint" />
+            <mxPoint x="918" y="210" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="880" y="210" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="40" value="认可" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="37" vertex="1" connectable="0">
+          <mxGeometry x="-0.4498" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="43" value="" style="endArrow=classic;html=1;rounded=0;entryX=0;entryY=0.474;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1050.5" y="320" as="sourcePoint" />
+            <mxPoint x="1112" y="250.02999999999997" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1051" y="250" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="56" value="专送（加盟）" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="43" vertex="1" connectable="0">
+          <mxGeometry x="-0.5169" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="55" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="52" target="53" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="52" value="联系代理侧负责人（BD/站长）协助处理，投诉站长联系CM，约定时间回复商家<div><span style="background-color: rgb(151, 208, 119);">【外呼站长-协助处理投诉问题】</span></div>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="525" y="369" width="185" height="67" as="geometry" />
+        </mxCell>
+        <mxCell id="53" value="追溯结果后同步商家" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="772" y="369" width="101" height="67" as="geometry" />
+        </mxCell>
+        <mxCell id="54" value="" style="endArrow=classic;html=1;rounded=0;" parent="1" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="454" y="300" as="sourcePoint" />
+            <mxPoint x="522" y="405" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="454" y="405" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="64" value="代理" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="54" vertex="1" connectable="0">
+          <mxGeometry x="-0.4591" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="25" value="判断配送方式" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="930" y="280" width="80" height="80" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

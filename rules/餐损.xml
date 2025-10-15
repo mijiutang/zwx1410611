@@ -1,0 +1,1077 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="km.sankuai.com" modified="2025-10-15T09:12:06.892Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" etag="I14GwtKfm4uAuwN-03c_" version="24.2.2" type="embed">
+  <diagram id="AvsVtyZBenRUFLKOZO4-" name="第 1 页">
+    <mxGraphModel dx="1176" dy="551" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="2" target="3" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2" value="餐损" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="20" y="1370" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="3" target="5" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="216" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="3" target="215" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="230" y="3213" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="3" value="判断订单状态" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="190" y="1360" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="5" target="6" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="订单已取消" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="320" y="1385" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="210" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="6" target="60" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="211" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="6" target="88" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="212" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="6" target="118" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="630" y="1400" />
+              <mxPoint x="630" y="2210" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="213" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" target="202" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="510" y="1400" as="sourcePoint" />
+            <mxPoint x="630" y="2910" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="510" y="1401" />
+              <mxPoint x="630" y="1401" />
+              <mxPoint x="630" y="2910" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="214" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="6" target="204" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="630" y="1400" />
+              <mxPoint x="630" y="3000" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="6" value="判断配送方式" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="480" y="1360" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="18" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="11" target="17" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="11" value="餐损状态：待定责" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="240" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="32" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="12" target="28" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="12" value="餐损状态：骑手责任直赔" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="310" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="33" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="14" target="28" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="14" value="餐损状态：美团责任直赔" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="370" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="35" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="15" target="34" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="15" value="餐损状态：<span data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null,&quot;paragraph&quot;,null]"><span style="" data-node-id="e0125f7b143741ffa36fec1dde1dcbd6" data-color="#00BA73" data-pattern="fill" class="ct-status"><b></b>美团责任完成率</span></span><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="450" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="237" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="16" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1640" y="1330" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1500" y="518" />
+              <mxPoint x="1500" y="1330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="16" value="餐损状态：<span data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null,&quot;paragraph&quot;,null]"><span style="" data-node-id="688af66a29484dcb9bf5b82037ab7912" data-color="#00BA73" data-pattern="fill" class="ct-status"><b></b>用户责任不可申诉</span></span><span></span>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="970" y="500" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="17" target="20" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="23" value="否" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="21" vertex="1" connectable="0">
+          <mxGeometry x="0.1198" y="-3" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="258" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="17" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="257.5" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="259" value="是" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="258" vertex="1" connectable="0">
+          <mxGeometry x="0.3974" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="17" value="取消时间是否超过48h" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="1120" y="240" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="20" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="eb470eaa4729435d8387e0d609c1db0d" data-diff-id="ct-diff-id-0906f6c6-e875-4ebe-a57f-6aaf25cc7553" style="min-height: 24px;margin: 8px 0;">餐损审核中等待</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1290" y="205" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="28" value="餐损自动赔付" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="1170" y="350" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="40" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="34" target="39" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="41" value="是" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="40" vertex="1" connectable="0">
+          <mxGeometry x="0.3961" y="-1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="42" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="34" target="38" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="43" value="否" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="42" vertex="1" connectable="0">
+          <mxGeometry x="0.3616" y="-3" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="34" value="当前日期是否早于下单日的次周四" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1121" y="447.5" width="120" height="37.5" as="geometry" />
+        </mxCell>
+        <mxCell id="64" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="36" target="63" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="65" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="36" target="62" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="36" value="判断首次判责方" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1140" y="697.5" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="37" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="3b57939116d0492c8827b324a3d08dd5" data-diff-id="ct-diff-id-e3095253-e02e-4bdb-ad36-514a7cd12834" style="min-height: 24px;margin: 8px 0;">告知商家端上申诉</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1140" y="597.5" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="38" value="告知以完成率结果为准" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1280" y="480" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="39" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="a74a1d4595784811a5200d05adb38c17" data-diff-id="ct-diff-id-1687db8a-3be0-4383-b7f8-7fba333321b5" style="min-height: 24px;margin: 8px 0;">告知等待完成率结果</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1280" y="420" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="54" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="44" target="36" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="44" value="餐损状态：申诉超时" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="700" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="239" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="45" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="567" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="45" value="餐损状态：商家责任不可申诉" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="970" y="549.5" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="48" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="46" target="37" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="46" value="餐损状态：商家责任可申诉" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="600" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="50" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="47" target="49" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="47" value="餐损状态：骑手责任可申诉" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="650" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="49" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="3b57939116d0492c8827b324a3d08dd5" data-diff-id="ct-diff-id-e3095253-e02e-4bdb-ad36-514a7cd12834" style="min-height: 24px;margin: 8px 0;"><span style="background-color: initial;">餐损定责骑手-等待骑手申诉结果</span><span></span></p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1140" y="647.5" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="241" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="51" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="867.5" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="51" value="餐损状态：二次申诉商家责任" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="970" y="850" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="66" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="52" target="61" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="52" value="餐损状态：二次申诉审核中" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="750" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="240" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="53" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="817.5" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="53" value="餐损状态：二次申诉用户责任" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="970" y="800" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="242" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="56" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="930" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="56" value="无餐损标签+取消时间超过48h" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="970" y="910" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="57" value="安抚天气问题" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1120" y="90" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="236" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="58" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1640" y="1330" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1500" y="190" />
+              <mxPoint x="1500" y="1330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="58" value="餐损赔付记录：定责原因=未知" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="970" y="160" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="68" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="59" target="57" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="59" value="餐损赔付记录：定责原因=天气" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="80" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="69" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="60" target="59" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="110" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="70" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="60" target="58" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="190" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="71" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="60" target="11" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="258" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="72" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="60" target="12" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="330" />
+              <mxPoint x="970" y="330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="76" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.514;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="60" target="15" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="468" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="77" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="60" target="16" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="518" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="78" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" parent="1" source="60" target="45" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="576" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="79" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" parent="1" source="60" target="46" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="626" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="80" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="60" target="47" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="668" />
+              <mxPoint x="980" y="668" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="81" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="60" target="44" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="720" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="82" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="60" target="52" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="768" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="83" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="60" target="53" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="818" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="84" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" target="51" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="740" y="355" as="sourcePoint" />
+            <mxPoint x="893" y="1057.5" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="740" y="356" />
+              <mxPoint x="890" y="356" />
+              <mxPoint x="890" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="87" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="60" target="14" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="890" y="355" />
+              <mxPoint x="890" y="390" />
+              <mxPoint x="970" y="390" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="60" value="配送服务2.0" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="707" y="325" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="61" value="餐损审核申诉中等待" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1140" y="747.5" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="62" value="骑手责：餐损自动赔付" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="1300" y="720" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="328" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="63" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="680" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="63" value="商家责" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="1300" y="660" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="124" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="88" target="56" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="125" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="88" target="96" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="126" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="88" target="94" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="127" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="88" target="93" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="128" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="88" target="92" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="129" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="88" target="91" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="130" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="88" target="104" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="131" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="88" target="89" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="132" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="88" target="90" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="133" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="88" target="120" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="134" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="88" target="122" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="88" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="a50b7a744c7e4f62a12890e23e371973" data-diff-id="ct-diff-id-5c34d09f-5d0c-496a-8598-2a1374bf5ddd" style="min-height: 24px;margin: 8px 0;">跑腿and企客</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="707" y="1080" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="247" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="89" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="1350" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="89" value="餐损状态：二审驳回/定责完成不可申诉/申诉驳回" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="970" y="1330" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="108" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="90" target="107" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="90" value="餐损状态：申诉通过" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="1390" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="243" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="91" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="1230" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="91" value="餐损状态：一审驳回不可申诉/超时未申诉/定责完成不可申诉" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="970" y="1210" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="103" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="92" target="102" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="92" value="餐损状态：一审驳回可申诉" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="1150" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="101" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="93" target="100" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="93" value="餐损状态：一审通过" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="1090" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="98" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="94" target="97" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="94" value="餐损状态：待审核/定责中/已申请待处理" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="1030" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="95" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="a002f9bb11804f92bef4123505d8f811" data-diff-id="ct-diff-id-92853ffb-d91f-47b9-beba-b10ca55a01e9" style="min-height: 24px;margin: 8px 0;">自行申请餐损</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1150" y="970" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="99" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="96" target="95" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="96" value="餐损状态：已取消可发起餐损申请" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="970" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="97" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="eb470eaa4729435d8387e0d609c1db0d" data-diff-id="ct-diff-id-0906f6c6-e875-4ebe-a57f-6aaf25cc7553" style="min-height: 24px;margin: 8px 0;">餐损审核中等待</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1150" y="1032.5" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="100" value="餐损自动赔付" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="1150" y="1092.5" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="102" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="3b57939116d0492c8827b324a3d08dd5" data-diff-id="ct-diff-id-e3095253-e02e-4bdb-ad36-514a7cd12834" style="min-height: 24px;margin: 8px 0;">告知商家端上申诉</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1150" y="1150" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="106" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="104" target="105" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="104" value="餐损状态：申诉待审核" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="1270" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="105" value="餐损审核申诉中等待" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1150" y="1270" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="107" value="餐损自动赔付" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="1150" y="1392.5" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="109" value="无法申请餐损" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2300" y="981.25" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="262" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="110" target="261" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="110" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="bafd92d7def949b68e3d31769d2b246d" data-diff-id="ct-diff-id-2e628e53-7bb3-4dd3-8739-12798731fe84" style="min-height: 24px;margin: 8px 0;">[系统因子]商家取消</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1850" y="1240" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="260" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="111" target="109" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="111" value="<table data-pm-slice="2 2 [&quot;table&quot;,null,&quot;table_row&quot;,null]"><tbody><tr><td style="border: 1px #ddd solid;padding: 1px 8px;" data-node-id="6a7cb5fce9384ba1a79e3210664772d1" data-cell-diff-id="ct-cell-diff-id-8b530810-c180-4157-80e3-04698942ba20" width="671" data-colwidth="671"><p data-node-id="7844d8762b5647ebacec01a729c1e305" data-diff-id="ct-diff-id-57506317-6a91-43a8-ae94-5e98972c64f4" style="min-height: 24px;margin: 8px 0;">[系统因子]系统取消 and [系统因子]商家超时未处理自动同意</p><p data-node-id="2aa9c8d318ed414d9cf59ff6b99e4c38" data-diff-id="ct-diff-id-121f156c-b298-4bb9-925d-17d9d985db57" style="min-height: 24px;margin: 8px 0;">or</p><p data-node-id="f1328d70301a428caedb24eb3d63f9ca" data-diff-id="ct-diff-id-68115255-e78f-4dc5-8b97-de95b7ca50b9" style="min-height: 24px;margin: 8px 0;">[系统因子]系统取消 and [系统因子]用户在商家备餐前取消预订单，系统自动通过申请</p><p data-node-id="d6611553b144433dbab3beeb3f29a35f" data-diff-id="ct-diff-id-9c48e6f7-b763-4849-b986-a1bf22e3ae01" style="min-height: 24px;margin: 8px 0;">or</p><p data-node-id="ce590eb56e7c479f938f20137d9cb37c" data-diff-id="ct-diff-id-f121eee0-ffbc-4616-a5a2-a79a5fea3d58" style="min-height: 24px;margin: 8px 0;">[系统因子]系统取消and[系统因子]商家开通极速退款服务，用户申请系统自动通过</p></td></tr></tbody></table><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1850" y="920" width="360" height="182.5" as="geometry" />
+        </mxCell>
+        <mxCell id="114" value="无法申请餐损" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1170" y="2427.5" width="120" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="183" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="116" target="117" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="116" value="无餐损标签+取消操作方为客服+取消责任方=骑手or美团外卖责任" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="2250" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="117" value="餐损手动赔付" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="2260" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="170" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="149" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="171" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="146" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="172" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="144" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="173" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="142" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="174" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="140" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="177" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" parent="1" source="118" target="165" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="178" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="154" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="179" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="137" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="180" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="139" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="181" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="169" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="190" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="116" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="191" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="182" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="192" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="186" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="193" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="188" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="198" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="164" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="199" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="194" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="200" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="163" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="201" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="118" target="162" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="118" value="城市代理" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="670" y="2180" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="119" value="安抚天气问题" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1150" y="1460" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="123" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="120" target="119" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="120" value="餐损赔付记录：定责原因=天气" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="970" y="1460" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="248" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="122" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="1540" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="122" value="餐损赔付记录：定责原因=未知" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="970" y="1520" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="250" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="137" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="2030" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="137" value="餐损状态：二审驳回" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="980" y="2010" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="138" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="139" target="156" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="139" value="餐损状态：申诉通过" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="2070" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="249" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="140" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="1850" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="140" value="餐损状态：一审驳回不可申诉+责任方不为天气" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="980" y="1830" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="141" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="142" target="152" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="142" value="餐损状态：一审驳回可申诉" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="1770" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="143" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="144" target="151" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="144" value="餐损状态：一审通过" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="1710" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="145" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="146" target="150" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="146" value="餐损状态：待审核" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="1650" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="147" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="a002f9bb11804f92bef4123505d8f811" data-diff-id="ct-diff-id-92853ffb-d91f-47b9-beba-b10ca55a01e9" style="min-height: 24px;margin: 8px 0;">自行申请餐损</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="1590" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="148" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="149" target="147" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="149" value="餐损状态：已取消可发起餐损申请" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="1590" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="150" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="eb470eaa4729435d8387e0d609c1db0d" data-diff-id="ct-diff-id-0906f6c6-e875-4ebe-a57f-6aaf25cc7553" style="min-height: 24px;margin: 8px 0;">餐损审核中等待</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="1652.5" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="151" value="餐损自动赔付" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="1712.5" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="152" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="3b57939116d0492c8827b324a3d08dd5" data-diff-id="ct-diff-id-e3095253-e02e-4bdb-ad36-514a7cd12834" style="min-height: 24px;margin: 8px 0;">告知商家端上申诉</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="1770" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="153" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="154" target="155" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="154" value="餐损状态：申诉待审核" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="1950" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="155" value="餐损审核申诉中等待" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="1950" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="156" value="餐损自动赔付" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="2072.5" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="270" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="157" target="269" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="157" value="履约场景" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2210" y="1290" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="266" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="158" target="265" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="158" value="售后场景（撒漏、餐凉、口味不佳、餐生不熟、少送、错送、图文不符、未按备注制作、异物、有异味/不新鲜、变质/发霉等食品安全）" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2200" y="1170" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="160" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="d72e09fd43b4440a9c0b5bced2b00d63" data-diff-id="ct-diff-id-6b19d056-ada9-4180-a704-27ac53af98ac" style="min-height: 24px;margin: 8px 0;">建议商家联系站长/BD<br>（<span style="background-color: initial;">校园专送只能联系站长，不能联系BD</span><span style="background-color: initial;">）</span></p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1150" y="3050" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="161" value="引导联系站长/BD" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1140" y="2820" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="197" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="162" target="161" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="162" value="非以上情况" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="2820" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="196" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="163" target="195" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="163" value="无餐损标签+取消操作方为系统+退款原因为长时间无人接单自动取消" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="2740" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="254" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="164" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="2620" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="164" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="b944a57d8cbb479a8c71d66eb6153394" data-diff-id="ct-diff-id-328f566a-c983-4f9b-9fe9-700ada73f314" style="min-height: 24px;margin: 8px 0;"><span data-quote-id="2714762857--5513c6c8-861e-441f-98b5-5dd3a80c51d8" class="inline-quote">无餐损标签+客服超72h未及时处理用户退款导致订单自动退款</span></p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="980" y="2590" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="176" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="165" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1160" y="1910" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="165" value="餐损状态：一审驳回不可申诉+责任方为天气" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="1890" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="251" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="169" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="2150" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="169" value="餐损赔付记录：定责原因=未知" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="980" y="2130" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="185" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="182" target="184" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="182" value="无餐损标签+取消操作方为客服+取消责任方=<span style="background-color: initial;">代理商责任or代理骑手责任or平台责任</span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="2330" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="184" value="餐损自动赔付" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+          <mxGeometry x="1170" y="2347.5" width="120" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="187" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="186" target="114" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="186" value="无餐损标签+取消操作方为客服+取消责任方=--" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="2420" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="253" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="188" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="2535" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="188" value="无餐损标签+取消操作方为客服+取消责任方<font color="#cc0000">不为</font><span style="background-color: initial;">代理商责任or代理骑手责任or美团外卖责任or--</span>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="980" y="2500" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="255" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="194" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="2695" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="194" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="b944a57d8cbb479a8c71d66eb6153394" data-diff-id="ct-diff-id-328f566a-c983-4f9b-9fe9-700ada73f314" style="min-height: 24px;margin: 8px 0;"><span style="background-color: initial;">无餐损标签+</span><span style="background-color: initial;">超预计送达30min导致订单退款</span><span></span></p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="980" y="2670" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="195" value="餐损手动赔付" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="2750" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="333" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="202" target="332" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="202" value="商家自配" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" parent="1" vertex="1">
+          <mxGeometry x="680" y="2880" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="206" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="204" target="205" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="218" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="204" target="209" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="204" value="聚和配送" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="680" y="2970" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="208" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="205" target="207" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="205" value="取消操作方“=<span></span><span style="background-color: initial;">AIDA or TASK AC or人工客服<br></span><div><span style="background-color: initial;">取消责任方=平台</span></div>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="2970" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="207" value="餐损手动赔付" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="2980" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="219" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="209" target="160" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="209" value="非以上情况" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="980" y="3050" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="222" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="215" target="221" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="224" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="215" target="223" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="230" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="215" target="227" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="232" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="215" target="231" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="215" value="订单部分退款or未退款但商家重复出餐" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="330" y="3190" width="120" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="256" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="217" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1500" y="3165" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="217" value="配送服务2.0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="640" y="3140" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="220" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=-0.012;entryY=0.392;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="215" target="217" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="246" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="221" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1640" y="1330" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1500" y="3240" />
+              <mxPoint x="1500" y="1330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="221" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="3e473f6b8f2849f9a6ac55a7dbe15f48" data-diff-id="ct-diff-id-16329fdd-35b6-4e70-894e-52dd6b48d242" style="min-height: 24px;margin: 8px 0;">跑腿and企客</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+          <mxGeometry x="640" y="3220" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="225" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="223" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="827" y="3320" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="223" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="3e473f6b8f2849f9a6ac55a7dbe15f48" data-diff-id="ct-diff-id-16329fdd-35b6-4e70-894e-52dd6b48d242" style="min-height: 24px;margin: 8px 0;"><span style="background-color: initial;">城市代理</span><span></span></p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="640" y="3300" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="229" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="227" target="228" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="227" value="商家自配" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" parent="1" vertex="1">
+          <mxGeometry x="640" y="3370" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="228" value="未挂载，维持原状" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" parent="1" vertex="1">
+          <mxGeometry x="827" y="3370" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="235" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="231" target="234" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="231" value="聚和配送" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="640" y="3430" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="234" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="d72e09fd43b4440a9c0b5bced2b00d63" data-diff-id="ct-diff-id-6b19d056-ada9-4180-a704-27ac53af98ac" style="min-height: 24px;margin: 8px 0;">建议商家联系站长/BD<br>（<span style="background-color: initial;">校园专送只能联系站长，不能联系BD</span><span style="background-color: initial;">）</span></p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="827" y="3420" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="284" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="257" target="110" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1820" y="1330" />
+              <mxPoint x="1820" y="1270" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="302" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="257" target="289" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1820" y="1330" />
+              <mxPoint x="1820" y="1690" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="305" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="257" target="287" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1820" y="1330" />
+              <mxPoint x="1820" y="1940" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="317" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="257" target="286" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1820" y="1330" />
+              <mxPoint x="1820" y="2111" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="257" value="取消方判断" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="1640" y="1275" width="140" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="263" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="261" target="158" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2160" y="1270" />
+              <mxPoint x="2160" y="1210" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="264" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="261" target="157" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2160" y="1270" />
+              <mxPoint x="2160" y="1320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="261" value="判断售后场景or履约场景" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="2030" y="1230" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="265" value="无法申请餐损" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2481" y="1180" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="267" value="若商家不认可，可升级纠纷" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2660" y="1402.5" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="272" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="268" target="271" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="268" value="<table data-pm-slice="2 2 [&quot;table&quot;,null,&quot;table_row&quot;,null]"><tbody><tr><td style="border: 1px #ddd solid;padding: 1px 8px;" data-node-id="b9c9f989a5394cb38d40511fa1f2c0ff" data-cell-diff-id="ct-cell-diff-id-b2ab4c8d-9e15-4e94-ae82-bae20c334577" width="671" data-colwidth="671"><p data-node-id="15b1fddad82b4dcc9ad06cc17fe18322" data-diff-id="ct-diff-id-63b0b3fe-1eb9-463f-9a07-f9f4eaa3ca87" style="min-height: 24px;margin: 8px 0;">[系统因子]客服取消（人工、智能、大模型）=商家责任</p><p data-node-id="3467c96c2de643ddb254b9dc9bc7a4d4" data-diff-id="ct-diff-id-ee925396-adbd-4a4f-8ebc-8ee8376ae8fd" style="min-height: 24px;margin: 8px 0;">and 非拼好饭</p></td></tr></tbody></table><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1850" y="1445" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="269" value="判责：<br><p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="a3a23be485614ac6a85487ddf974a7a6" data-diff-id="ct-diff-id-79bbd274-0872-41c7-aac0-7c1eb07fd876" style="min-height: 24px;margin: 8px 0;">1.商家：无法申请餐损<br>2.用户：无法申请餐损<br>3.其他:餐损手动赔付</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+          <mxGeometry x="2380" y="1275" width="190" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="274" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="271" target="273" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="279" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="271" target="278" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="271" value="判断售后场景or履约场景" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="2110" y="1440" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="276" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="273" target="275" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="273" value="售后场景（撒漏、餐凉、口味不佳、餐生不熟、少送、错送、图文不符、未按备注制作、异物、有异味/不新鲜、变质/发霉等食品安全）" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2230" y="1392.5" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="277" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="275" target="267" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="275" value="无法申请餐损" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2491" y="1402.5" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="281" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="278" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="2411" y="1560" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="278" value="履约场景" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2240" y="1530" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="283" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.001;entryY=0.362;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="257" target="111" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1820" y="1330" />
+              <mxPoint x="1820" y="986" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="285" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.003;entryY=0.643;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="257" target="268" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1820" y="1330" />
+              <mxPoint x="1820" y="1490" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="319" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="286" target="318" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="286" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="14f0389fdbf14a5797371344f0f0c9d6" data-diff-id="ct-diff-id-e6aae632-c589-454d-a58d-989c4b4605e5" style="min-height: 24px;margin: 8px 0;">[系统因子]系统取消 and [系统因子]取消原因（1-一里面的三个信号）</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1880" y="2072.5" width="200" height="77.5" as="geometry" />
+        </mxCell>
+        <mxCell id="308" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="287" target="307" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="287" value="<p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="944f3afe2dbc472a97b5e12b6b124b82" data-diff-id="ct-diff-id-27e837ff-30cc-4367-803c-6c5f284fb99a" style="min-height: 24px;margin: 8px 0;">[系统因子]客服取消（人工、智能、大模型）=非商家责任</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1860" y="1910" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="288" value="判责：<div><p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="81d6236a85964e049b948ceaa6e486d9" data-diff-id="40da47f5-8aac-4a71-b48c-3b7023cc4b01" style="min-height: 24px;margin: 8px 0;">1.商家：无法申请餐损<br>2.非商家责: 餐损手动赔付</p><span></span></div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+          <mxGeometry x="2520" y="1660" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="291" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="289" target="290" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="289" value="<table data-pm-slice="2 2 [&quot;table&quot;,null,&quot;table_row&quot;,null]"><tbody><tr><td style="border: 1px #ddd solid;padding: 1px 8px;" data-node-id="2715b395886f4d12a9a2b0fe3e210af6" data-cell-diff-id="ct-cell-diff-id-49dbbec0-4445-4302-a9f8-570ad274fb12" width="671" data-colwidth="671"><p data-node-id="ee592f2f892a40e3b96824770bac8ae8" data-diff-id="ct-diff-id-65c6c456-dd18-46a9-903b-92679506fbb0" style="min-height: 24px;margin: 8px 0;">[系统因子]客服取消（人工、智能、大模型）=商家责任</p><p data-node-id="c1aefed3daa848f08d58ccd945c02208" data-diff-id="ct-diff-id-dfa80b78-9ec4-43bd-9e14-4e87e54b06ca" style="min-height: 24px;margin: 8px 0;">and 拼好饭</p></td></tr></tbody></table><span></span>" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="1850" y="1650" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="294" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="290" target="292" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="295" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="290" target="293" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="290" value="判断售后场景or履约场景" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="2120" y="1650" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="296" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="292" target="288" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="292" value="售后场景（撒漏、餐凉、口味不佳、餐生不熟、少送、错送、图文不符、未按备注制作、异物、有异味/不新鲜、变质/发霉等食品安全）" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2240" y="1650" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="300" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="293" target="299" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="293" value="履约场景" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2240" y="1770" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="299" value="判责：<br><p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="a3a23be485614ac6a85487ddf974a7a6" data-diff-id="ct-diff-id-79bbd274-0872-41c7-aac0-7c1eb07fd876" style="min-height: 24px;margin: 8px 0;">1.商家：无法申请餐损<br>2.用户：餐损手动赔付<br>3.非商非用户:餐损手动赔付</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+          <mxGeometry x="2421" y="1755" width="190" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="331" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="301" target="330" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="301" value="判责：<br><p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="a3a23be485614ac6a85487ddf974a7a6" data-diff-id="ct-diff-id-79bbd274-0872-41c7-aac0-7c1eb07fd876" style="min-height: 24px;margin: 8px 0;">1.商家：无法申请餐损<br>2.用户：餐损手动赔付<br>3.非商非用户:餐损手动赔付</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+          <mxGeometry x="2411" y="1515" width="190" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="310" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="307" target="309" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="312" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="307" target="311" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="307" value="判断售后场景or履约场景" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="2130" y="1900" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="314" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="309" target="313" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="309" value="售后场景（撒漏、餐凉、口味不佳、餐生不熟、少送、错送、图文不符、未按备注制作、异物、有异味/不新鲜、变质/发霉等食品安全）" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2250" y="1860" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="316" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="311" target="315" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="311" value="履约场景" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2260" y="1980" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="313" value="判责：<div><p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="81d6236a85964e049b948ceaa6e486d9" data-diff-id="40da47f5-8aac-4a71-b48c-3b7023cc4b01" style="min-height: 24px;margin: 8px 0;">1.商家：无法申请餐损<br>2.非商家责: 餐损手动赔付</p><span></span></div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+          <mxGeometry x="2520" y="1870" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="315" value="判责：<br><p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="a3a23be485614ac6a85487ddf974a7a6" data-diff-id="ct-diff-id-79bbd274-0872-41c7-aac0-7c1eb07fd876" style="min-height: 24px;margin: 8px 0;">1.商家：无法申请餐损<br>2.用户：餐损手动赔付<br>3.非商非用户:餐损手动赔付</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+          <mxGeometry x="2470" y="1965" width="190" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="321" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="318" target="320" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="325" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="318" target="324" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="318" value="判断售后场景or履约场景" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="2140" y="2072.5" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="323" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="320" target="322" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="320" value="售后场景（撒漏、餐凉、口味不佳、餐生不熟、少送、错送、图文不符、未按备注制作、异物、有异味/不新鲜、变质/发霉等食品安全）" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2261" y="2072.5" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="322" value="无法申请餐损" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2530" y="2082.5" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="327" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="324" target="326" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="324" value="履约场景" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2261" y="2190" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="326" value="判责：<br><p data-pm-slice="1 1 [&quot;table&quot;,null,&quot;table_row&quot;,null,&quot;table_cell&quot;,null]" data-node-id="a3a23be485614ac6a85487ddf974a7a6" data-diff-id="ct-diff-id-79bbd274-0872-41c7-aac0-7c1eb07fd876" style="min-height: 24px;margin: 8px 0;">1.商家：无法申请餐损<br>2.用户：餐损手动赔付<br>3.非商非用户:餐损手动赔付</p><span></span>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+          <mxGeometry x="2446" y="2175" width="190" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="329" value="餐损手动赔付" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+          <mxGeometry x="1160" y="1890" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="330" value="若商家不认可，可升级纠纷" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="2640" y="1530" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="332" value="未挂载，维持原状" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" parent="1" vertex="1">
+          <mxGeometry x="960" y="2880" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="334" value="引导联系站长/BD" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="827" y="3300" width="120" height="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
