@@ -25,7 +25,7 @@ class FileBrowserDock(QDockWidget):
     def _init_ui(self):
         self.model = QFileSystemModel()
         self.model.setRootPath(self.target_directory)
-        self.model.setNameFilters(["*.json", "*.txt"])
+        self.model.setNameFilters(["*.json"]) # 只显示json文件
         self.model.setNameFilterDisables(False) # Enable filtering
 
         self.proxy_model = ResultJsonFilterProxyModel(self)

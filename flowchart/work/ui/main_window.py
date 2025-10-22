@@ -7,11 +7,13 @@ from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 from ui.filter_dialog import FilterDialog
 from ui.crawler_dialog import CrawlerDialog
 from core.crawler import get_signal_data, parse_signal_content
-from core.爬虫脚本 import open_chrome_browser, SignalExtractor
+from core.crawler_info import open_chrome_browser, SignalExtractor
 from ui.dock.file_browser_dock import FileBrowserDock
 from ui.key_value_editor_widget import KeyValueEditorWidget
 
-CACHE_DIR = "C:\\Users\\Administrator\\Desktop\\flowchart\\.cache"
+# 使用相对路径设置缓存目录，避免权限问题
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CACHE_DIR = os.path.join(BASE_DIR, ".cache")
 KEYS_CACHE_FILE = os.path.join(CACHE_DIR, "keys.json")
 # FILE_SAVE_DIR is now dynamic, removed global constant
 
@@ -54,8 +56,9 @@ class MainWindow(QMainWindow):
         self.my_dock_widget.setObjectName("MyDockWidget") # Set a unique object name
         self.addDockWidget(Qt.LeftDockWidgetArea, self.my_dock_widget)
 
-        # Create and add the FileBrowserDock
-        self.file_browser_dock = FileBrowserDock("文件浏览器", os.path.join(os.getcwd(), "file"), self)
+        # Create and add the FileBrowserDock with the specified directory
+        target_file_dir = r"C:\Users\1\Desktop\workfast\zwx1410611\flowchart\file"
+        self.file_browser_dock = FileBrowserDock("文件浏览器", target_file_dir, self)
         self.file_browser_dock.setObjectName("FileBrowserDock")
         self.addDockWidget(Qt.RightDockWidgetArea, self.file_browser_dock)
         # Connect the file_double_clicked signal

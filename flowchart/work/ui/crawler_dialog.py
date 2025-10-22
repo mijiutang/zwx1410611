@@ -5,7 +5,9 @@ import os
 import re
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 
-CACHE_DIR = "C:\\Users\\Administrator\\Desktop\\flowchart\\.cache"
+# 使用相对路径设置缓存目录，避免权限问题
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CACHE_DIR = os.path.join(BASE_DIR, ".cache")
 CRAWLER_SETTINGS_FILE = os.path.join(CACHE_DIR, "crawler_settings.json")
 
 class CrawlerDialog(QDialog):
