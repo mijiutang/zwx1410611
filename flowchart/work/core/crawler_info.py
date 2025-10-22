@@ -4,108 +4,124 @@ import json
 import os
 from bs4 import BeautifulSoup
 
-def save_cookies(context, filename="cookies.json"):
+class SignalExtractor:
+    def __init__(self, page):
+        self.page = page
+
+    def extract_signal_data(self):
+        selector = 'div.hwt-highlights.hwt-content'
+        div_element = self.page.query_selector(selector)
+
+        if div_element:
+            text_content = div_element.text_content()
+            filtered_lines = [line for line in text_content.splitlines() if line.strip().startswith("{现在时间")]
+            return "\n".join(filtered_lines)
+        else:
+            return "Error: Could not find the specified div element."
+
+def save_cookies(context, filename=r"C:\Users\1\Desktop\workfast\zwx1410611\flowchart\work\core\cookies.json", log_callback=None):
+    """保存cookies到文件"""
     cookies = context.cookies()
     with open(filename, 'w') as f:
         json.dump(cookies, f, indent=2)
-    print(f"Cookies已保存到 {filename}")
+    if log_callback:
+        log_callback(f"Cookies已保存到 {filename}")
+    else:
+        print(f"Cookies已保存到 {filename}")
 
-def load_cookies(context, filename="cookies.json"):
+def load_cookies(context, filename=r"C:\Users\1\Desktop\workfast\zwx1410611\flowchart\work\core\cookies.json", log_callback=None):
+    """从文件加载cookies"""
     if os.path.exists(filename):
         with open(filename, 'r') as f:
             cookies = json.load(f)
         context.add_cookies(cookies)
-        print(f"已从 {filename} 加载cookies")
+        if log_callback:
+            log_callback(f"已从 {filename} 加载cookies")
+        else:
+            print(f"已从 {filename} 加载cookies")
         return True
     return False
 
-def open_chrome_browser(
-    url, 
-    force_login=False, 
-    save_html=False,
-    save_target_contents=False  # 提取div内部内容
-):
+def open_chrome_browser(url, force_login=False, log_callback=None, cookie_string=None):
+    """使用系统Chrome打开浏览器，支持cookies自动登录和设置自定义cookie"""
+    p = sync_playwright().start()
     try:
-        with sync_playwright() as p:
-            chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-            browser = p.chromium.launch_persistent_context(
-                user_data_dir="./chrome_data",
-                executable_path=chrome_path,
-                headless=False,
-                viewport={"width": 1280, "height": 720}
-            )
-            page = browser.pages[0] if browser.pages else browser.new_page()
-            
-            if not force_login:
-                load_cookies(browser)
-            
-            page.goto(url)
-            time.sleep(3)  # 等待页面加载完全
-            
-            # 登录检测逻辑
-            if force_login or "login" in page.url or page.query_selector('input[type="password"]'):
-                print("检测到需要登录...")
-                input("请在浏览器中完成登录，然后按回车键继续...")
-                save_cookies(browser)
-            
-            # 保存完整HTML（可选）
-            if save_html:
-                html_content = page.content()
-                with open("full_page.html", "w", encoding="utf-8") as f:
-                    f.write(html_content)
-                print("完整页面HTML已保存到 full_page.html")
-            
-            # 提取含“{现在时”的div内部内容（核心逻辑）
-            if save_target_contents:
-                html_content = page.content()
-                soup = BeautifulSoup(html_content, 'html.parser')
-                
-                # 1. 获取所有属性匹配的div
-                all_matched_divs = soup.find_all(
-                    'div',
-                    class_="hwt-highlights hwt-content",
-                    attrs={"data-v-7794bacf": ""}
-                )
-                
-                # 2. 过滤出含“{现在时”的div
-                target_divs = [
-                    div for div in all_matched_divs 
-                    if "{现在时" in str(div)
-                ]
-                
-                # 3. 提取并保存div内部内容（去掉外层div标签）
-                if target_divs:
-                    with open("target_div_contents.html", "w", encoding="utf-8") as f:
-                        for i, div in enumerate(target_divs, 1):
-                            inner_content = div.decode_contents()  # 保留HTML格式的内部内容
-                            f.write(inner_content + "\n\n")
-                    print(f"已保存 {len(target_divs)} 个div的内部内容到 target_div_contents.html")
-                else:
-                    print("未找到包含“{现在时”的目标div")
-            
-            print(f"已打开: {url}")
-            input("按回车键关闭浏览器...")
-            
-            save_cookies(browser)
-            browser.close()
-            return True
+        chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+        
+        if log_callback:
+            log_callback("启动系统Chrome...")
+        browser = p.chromium.launch_persistent_context(
+            user_data_dir="./chrome_data",
+            executable_path=chrome_path,
+            headless=False,
+            viewport={"width": 1280, "height": 720}
+        )
+        
+        page = browser.pages[0] if browser.pages else browser.new_page()
+        
+        if not force_login:
+            load_cookies(browser, log_callback=log_callback)
+
+        # Set custom cookies if provided
+        if cookie_string:
+            try:
+                # Assuming cookie_string is in the format "name=value; name2=value2"
+                # Playwright expects a list of dictionaries for add_cookies
+                cookies_to_set = []
+                for cookie_pair in cookie_string.split(';'):
+                    if '=' in cookie_pair:
+                        name, value = cookie_pair.split('=', 1)
+                        cookies_to_set.append({'name': name.strip(), 'value': value.strip(), 'url': url})
+                if cookies_to_set:
+                    page.context.add_cookies(cookies_to_set)
+                    if log_callback:
+                        log_callback(f"已设置自定义Cookie: {cookie_string}")
+            except Exception as e:
+                if log_callback:
+                    log_callback(f"设置自定义Cookie失败: {e}")
+
+        page.goto(url)
+        time.sleep(3)  # 等待页面加载完全
+        
+        if force_login or "login" in page.url or page.query_selector('input[type="password"]'):
+            if log_callback:
+                log_callback("检测到需要登录...")
+            input("请在浏览器中完成登录，然后按回车键继续...")
+            save_cookies(browser, log_callback=log_callback)
+            if log_callback:
+                log_callback("登录状态已保存")
+        
+        if log_callback:
+            log_callback(f"已打开: {url}")
+        return page, browser, p
             
     except Exception as e:
-        print(f"打开浏览器失败: {e}")
-        return False
+        if log_callback:
+            log_callback(f"打开浏览器失败: {e}")
+        else:
+            print(f"打开浏览器失败: {e}")
+        return None, None, None
 
 if __name__ == "__main__":
     url = "https://aida-eval.sankuai.com/vue/model-training/labeling/data-labeling/task-labeling?id=16683&taskId=3954&type=3&taskName=%E3%80%90%E5%A4%96%E5%95%86%E5%9C%A8%E7%BA%BF%E3%80%911013-01%E7%9B%B4%E5%87%BA%E7%AC%AC%E5%9B%9B%E6%89%B9-%E5%91%A8%E5%BF%97%E5%8D%8E&sourcePath=%2Fmodel-training%2Flabeling%2Fdata-labeling%2Ftask-overview%2Fsession&sessionIndex=40"
     
-    print("=== 打开系统Chrome（自动登录）===")
-    success = open_chrome_browser(
-        url, 
-        force_login=False, 
-        save_html=False, 
-        save_target_contents=True  # 启用提取内部内容功能
-    )
+    print("=== 打开系统Chrome（自动登录）并提取信号数据 ===")
     
-    if success:
-        print("操作完成")
+    def console_log(message):
+        print(message)
+
+    page, browser, p = open_chrome_browser(url, force_login=False, log_callback=console_log)
+    
+    if page:
+        extractor = SignalExtractor(page)
+        signal_data = extractor.extract_signal_data()
+        console_log("\n--- 提取到的信号数据 ---")
+        console_log(signal_data)
+        
+        input("\n按回车键关闭浏览器...")
+        save_cookies(browser, log_callback=console_log)
+        browser.close()
+        p.stop()
+        console_log("浏览器已关闭")
     else:
-        print("操作失败")
+        console_log("操作失败")

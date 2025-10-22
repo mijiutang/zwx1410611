@@ -5,9 +5,6 @@ import os
 import re
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 from ui.filter_dialog import FilterDialog
-from ui.crawler_dialog import CrawlerDialog
-from core.crawler import get_signal_data, parse_signal_content
-from core.crawler_info import open_chrome_browser, SignalExtractor
 from ui.dock.file_browser_dock import FileBrowserDock
 from ui.key_value_editor_widget import KeyValueEditorWidget
 
@@ -90,9 +87,6 @@ class MainWindow(QMainWindow):
         view_menu.addAction(file_browser_dock_toggle_action)
 
         tools_menu = menubar.addMenu("工具")
-        crawler_action = QAction("爬虫", self)
-        crawler_action.triggered.connect(self.show_crawler_dialog)
-        tools_menu.addAction(crawler_action)
 
         convert_txt_to_json_action = QAction("转换文本到JSON", self)
         convert_txt_to_json_action.triggered.connect(self._batch_convert_txt_to_json)
@@ -228,104 +222,7 @@ class MainWindow(QMainWindow):
             self.current_selected_keys = dialog.get_selected_keys()
             self.my_dock_widget.update_content(self.current_selected_keys)
 
-    def show_crawler_dialog(self):
-        self.crawler_dialog = CrawlerDialog(self) # Store dialog as an attribute
-        self.crawler_dialog.scrape_url_signal.connect(self.perform_scraping)
-        self.crawler_dialog.exec_()
 
-    def perform_scraping(self, base_url, start_index, end_index, cookie_string, output_folder, log_callback):
-        log_callback(f"开始爬取，范围从 sessionIndex={start_index} 到 {end_index}。")
-        all_scraped_data = {}
-        browser, p = None, None
-
-        # Extract URL prefix for subfolder name
-        # Remove query parameters and fragment to get a cleaner base for folder name
-        parsed_base_url = urlparse(base_url)
-        # Remove the last part if it's a file name or just take the path
-        path_segments = parsed_base_url.path.split('/')
-        # Try to find a meaningful segment, otherwise use hostname
-        if len(path_segments) > 1 and path_segments[-1]:
-            url_prefix_raw = path_segments[-1]
-        elif len(path_segments) > 2 and path_segments[-2]:
-            url_prefix_raw = path_segments[-2]
-        else:
-            url_prefix_raw = parsed_base_url.hostname or "scraped_data"
-        
-        # Sanitize the prefix for a valid folder name
-        sanitized_prefix = re.sub(r'[^a-zA-Z0-9_.-]', '_', url_prefix_raw)
-        if not sanitized_prefix: # Fallback if sanitization results in empty string
-            sanitized_prefix = "generic_scraped_data"
-
-        target_save_dir = os.path.join(output_folder, sanitized_prefix)
-        os.makedirs(target_save_dir, exist_ok=True)
-        log_callback(f"抓取结果将保存到子文件夹: {target_save_dir}")
-
-        try:
-            for i in range(start_index, end_index + 1):
-                current_url = f"{base_url}{i}"
-                log_callback(f"正在打开浏览器并爬取: {current_url}\n请在浏览器中完成登录或等待页面加载。")
-                
-                page, browser, p = open_chrome_browser(current_url, log_callback=log_callback, cookie_string=cookie_string)
-                if page:
-                    extractor = SignalExtractor(page)
-                    scraped_content = extractor.extract_signal_data()
-                    
-                    if scraped_content:
-                        new_parsed_data = parse_signal_content(scraped_content)
-                        all_scraped_data.update(new_parsed_data) # Merge data
-
-                        # Extract sessionIndex from URL and save to file
-                        parsed_current_url = urlparse(current_url)
-                        query_params = parse_qs(parsed_current_url.query)
-                        session_index = query_params.get('sessionIndex', [None])[0]
-
-                        if session_index:
-                            file_path = os.path.join(target_save_dir, f"{session_index}.json")
-                            with open(file_path, 'w', encoding='utf-8') as f:
-                                json.dump(new_parsed_data, f, ensure_ascii=False, indent=4)
-                            log_callback(f"抓取结果已保存到: {file_path}")
-                        else:
-                            log_callback("警告: URL中未找到sessionIndex参数，无法保存到指定文件。")
-
-                        log_callback(f"成功爬取 sessionIndex={i} 的数据。")
-                    else:
-                        log_callback(f"未能从 sessionIndex={i} 的指定元素中提取到信号数据。")
-                else:
-                    log_callback(f"未能成功打开浏览器或获取 sessionIndex={i} 的页面。")
-                
-                # Close browser and playwright after each iteration to ensure fresh state
-                if browser:
-                    browser.close()
-                    browser = None # Reset browser to ensure new instance in next iteration
-                if p:
-                    p.stop()
-                    p = None # Reset p to ensure new instance in next iteration
-
-            # After all scraping is done, update main window's data
-            if all_scraped_data:
-                self.parsed_data.update(all_scraped_data) # Update main data with all new scraped data
-
-                new_keys = list(self.parsed_data.keys())
-                for key in new_keys:
-                    if key not in self.all_keys:
-                        self.all_keys.append(key)
-                self.current_selected_keys = list(self.parsed_data.keys()) 
-
-                self.my_dock_widget.parsed_data = self.parsed_data 
-                self.my_dock_widget.update_content(self.current_selected_keys) 
-                log_callback("所有信号数据已成功爬取并更新。")
-                self.crawler_dialog.accept() # Close dialog on success
-            else:
-                log_callback("没有成功爬取到任何数据。")
-
-        except Exception as e:
-            log_callback(f"爬取过程中发生错误: {e}")
-        finally:
-            # Ensure browser and playwright are closed if an error occurred mid-loop
-            if browser:
-                browser.close()
-            if p:
-                p.stop()
 
     def _load_initial_data_from_files(self, directory):
         combined_data = {}
