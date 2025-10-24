@@ -8,26 +8,26 @@ from ui.filter_dialog import FilterDialog
 from ui.dock.file_browser_dock import FileBrowserDock
 from ui.key_value_editor_widget import KeyValueEditorWidget
 
-# 使用绝对路径设置缓存目录
-CACHE_DIR = r"C:\Users\1\Desktop\code2\flowchart\.cache"
-KEYS_CACHE_FILE = os.path.join(CACHE_DIR, "keys.json")
-# FILE_SAVE_DIR is now dynamic, removed global constant
-
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, root_dir):
         super().__init__()
+        self.root_dir = root_dir
         self.setWindowTitle("PyQt5 App")
         self.setGeometry(100, 100, 800, 600)
         
         # Initialize parsed_data as empty, data will be loaded on file double-click
         self.parsed_data = {}
 
+        # Setup cache directory
+        self.CACHE_DIR = os.path.join(self.root_dir, '.cache')
+        self.KEYS_CACHE_FILE = os.path.join(self.CACHE_DIR, "keys.json")
+        os.makedirs(self.CACHE_DIR, exist_ok=True)
+
         # Load cached keys and selected state
-        os.makedirs(CACHE_DIR, exist_ok=True)
         cached_data = {"all_keys": [], "selected_keys": []}
-        if os.path.exists(KEYS_CACHE_FILE):
+        if os.path.exists(self.KEYS_CACHE_FILE):
             try:
-                with open(KEYS_CACHE_FILE, 'r', encoding='utf-8') as f:
+                with open(self.KEYS_CACHE_FILE, 'r', encoding='utf-8') as f:
                     loaded_data = json.load(f)
                     if isinstance(loaded_data, dict) and "all_keys" in loaded_data and "selected_keys" in loaded_data:
                         cached_data = loaded_data
@@ -63,7 +63,7 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.LeftDockWidgetArea, self.conversation_dock_widget)
 
         # Create and add the FileBrowserDock with the specified directory pointing to out folder
-        target_file_dir = r"C:\Users\1\Desktop\code2\flowchart\out"
+        target_file_dir = os.path.join(self.root_dir, 'out')
         self.file_browser_dock = FileBrowserDock("文件浏览器", target_file_dir, self)
         self.file_browser_dock.setObjectName("FileBrowserDock")
         self.addDockWidget(Qt.RightDockWidgetArea, self.file_browser_dock)
@@ -390,12 +390,12 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         self.write_settings()
         # Save current all_keys and current_selected_keys to cache
-        os.makedirs(CACHE_DIR, exist_ok=True)
+        os.makedirs(self.CACHE_DIR, exist_ok=True)
         data_to_save = {
             "all_keys": self.all_keys,
             "selected_keys": self.current_selected_keys
         }
-        with open(KEYS_CACHE_FILE, 'w', encoding='utf-8') as f:
+        with open(self.KEYS_CACHE_FILE, 'w', encoding='utf-8') as f:
             json.dump(data_to_save, f, ensure_ascii=False, indent=4)
         event.accept()
 
@@ -427,11 +427,11 @@ class MainWindow(QMainWindow):
     def _find_task_type_files(self):
         # Find all files matching "任务类型_*.json" in CACHE_DIR
         files = []
-        if not os.path.exists(CACHE_DIR):
-            os.makedirs(CACHE_DIR) # Ensure CACHE_DIR exists
-        for f in os.listdir(CACHE_DIR):
+        if not os.path.exists(self.CACHE_DIR):
+            os.makedirs(self.CACHE_DIR) # Ensure CACHE_DIR exists
+        for f in os.listdir(self.CACHE_DIR):
             if f.startswith("任务类型_") and f.endswith(".json"):
-                files.append(os.path.join(CACHE_DIR, f))
+                files.append(os.path.join(self.CACHE_DIR, f))
         files.sort() # Sort to ensure consistent order
         return files
 
@@ -563,7 +563,7 @@ class MainWindow(QMainWindow):
         import os
         
         # 默认目录为out文件夹
-        default_dir = r"C:\Users\1\Desktop\code2\flowchart\out"
+        default_dir = os.path.join(self.root_dir, 'out')
         
         # 弹窗选择要处理的文件夹
         directory = QFileDialog.getExistingDirectory(self, "选择要处理的文件夹", default_dir)
@@ -572,7 +572,7 @@ class MainWindow(QMainWindow):
             try:
                 # 获取Python解释器路径
                 python_exe = sys.executable
-                converter_script = r"C:\Users\1\Desktop\code2\flowchart\tools\txt_to_json_converter.py"
+                converter_script = os.path.join(self.root_dir, 'tools', 'txt_to_json_converter.py')
                 
                 # 检查脚本文件是否存在
                 if not os.path.exists(converter_script):
@@ -608,7 +608,7 @@ class MainWindow(QMainWindow):
             
             # 获取Python解释器路径
             python_exe = sys.executable
-            crawler_script = r"C:\Users\1\Desktop\code2\flowchart\tools\crawler.py"
+            crawler_script = os.path.join(self.root_dir, 'tools', 'crawler.py')
             
             # 检查脚本文件是否存在
             if not os.path.exists(crawler_script):
@@ -625,5 +625,3 @@ class MainWindow(QMainWindow):
             
         except Exception as e:
             QMessageBox.critical(self, "错误", f"启动爬虫程序时发生错误：{str(e)}")
-
-

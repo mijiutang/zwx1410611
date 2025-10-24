@@ -13,6 +13,9 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
 from PyQt5.QtCore import pyqtSignal, QObject
 
+# Define the root directory for the crawler script
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
 class SignalEmitter(QObject):
     """信号发射器，用于在线程间安全传递消息"""
     new_text = pyqtSignal(str)
@@ -60,7 +63,7 @@ class CrawlerThread(QThread):
         self.crawl_type = crawl_type  # 新增：抓取类型，"left"或"right"
         self.total_urls = end_index - start_index + 1 if batch_mode else 1
         # 为每个线程创建独立的浏览器数据目录
-        self.chrome_data_dir = os.path.join(r'C:\Users\1\Desktop\code2\flowchart\.cache\chrome_data', f'thread_{thread_id}')
+        self.chrome_data_dir = os.path.join(ROOT_DIR, '.cache', 'chrome_data', f'thread_{thread_id}')
     
     def run(self):
         try:
@@ -132,13 +135,13 @@ class CrawlerThread(QThread):
             
             return all_success
 
-def save_cookies(context, filename=r"C:\Users\1\Desktop\code2\flowchart\.cache\cookies.json"):
+def save_cookies(context, filename=os.path.join(ROOT_DIR, '.cache', 'cookies.json')):
     cookies = context.cookies()
     with open(filename, 'w') as f:
         json.dump(cookies, f, indent=2)
     print(f"Cookies已保存到 {filename}")
 
-def load_cookies(context, filename=r"C:\Users\1\Desktop\code2\flowchart\.cache\cookies.json"):
+def load_cookies(context, filename=os.path.join(ROOT_DIR, '.cache', 'cookies.json')):
     if os.path.exists(filename):
         with open(filename, 'r') as f:
             cookies = json.load(f)
@@ -161,7 +164,7 @@ def extract_url_parameter(url, param_name, default_value="", decode=False):
     """
     try:
         # 构建正则表达式匹配参数
-        pattern = f'{param_name}=([^&]+)'
+        pattern = f'{param_name}=([^"]+)'
         match = re.search(pattern, url)
         if match:
             value = match.group(1)
@@ -189,7 +192,7 @@ def open_chrome_browser(
     save_html=False,
     save_target_contents=False,  # 提取div内部内容
     auto_close=False,  # 是否自动关闭浏览器
-    chrome_data_dir=r"C:\Users\1\Desktop\code2\flowchart\.cache\chrome_data",  # 线程特定的浏览器数据目录
+    chrome_data_dir=os.path.join(ROOT_DIR, '.cache', 'chrome_data'),  # 线程特定的浏览器数据目录
     crawl_type="left"  # 抓取类型："left"（左侧信号项）或"right"（右侧表单标签）
 ):
     try:
@@ -235,7 +238,7 @@ def open_chrome_browser(
                 session_index = extract_session_index(url)
                 
                 # 创建输出目录
-                output_dir = os.path.join(r"C:\Users\1\Desktop\code2\flowchart\out", task_name)
+                output_dir = os.path.join(ROOT_DIR, 'out', task_name)
                 if not os.path.exists(output_dir):
                     try:
                         os.makedirs(output_dir)
@@ -313,7 +316,7 @@ def open_chrome_browser(
                                         extracted_data["右侧表单标签"][text] = ""
                     
                     # 生成输出文件名 - 保存到.cache目录
-                    cache_dir = r"C:\Users\1\Desktop\code2\flowchart\.cache"
+                    cache_dir = os.path.join(ROOT_DIR, '.cache')
                     # 确保目录存在
                     os.makedirs(cache_dir, exist_ok=True)
                     
