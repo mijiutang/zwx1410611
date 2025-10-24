@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QAbstractItemView, QMessageBox, QComboBox, QHeaderView
-from PyQt5.QtCore import pyqtSignal, Qt
-from ui.dock.combo_box_delegate import ComboBoxDelegate # Import the new delegate
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QAbstractItemView, QMessageBox, QComboBox, QHeaderView
+from PyQt6.QtCore import pyqtSignal, Qt
+from .dock.combo_box_delegate import ComboBoxDelegate # Import the new delegate
 import os
 import json
 
@@ -31,12 +31,12 @@ class KeyValueEditorWidget(QWidget):
         self.table_widget.setColumnCount(2)
         self.table_widget.setHorizontalHeaderLabels(["任务项", "内容"])
         # Auto-resize columns
-        self.table_widget.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents) # Key column
-        self.table_widget.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch) # Value column
+        self.table_widget.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # Key column
+        self.table_widget.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch) # Value column
         # Auto-adjust row height for word wrap
-        self.table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table_widget.setWordWrap(True) # Re-enable word wrap for the table
-        self.table_widget.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.AnyKeyPressed)
+        self.table_widget.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.AnyKeyPressed)
         self.table_widget.itemChanged.connect(self.save_changes) # Connect itemChanged for auto-save
         self.main_layout.addWidget(self.table_widget)
         self.table_widget.hide() # Hide initially
@@ -75,7 +75,11 @@ class KeyValueEditorWidget(QWidget):
 
     def load_data(self, data):
         # 断开信号，防止在加载数据时触发保存
-        self.table_widget.itemChanged.disconnect(self.save_changes) 
+        try:
+            self.table_widget.itemChanged.disconnect(self.save_changes)
+        except TypeError:
+            # 如果信号未连接，则忽略错误
+            pass 
         
         self.table_widget.setRowCount(0) # Clear existing rows
         self.current_data = data
@@ -83,12 +87,13 @@ class KeyValueEditorWidget(QWidget):
             row_position = self.table_widget.rowCount()
             self.table_widget.insertRow(row_position)
             key_item = QTableWidgetItem(key)
-            key_item.setFlags(key_item.flags() & ~Qt.ItemIsEditable) # Make key column non-editable
+            key_item.setFlags(key_item.flags() & ~Qt.ItemFlag.ItemIsEditable) # Make key column non-editable
             self.table_widget.setItem(row_position, 0, key_item)
             
             # Always create a QTableWidgetItem for the value column
             item = QTableWidgetItem(str(value))
-            item.setFlags(item.flags() | Qt.TextWordWrap) # Enable word wrap
+            # The TextWordWrap flag is deprecated in PyQt6 and was causing a crash.
+            # The word wrap is handled by the table view's properties now.
             self.table_widget.setItem(row_position, 1, item)
 
         # 重新连接信号

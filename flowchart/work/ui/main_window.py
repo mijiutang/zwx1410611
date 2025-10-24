@@ -1,18 +1,19 @@
-from PyQt5.QtWidgets import QMainWindow, QLabel, QAction, QDialog, QMessageBox, QMenu, QVBoxLayout, QHBoxLayout, QPushButton, QRadioButton, QButtonGroup, QSpinBox, QFontDialog, QApplication
-from PyQt5.QtCore import Qt, QSettings
+from PyQt6.QtWidgets import QMainWindow, QLabel, QDialog, QMessageBox, QMenu, QVBoxLayout, QHBoxLayout, QPushButton, QRadioButton, QButtonGroup, QSpinBox, QFontDialog, QApplication
+from PyQt6.QtGui import QAction
+from PyQt6.QtCore import Qt, QSettings
 import json
 import os
 import re
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
-from ui.filter_dialog import FilterDialog
-from ui.dock.file_browser_dock import FileBrowserDock
-from ui.key_value_editor_widget import KeyValueEditorWidget
+from .filter_dialog import FilterDialog
+from .dock.file_browser_dock import FileBrowserDock
+from .key_value_editor_widget import KeyValueEditorWidget
 
 class MainWindow(QMainWindow):
     def __init__(self, root_dir):
         super().__init__()
         self.root_dir = root_dir
-        self.setWindowTitle("PyQt5 App")
+        self.setWindowTitle("PyQt6 App")
         self.setGeometry(100, 100, 800, 600)
         
         # Initialize parsed_data as empty, data will be loaded on file double-click
@@ -47,26 +48,26 @@ class MainWindow(QMainWindow):
         menubar = self.menuBar()
 
         # Import and create the custom dock widget
-        from ui.dock.info_dock import InfoDock
+        from .dock.info_dock import InfoDock
         self.my_dock_widget = InfoDock("信号", self.parsed_data, self) # Pass empty parsed_data initially
         self.my_dock_widget.setObjectName("MyDockWidget") # Set a unique object name
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.my_dock_widget)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.my_dock_widget)
         
         # Create the上文信号dock widget
         self.previous_context_dock_widget = InfoDock("上文信号", {}, self) # Pass empty data initially
         self.previous_context_dock_widget.setObjectName("PreviousContextDockWidget")
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.previous_context_dock_widget)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.previous_context_dock_widget)
         
         # Create the对话记录dock widget
         self.conversation_dock_widget = InfoDock("对话记录", {}, self) # Pass empty data initially
         self.conversation_dock_widget.setObjectName("ConversationDockWidget")
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.conversation_dock_widget)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.conversation_dock_widget)
 
         # Create and add the FileBrowserDock with the specified directory pointing to out folder
         target_file_dir = os.path.join(self.root_dir, 'out')
         self.file_browser_dock = FileBrowserDock("文件浏览器", target_file_dir, self)
         self.file_browser_dock.setObjectName("FileBrowserDock")
-        self.addDockWidget(Qt.RightDockWidgetArea, self.file_browser_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.file_browser_dock)
         # Connect the file_double_clicked signal
         self.file_browser_dock.file_double_clicked.connect(self._on_file_double_clicked_in_browser)
         # Connect the batch generate signal
@@ -362,7 +363,7 @@ class MainWindow(QMainWindow):
         cancel_button.clicked.connect(dialog.reject)
         
         # Show dialog and get result
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             selected_button = button_group.checkedButton()
             if selected_button:
                 for radio_button, file_path in radio_buttons:
@@ -469,7 +470,7 @@ class MainWindow(QMainWindow):
 
     def show_filter_dialog(self):
         dialog = FilterDialog(self.all_keys, self.current_selected_keys, self)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             self.current_selected_keys = dialog.get_selected_keys()
             self.my_dock_widget.update_content(self.current_selected_keys)
     
@@ -500,7 +501,7 @@ class MainWindow(QMainWindow):
         
         # 添加当前字体信息
         font_info_label = QLabel(f"当前字体：{current_font.family()} - {current_size}px")
-        font_info_label.setAlignment(Qt.AlignCenter)
+        font_info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(font_info_label)
         
         # 添加按钮
@@ -518,7 +519,7 @@ class MainWindow(QMainWindow):
         cancel_button.clicked.connect(dialog.reject)
         
         # 显示对话框
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             # 应用新的字体大小
             new_size = size_spinbox.value()
             new_font = current_font
@@ -557,7 +558,7 @@ class MainWindow(QMainWindow):
 
     def convert_txt_to_json(self):
         """转换TXT文件为JSON文件"""
-        from PyQt5.QtWidgets import QFileDialog, QMessageBox
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
         import subprocess
         import sys
         import os

@@ -6,12 +6,19 @@ import re
 from urllib.parse import unquote
 from bs4 import BeautifulSoup
 import sys
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                            QHBoxLayout, QLabel, QLineEdit, QPushButton, 
-                            QTextEdit, QMessageBox)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-
-from PyQt5.QtCore import pyqtSignal, QObject
+from PyQt6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTextEdit,
+    QMessageBox,
+)
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 
 # Define the root directory for the crawler script
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -164,7 +171,7 @@ def extract_url_parameter(url, param_name, default_value="", decode=False):
     """
     try:
         # 构建正则表达式匹配参数
-        pattern = f'{param_name}=([^"]+)'
+        pattern = f'{param_name}=([^&]+)'
         match = re.search(pattern, url)
         if match:
             value = match.group(1)
@@ -187,8 +194,8 @@ def extract_session_index(url):
     return extract_url_parameter(url, 'sessionIndex', "1")
 
 def open_chrome_browser(
-    url, 
-    force_login=False, 
+    url,
+    force_login=False,
     save_html=False,
     save_target_contents=False,  # 提取div内部内容
     auto_close=False,  # 是否自动关闭浏览器
@@ -448,7 +455,7 @@ class MainWindow(QMainWindow):
         log_label = QLabel("操作日志:")
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.log_text.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         
         # 将布局添加到主布局
         main_layout.addLayout(url_layout)
@@ -741,4 +748,4 @@ if __name__ == "__main__":
     # 显示主窗口
     window.show()
     # 运行应用程序
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

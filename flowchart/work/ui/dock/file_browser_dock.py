@@ -1,6 +1,8 @@
-from PyQt5.QtWidgets import QDockWidget, QTreeView, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFileSystemModel, QMenu, QAction
-from PyQt5.QtCore import Qt, pyqtSignal, QSortFilterProxyModel, QDir
-from PyQt5.QtGui import QContextMenuEvent
+from PyQt6.QtWidgets import QDockWidget, QTreeView, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QMenu
+from PyQt6.QtGui import QFileSystemModel
+from PyQt6.QtGui import QAction
+from PyQt6.QtCore import Qt, pyqtSignal, QSortFilterProxyModel, QDir
+from PyQt6.QtGui import QContextMenuEvent
 import os
 
 class ResultJsonFilterProxyModel(QSortFilterProxyModel):
@@ -47,7 +49,7 @@ class FileBrowserDock(QDockWidget):
         self.tree_view.setColumnHidden(3, True) # Hide date modified column
         self.tree_view.setHeaderHidden(True) # Hide the header to remove "Name" label
         self.tree_view.doubleClicked.connect(self._on_file_double_clicked)
-        self.tree_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tree_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_view.customContextMenuRequested.connect(self._on_context_menu)
 
         main_layout = QVBoxLayout()
@@ -77,7 +79,7 @@ class FileBrowserDock(QDockWidget):
             menu.addAction(batch_generate_action)
         
         # Show the context menu
-        menu.exec_(self.tree_view.viewport().mapToGlobal(position))
+        menu.exec(self.tree_view.viewport().mapToGlobal(position))
 
     def _on_batch_generate_result_json(self, directory_path):
         """Handle batch generation of _result.json files"""
@@ -95,4 +97,3 @@ class FileBrowserDock(QDockWidget):
     def _refresh_view(self):
         self.model.setRootPath(self.target_directory)
         self.tree_view.setRootIndex(self.proxy_model.mapFromSource(self.model.index(self.target_directory)))
-

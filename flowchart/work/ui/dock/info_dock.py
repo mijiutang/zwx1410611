@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QDockWidget, QTextEdit
-from PyQt5.QtCore import Qt
+from PyQt6.QtWidgets import QDockWidget, QTextEdit
+from PyQt6.QtCore import Qt
 
 class InfoDock(QDockWidget):
     def __init__(self, title, initial_parsed_data, parent=None):

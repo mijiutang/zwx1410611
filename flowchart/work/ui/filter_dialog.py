@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QCheckBox, QPushButton, QHBoxLayout, QDialogButtonBox, QGridLayout, QGroupBox
-from PyQt5.QtCore import Qt
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QCheckBox, QPushButton, QHBoxLayout, QDialogButtonBox, QGridLayout, QGroupBox
+from PyQt6.QtCore import Qt
 
 class FilterDialog(QDialog):
     def __init__(self, all_keys, selected_keys=None, parent=None):
@@ -53,7 +53,7 @@ class FilterDialog(QDialog):
         main_layout.addWidget(not_displayed_group_box)
 
         # OK and Cancel buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         main_layout.addWidget(button_box)

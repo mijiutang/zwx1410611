@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QStyledItemDelegate, QComboBox, QMessageBox, QPushButton
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import QStyledItemDelegate, QComboBox, QMessageBox, QPushButton
+from PyQt6.QtCore import Qt, pyqtSignal
 
 class ComboBoxDelegate(QStyledItemDelegate):
     # 定义添加选项请求信号
@@ -12,7 +12,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         # 获取当前单元格对应的键
         key_index = index.sibling(index.row(), 0)
-        key = key_index.data(Qt.DisplayRole)
+        key = key_index.data(Qt.ItemDataRole.DisplayRole)
 
         # 如果键有预定义选项列表且不为空，则创建可编辑的下拉框
         if key in self.task_item_options and isinstance(self.task_item_options[key], list) and self.task_item_options[key]:
@@ -26,7 +26,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
     def setEditorData(self, editor, index):
         # 为下拉框编辑器设置当前值
         if isinstance(editor, QComboBox):
-            value = index.model().data(index, Qt.DisplayRole)
+            value = index.model().data(index, Qt.ItemDataRole.DisplayRole)
             editor.setCurrentText(str(value))
         else:
             super().setEditorData(editor, index)
@@ -38,24 +38,24 @@ class ComboBoxDelegate(QStyledItemDelegate):
         msg_box.setText(f"'{new_value}' 不在 '{key}' 的预定义选项中。")
         msg_box.setInformativeText("您希望如何处理？")
         
-        yes_button = msg_box.addButton("是 (保留)", QMessageBox.YesRole)
-        no_button = msg_box.addButton("否 (清空)", QMessageBox.NoRole)
-        add_button = msg_box.addButton("添加到下拉框", QMessageBox.AcceptRole)
+        yes_button = msg_box.addButton("是 (保留)", QMessageBox.ButtonRole.YesRole)
+        no_button = msg_box.addButton("否 (清空)", QMessageBox.ButtonRole.NoRole)
+        add_button = msg_box.addButton("添加到下拉框", QMessageBox.ButtonRole.AcceptRole)
 
-        msg_box.exec_()
+        msg_box.exec()
 
         if msg_box.clickedButton() == yes_button:
-            model.setData(index, new_value, Qt.EditRole)
+            model.setData(index, new_value, Qt.ItemDataRole.EditRole)
         elif msg_box.clickedButton() == no_button:
-            model.setData(index, "", Qt.EditRole)
+            model.setData(index, "", Qt.ItemDataRole.EditRole)
         elif msg_box.clickedButton() == add_button:
             self.add_option_requested.emit(key, new_value)
-            model.setData(index, new_value, Qt.EditRole)
+            model.setData(index, new_value, Qt.ItemDataRole.EditRole)
 
     def setModelData(self, editor, model, index):
         # 获取键信息
         key_index = index.sibling(index.row(), 0)
-        key = key_index.data(Qt.DisplayRole)
+        key = key_index.data(Qt.ItemDataRole.DisplayRole)
         
         # 根据编辑器类型获取新值
         if isinstance(editor, QComboBox):
@@ -75,10 +75,10 @@ class ComboBoxDelegate(QStyledItemDelegate):
                 self._handle_value_mismatch(model, index, key, new_value)
             else:
                 # 值在预定义选项中，直接设置
-                model.setData(index, new_value, Qt.EditRole)
+                model.setData(index, new_value, Qt.ItemDataRole.EditRole)
         else:
             # 没有预定义选项，直接设置值
-            model.setData(index, new_value, Qt.EditRole)
+            model.setData(index, new_value, Qt.ItemDataRole.EditRole)
 
     def updateEditorGeometry(self, editor, option, index):
         # 设置编辑器的几何位置

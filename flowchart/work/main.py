@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication
 from ui.main_window import MainWindow
 
 if __name__ == '__main__':
@@ -9,4 +9,4 @@ if __name__ == '__main__':
     ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     main_window = MainWindow(root_dir=ROOT_DIR)
     main_window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
