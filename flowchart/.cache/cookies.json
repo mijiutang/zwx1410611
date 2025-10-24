@@ -1,0 +1,142 @@
+[
+  {
+    "name": "moa_deviceId",
+    "value": "lc-7fb39008-530a-43da-975b-7e3c3fa62980",
+    "domain": ".sankuai.com",
+    "path": "/",
+    "expires": 1792555137.167442,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "_lxsdk_cuid",
+    "value": "19a04eb7ed5c8-05d5d1b31ab0b68-26061951-e1000-19a04eb7ed5c8",
+    "domain": ".sankuai.com",
+    "path": "/",
+    "expires": 1795579133.654811,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "_lxsdk",
+    "value": "19a04eb7ed5c8-05d5d1b31ab0b68-26061951-e1000-19a04eb7ed5c8",
+    "domain": ".sankuai.com",
+    "path": "/",
+    "expires": 1795579134.764582,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "u2dhn6k",
+    "value": "5772b66d7997f64e3c4c6f276b77fb80",
+    "domain": "ssosv.sankuai.com",
+    "path": "/",
+    "expires": 1792555136.953603,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "WEBDFPID",
+    "value": "63625v5261w75867zzxv0w8913zz930780z95vy1x799795899684z11-1761105537088-1761019135519KUEMEIAfd79fef3d01d5e9aadc18ccd4d0c95074127",
+    "domain": ".sankuai.com",
+    "path": "/",
+    "expires": 1795579137.088424,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "utm_source_rg",
+    "value": "AM%2561-j3j-%25472",
+    "domain": ".sankuai.com",
+    "path": "/",
+    "expires": 1795579137,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "moa_token",
+    "value": "eyJ1aWQiOjI1MTc4Njg1LCJzdGF0dXMiOjEsIm1vYVJlc3VsdCI6MSwibW9hVHlwZSI6IldJTiIsIm1vYVZlcnNpb24iOiI1MDU5Mzc5MiIsImRldmljZUlkIjoibGMtN2ZiMzkwMDgtNTMwYS00M2RhLTk3NWItN2UzYzNmYTYyOTgwIiwibWlzIjoid2JfemhvdXpoaWh1YTAyIiwidGltZSI6IjE3NjEwMTkxMzUiLCJjb250ZW50VGltZSI6IjE3NjEwMTkxMzUiLCJyYW5kb21JZCI6IjM5MGY2NDllYzllYjQ4ZjFiYWI5ZjViMzIzNTc4Mjk3In0%3D_ODllMDIyMDQyODRmZmZjMGY0ZDBiNmE5YWI1MmIwNGE1NjJiZTY4NTVmMDk1MTcwMDE5MWYxZDI5NDE1MjY0YQ%3D%3D",
+    "domain": "ssosv.sankuai.com",
+    "path": "/",
+    "expires": 1792555137.167292,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "TGCN",
+    "value": "76cf41eb7b2d4e32836a*367e5d8fa37",
+    "domain": "ssosv.sankuai.com",
+    "path": "/",
+    "expires": 1762232344.652665,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "acid",
+    "value": "AwQAAAAbBktNUwwiDOwIonK73CEfS68dKyi51e7cAwgBAAAAlIm0LV6arCsSVWbdhdL4tV7BRbtjr2zc3DNG1MqKgYVNZ%2BC4vSaRXF%2F0RyW%2FFKHfjJeNgffUXmsu2FneHH6bnEz6b0xwG8DhN9caCLN4y%2FI8A5K87myQglc4prO8ynXSsxPNMVXaOZNXc17L0pf0uHzRf2zu96zNZbdCFj8VJh8ntF4dtxIF%2FHoAdFpDwdfi%2FX%2FFzG0%3D",
+    "domain": "ssosv.sankuai.com",
+    "path": "/",
+    "expires": 1795579146.223795,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "TGCX",
+    "value": "eAENzjsKAjEQAFACW2xh5Qm2U4RAzCQzSSdWloKFdT6TavEMnsFGsFJhWbDwBl7EUsQb2Ip7gcerq-VRjCdtklQieKWctKCCNJCD9GSjJIYEJaD2TjX97fXpYCp0Q5iKmXOkqLNh0A4wzACJbXYlALnHez9aVKv-9OsusP4-7_0ZDqLectwk3vFVNJZIR8RM3lPBAUkmYdGEkYaMU38tATBg**eAEFwYEBwDAEBMCVBKHGiX_2H6F3s3P53SSsV0SfFDmCt9uuDK9AN-q6EZg4HVGaKZpWfvYHcV8SSg",
+    "domain": "ssosv.sankuai.com",
+    "path": "/",
+    "expires": 1762497888.243891,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "52da4a20d2_ssoid",
+    "value": "eAGFzj1KA0EYAFAGLIIIiifYTgkszM43O9-MlSwpok2EFYQ0Mr-uJm5QWJStPEMaITZJICxI8AZWdh7BUsQb2IrJCbzA47XIzuvXw1a0fHufzYFtpsxprhl17CBCYQNPvEHDHPfAJAjdBoE-dTJowOyR7O4NbYzBgKJUxilQHXNwOlaYmhg9WAhaMCVp1Dx_fi9gn7B_WbkOHW50m8nvYgYnPx8vzRTGpHXmTW596eckShGZEcKhUhjE6ma5FYGhMLjKSNqPQsKlFZYnoR245UFyoalWSnEpgnFmTKJOVlbXdWbS2055dZxfdPv3yVFvMLgZjnrh1OYTsn1nzutiVNXFZVFpyqZk-bQ-_QGKa2MS**eAEFwYEBwCAIA7CXShGh54jM_09YYqA9l8LkURoksRHeiIrUysWOPfdgql6RXNmnfKirr_ED51kP4A**Lj_eIfgLtO8L7FcP9pnn7QTNMJzNaR1v_85WFr7VdOxFhR6B3GZxX2d6ElIbdpBE6Gio9_nmK-eTBCWLX5Njpg**MjUxNzg2ODUsd2JfemhvdXpoaWh1YTAyLOWRqOW_l-WNjix3Yl96aG91emhpaHVhMDJAbWVpdHVhbi5jb20sMSxlZGNfMjUxNzg2ODUsMTc2MTU0Mzg4OTMyNA",
+    "domain": "aida-eval.sankuai.com",
+    "path": "/",
+    "expires": 1763876689.368877,
+    "httpOnly": true,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "_lxsdk_s",
+    "value": "19a156efc54-627-27b-409%7C%7C0",
+    "domain": ".sankuai.com",
+    "path": "/",
+    "expires": 1761297986,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "logan_session_token",
+    "value": "jvj2u6mb9a0q2w3s1v6x",
+    "domain": "ssosv.sankuai.com",
+    "path": "/",
+    "expires": -1,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "webDeviceUuid",
+    "value": "19a04eb7ed5c8-05d5d1b31ab0b68-26061951-e1000-19a04eb7ed5c8",
+    "domain": "ssosv.sankuai.com",
+    "path": "/",
+    "expires": -1,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  }
+]

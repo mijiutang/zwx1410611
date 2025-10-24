@@ -1,0 +1,98 @@
+from PyQt5.QtWidgets import QDockWidget, QTreeView, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFileSystemModel, QMenu, QAction
+from PyQt5.QtCore import Qt, pyqtSignal, QSortFilterProxyModel, QDir
+from PyQt5.QtGui import QContextMenuEvent
+import os
+
+class ResultJsonFilterProxyModel(QSortFilterProxyModel):
+    def filterAcceptsRow(self, source_row, source_parent):
+        model = self.sourceModel()
+        index = model.index(source_row, 0, source_parent)
+        file_path = model.filePath(index)
+        file_name = model.fileName(index)
+        
+        # Exclude files ending with _result.json
+        if file_name.endswith("_result.json"):
+            return False
+        
+        # Exclude "result" folder
+        if file_name == "result" and os.path.isdir(file_path):
+            return False
+        
+        return super().filterAcceptsRow(source_row, source_parent)
+
+class FileBrowserDock(QDockWidget):
+    file_double_clicked = pyqtSignal(str)
+    batch_generate_result_json = pyqtSignal(str, str)  # Signal for batch generating _result.json files (directory, task_type_file)
+
+    def __init__(self, title, target_directory, parent=None):
+        super().__init__(title, parent)
+        self.target_directory = target_directory
+        self.parent_main_window = parent  # Store reference to parent main window
+        self._init_ui()
+
+    def _init_ui(self):
+        self.model = QFileSystemModel()
+        self.model.setRootPath(self.target_directory)
+        self.model.setNameFilters(["*.json"]) # 只显示json文件
+        self.model.setNameFilterDisables(False) # Enable filtering
+
+        self.proxy_model = ResultJsonFilterProxyModel(self)
+        self.proxy_model.setSourceModel(self.model)
+
+        self.tree_view = QTreeView()
+        self.tree_view.setModel(self.proxy_model)
+        self.tree_view.setRootIndex(self.proxy_model.mapFromSource(self.model.index(self.target_directory)))
+        self.tree_view.setColumnHidden(1, True) # Hide size column
+        self.tree_view.setColumnHidden(2, True) # Hide type column
+        self.tree_view.setColumnHidden(3, True) # Hide date modified column
+        self.tree_view.setHeaderHidden(True) # Hide the header to remove "Name" label
+        self.tree_view.doubleClicked.connect(self._on_file_double_clicked)
+        self.tree_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tree_view.customContextMenuRequested.connect(self._on_context_menu)
+
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.tree_view)
+
+        container_widget = QWidget()
+        container_widget.setLayout(main_layout)
+        self.setWidget(container_widget)
+
+    def _on_context_menu(self, position):
+        """Handle context menu request"""
+        index = self.tree_view.indexAt(position)
+        if not index.isValid():
+            return
+            
+        # Map the index to the source model
+        source_index = self.proxy_model.mapToSource(index)
+        file_path = self.model.filePath(source_index)
+        
+        # Create context menu
+        menu = QMenu()
+        
+        # Check if the selected item is a directory
+        if os.path.isdir(file_path):
+            batch_generate_action = QAction("批量生成_result.json文件", self)
+            batch_generate_action.triggered.connect(lambda: self._on_batch_generate_result_json(file_path))
+            menu.addAction(batch_generate_action)
+        
+        # Show the context menu
+        menu.exec_(self.tree_view.viewport().mapToGlobal(position))
+
+    def _on_batch_generate_result_json(self, directory_path):
+        """Handle batch generation of _result.json files"""
+        # Emit signal to let main window handle the actual generation
+        # We'll pass the directory path and current task type file from main window
+        if self.parent_main_window and hasattr(self.parent_main_window, 'current_task_type_file'):
+            self.batch_generate_result_json.emit(directory_path, self.parent_main_window.current_task_type_file)
+
+    def _on_file_double_clicked(self, index):
+        source_index = self.proxy_model.mapToSource(index)
+        file_path = self.model.filePath(source_index)
+        if os.path.isfile(file_path) and file_path.endswith(".json"):
+            self.file_double_clicked.emit(file_path)
+
+    def _refresh_view(self):
+        self.model.setRootPath(self.target_directory)
+        self.tree_view.setRootIndex(self.proxy_model.mapFromSource(self.model.index(self.target_directory)))
+
