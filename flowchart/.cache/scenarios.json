@@ -1,0 +1,10 @@
+{
+    "specific_1": {
+        "id": "specific_1",
+        "name": "1",
+        "type": "specific",
+        "selected_keys": [
+            "餐具数量"
+        ]
+    }
+}
