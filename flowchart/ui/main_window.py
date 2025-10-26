@@ -12,7 +12,7 @@ from .key_value_editor_widget import KeyValueEditorWidget
 class MainWindow(QMainWindow):
     def __init__(self, root_dir):
         super().__init__()
-        self.highlight_enabled = False # Initialize highlight state
+        self.highlight_enabled = True # Initialize highlight state as enabled by default
         self.root_dir = root_dir
         self.setWindowTitle("PyQt6 App")
         self.setGeometry(100, 100, 800, 600)
@@ -63,6 +63,11 @@ class MainWindow(QMainWindow):
         self.conversation_dock_widget = InfoDock("对话记录", {}, self) # Pass empty data initially
         self.conversation_dock_widget.setObjectName("ConversationDockWidget")
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.conversation_dock_widget)
+        
+        # 设置所有dock组件的高亮状态为默认开启
+        self.my_dock_widget.set_highlight_enabled(self.highlight_enabled)
+        self.previous_context_dock_widget.set_highlight_enabled(self.highlight_enabled)
+        self.conversation_dock_widget.set_highlight_enabled(self.highlight_enabled)
 
         # Create and add the FileBrowserDock with the specified directory pointing to out folder
         target_file_dir = os.path.join(self.root_dir, 'out')
@@ -220,10 +225,11 @@ class MainWindow(QMainWindow):
                     if conversation_data:
                         formatted_lines = []
                         for key, value in conversation_data.items():
-                            formatted_lines.append(f"{key}: {value}")
+                            # 使用HTML格式，确保高亮能正确应用
+                            formatted_lines.append(f"<p>{key}: {value}</p>")
                             # 在每个键值对后添加两个空行（除了最后一个）
                             if key != list(conversation_data.keys())[-1]:
-                                formatted_lines.append("")
+                                formatted_lines.append("<p></p>")
                         
                         # 使用特殊的键来存储格式化后的文本
                         self.conversation_dock_widget.custom_formatted_text = "\n".join(formatted_lines)
@@ -421,7 +427,12 @@ class MainWindow(QMainWindow):
         self.setFont(font)
 
         # 读取高亮设置
-        self.highlight_enabled = self.settings.value("highlightEnabled", defaultValue=False, type=bool)
+        self.highlight_enabled = self.settings.value("highlightEnabled", defaultValue=True, type=bool)
+        
+        # 应用高亮设置到所有dock组件
+        self.my_dock_widget.set_highlight_enabled(self.highlight_enabled)
+        self.previous_context_dock_widget.set_highlight_enabled(self.highlight_enabled)
+        self.conversation_dock_widget.set_highlight_enabled(self.highlight_enabled)
 
     def write_settings(self):
         self.settings.setValue("geometry", self.saveGeometry())

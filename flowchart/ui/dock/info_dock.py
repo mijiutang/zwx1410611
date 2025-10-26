@@ -35,7 +35,16 @@ class InfoDock(QDockWidget):
         """Updates the QTextEdit with filtered content using HTML formatting."""
         # 检查是否有自定义格式化文本
         if hasattr(self, 'custom_formatted_text'):
-            self.text_edit.setHtml(self.custom_formatted_text)
+            # 应用高亮格式到自定义文本
+            custom_text = self.custom_formatted_text
+            if self.highlight_enabled:
+                # 对自定义文本中的键名应用高亮格式
+                # 使用正则表达式匹配HTML段落中的键名模式（假设格式为"<p>键名:"）
+                import re
+                custom_text = re.sub(r'(<p>)([^:]+):', 
+                                     r'\1<strong style="color: #2c3e50; background-color: pink;">\2:</strong>', 
+                                     custom_text)
+            self.text_edit.setHtml(custom_text)
             # 显示后清理自定义文本，以便下次更新正常工作
             delattr(self, 'custom_formatted_text')
         else:
