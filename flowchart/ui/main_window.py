@@ -5,7 +5,6 @@ import json
 import os
 import re
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
-from .filter_dialog import FilterDialog
 from .scenario_filter_dialog import ScenarioFilterDialog
 from .dock.file_browser_dock import FileBrowserDock
 from .key_value_editor_widget import KeyValueEditorWidget
@@ -84,25 +83,17 @@ class MainWindow(QMainWindow):
         file_menu.addAction(refresh_action)
         
         view_menu = menubar.addMenu("视图")
-        settings_menu = menubar.addMenu("设置") # New Settings menu
+        settings_menu = menubar.addMenu("设置")
 
         # 添加字体设置动作
         font_action = QAction("字体", self)
         font_action.triggered.connect(self.show_font_settings_dialog)
         settings_menu.addAction(font_action)
 
-        # 创建筛选子菜单
-        filter_submenu = settings_menu.addMenu("筛选")
-        
-        # 添加传统筛选选项
-        traditional_filter_action = QAction("传统筛选", self)
-        traditional_filter_action.triggered.connect(self.show_filter_dialog)
-        filter_submenu.addAction(traditional_filter_action)
-        
-        # 添加场景筛选选项
-        scenario_filter_action = QAction("场景筛选", self)
-        scenario_filter_action.triggered.connect(self.show_scenario_filter_dialog)
-        filter_submenu.addAction(scenario_filter_action)
+        # 添加筛选动作，直接打开场景筛选对话框
+        filter_action = QAction("筛选", self)
+        filter_action.triggered.connect(self.show_scenario_filter_dialog)
+        settings_menu.addAction(filter_action)
 
         highlight_action = QAction("高亮", self)
         highlight_action.setCheckable(True)
@@ -501,12 +492,6 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'file_browser_dock'):
             self.file_browser_dock._refresh_view()
 
-    def show_filter_dialog(self):
-        dialog = FilterDialog(self.all_keys, self.current_selected_keys, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.current_selected_keys = dialog.get_selected_keys()
-            self.my_dock_widget.update_content(self.current_selected_keys)
-    
     def show_scenario_filter_dialog(self):
         dialog = ScenarioFilterDialog(self.all_keys, self.current_selected_keys, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
