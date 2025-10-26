@@ -94,6 +94,13 @@ class MainWindow(QMainWindow):
         view_menu = menubar.addMenu("视图")
         settings_menu = menubar.addMenu("设置")
 
+        # 添加富文本显示切换选项
+        self.rich_text_action = QAction("富文本显示", self)
+        self.rich_text_action.setCheckable(True)
+        self.rich_text_action.setChecked(False)
+        self.rich_text_action.triggered.connect(self._toggle_rich_text_mode)
+        settings_menu.addAction(self.rich_text_action)
+
         # 添加字体设置动作
         font_action = QAction("字体", self)
         font_action.triggered.connect(self.show_font_settings_dialog)
@@ -157,6 +164,14 @@ class MainWindow(QMainWindow):
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 self.parsed_data = data
+                
+                # 检查当前文件是否包含"你"字，如果包含则更新文件浏览器的高亮显示
+                if self._check_data_for_keyword(data, "你"):
+                    # 更新文件浏览器中包含"你"字的文件高亮显示
+                    if hasattr(self, 'file_browser_dock') and hasattr(self.file_browser_dock, 'model'):
+                        self.file_browser_dock.model.update_highlighted_files(self.file_browser_dock.target_directory)
+                        # 刷新视图以显示高亮
+                        self.file_browser_dock._refresh_view()
                 
                 # 检查是否包含"系统信号"字段，如果有则解析其内容
                 if "系统信号" in data and isinstance(data["系统信号"], str):
@@ -284,6 +299,20 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.warning(self, "错误", f"读取文件 {os.path.basename(file_path)} 时发生错误: {e}")
 
+    def _check_data_for_keyword(self, obj, keyword):
+        """递归检查对象中是否包含关键字"""
+        if isinstance(obj, str):
+            return keyword in obj
+        elif isinstance(obj, dict):
+            for key, value in obj.items():
+                if (isinstance(key, str) and keyword in key) or self._check_data_for_keyword(value, keyword):
+                    return True
+        elif isinstance(obj, list):
+            for item in obj:
+                if self._check_data_for_keyword(item, keyword):
+                    return True
+        return False
+    
     def _on_batch_generate_result_json(self, directory_path, task_type_file):
         """Handle batch generation of _result.json files for a directory"""
         # Create task type selection dialog
@@ -429,6 +458,11 @@ class MainWindow(QMainWindow):
         # 读取高亮设置
         self.highlight_enabled = self.settings.value("highlightEnabled", defaultValue=True, type=bool)
         
+        # 读取富文本模式设置
+        rich_text_enabled = self.settings.value("richTextEnabled", defaultValue=False, type=bool)
+        self.rich_text_action.setChecked(rich_text_enabled)
+        self.key_value_editor.set_rich_text_mode(rich_text_enabled)
+        
         # 应用高亮设置到所有dock组件
         self.my_dock_widget.set_highlight_enabled(self.highlight_enabled)
         self.previous_context_dock_widget.set_highlight_enabled(self.highlight_enabled)
@@ -444,6 +478,9 @@ class MainWindow(QMainWindow):
 
         # 保存高亮设置
         self.settings.setValue("highlightEnabled", self.highlight_enabled)
+        
+        # 保存富文本模式设置
+        self.settings.setValue("richTextEnabled", self.rich_text_action.isChecked())
 
     def _get_default_task_type_file(self):
         # Find all task type files and return the first one, or None
@@ -499,6 +536,10 @@ class MainWindow(QMainWindow):
         self.my_dock_widget.update_content(self.current_selected_keys)
         self.previous_context_dock_widget.update_content()
         self.conversation_dock_widget.update_content()
+
+    def _toggle_rich_text_mode(self, checked):
+        """切换富文本显示模式"""
+        self.key_value_editor.set_rich_text_mode(checked)
 
     def _refresh_file_browser(self):
         """刷新文件浏览器视图"""

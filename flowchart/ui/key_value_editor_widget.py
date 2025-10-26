@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QAbstractItemView, QMessageBox, QComboBox, QHeaderView
 from PyQt6.QtCore import pyqtSignal, Qt
 from .dock.combo_box_delegate import ComboBoxDelegate # Import the new delegate
+from .dock.rich_text_delegate import RichTextDelegate # Import the rich text delegate
 import os
 import json
 
@@ -21,6 +22,7 @@ class KeyValueEditorWidget(QWidget):
         
         # Set the custom delegate for the "内容" column (column 1) AFTER task_item_options is loaded
         self.combo_box_delegate = ComboBoxDelegate(self, self.task_item_options)
+        self.rich_text_delegate = RichTextDelegate(self)  # 实例化富文本委托
         self.table_widget.setItemDelegateForColumn(1, self.combo_box_delegate)
         self.combo_box_delegate.add_option_requested.connect(self._handle_add_option_request) # Connect the new signal
 
@@ -83,6 +85,26 @@ class KeyValueEditorWidget(QWidget):
         
         self.table_widget.setRowCount(0) # Clear existing rows
         self.current_data = data
+        
+        # 检查是否有包含"你"字的值
+        has_rich_text = False
+        for key, value in self.current_data.items():
+            if "你" in str(value):
+                has_rich_text = True
+                break
+        
+        # 如果有富文本，则使用富文本委托
+        if has_rich_text:
+            # 确保富文本委托已初始化
+            if not hasattr(self, 'rich_text_delegate'):
+                self.rich_text_delegate = RichTextDelegate(self)
+            self.table_widget.setItemDelegateForColumn(1, self.rich_text_delegate)
+        else:
+            # 确保组合框委托已初始化
+            if not hasattr(self, 'combo_box_delegate'):
+                self.combo_box_delegate = ComboBoxDelegate(self, self.task_item_options)
+            self.table_widget.setItemDelegateForColumn(1, self.combo_box_delegate)
+        
         for key, value in self.current_data.items():
             row_position = self.table_widget.rowCount()
             self.table_widget.insertRow(row_position)
@@ -90,8 +112,18 @@ class KeyValueEditorWidget(QWidget):
             key_item.setFlags(key_item.flags() & ~Qt.ItemFlag.ItemIsEditable) # Make key column non-editable
             self.table_widget.setItem(row_position, 0, key_item)
             
-            # Always create a QTableWidgetItem for the value column
-            item = QTableWidgetItem(str(value))
+            # 检查值中是否包含"你"字，如果包含则使用HTML格式显示
+            value_str = str(value)
+            if "你" in value_str:
+                # 使用HTML格式将"你"字显示为红色加粗
+                formatted_value = value_str.replace("你", "<span style='color: red; font-weight: bold;'>你</span>")
+                item = QTableWidgetItem(formatted_value)
+                # 设置为富文本显示
+                item.setData(Qt.ItemDataRole.UserRole, "rich_text")
+            else:
+                # Always create a QTableWidgetItem for the value column
+                item = QTableWidgetItem(value_str)
+            
             # The TextWordWrap flag is deprecated in PyQt6 and was causing a crash.
             # The word wrap is handled by the table view's properties now.
             self.table_widget.setItem(row_position, 1, item)
@@ -111,7 +143,16 @@ class KeyValueEditorWidget(QWidget):
             else:
                 value_item = self.table_widget.item(i, 1)
                 if value_item:
-                    value = value_item.text()
+                    # 获取显示文本
+                    display_text = value_item.text()
+                    # 检查是否是富文本
+                    is_rich_text = value_item.data(Qt.ItemDataRole.UserRole) == "rich_text"
+                    
+                    if is_rich_text and "<span style='color: red; font-weight: bold;'>你</span>" in display_text:
+                        # 如果是富文本且包含红色"你"字，则转换为纯文本
+                        value = display_text.replace("<span style='color: red; font-weight: bold;'>你</span>", "你")
+                    else:
+                        value = display_text
 
             if key_item:
                 key = key_item.text()
@@ -143,6 +184,13 @@ class KeyValueEditorWidget(QWidget):
 
     def show_table(self):
         self.table_widget.show()
+
+    def set_rich_text_mode(self, enabled=True):
+        """设置是否使用富文本显示模式"""
+        if enabled:
+            self.table_widget.setItemDelegateForColumn(1, self.rich_text_delegate)
+        else:
+            self.table_widget.setItemDelegateForColumn(1, self.combo_box_delegate)
 
     def set_task_items_file(self, file_path):
         self.task_items_file_path = file_path

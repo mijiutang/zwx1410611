@@ -1,9 +1,10 @@
 from PyQt6.QtWidgets import QDockWidget, QTreeView, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QMenu
-from PyQt6.QtGui import QFileSystemModel
+from PyQt6.QtGui import QFileSystemModel, QColor
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt, pyqtSignal, QSortFilterProxyModel, QDir
 from PyQt6.QtGui import QContextMenuEvent
 import os
+from .custom_file_system_model import CustomFileSystemModel
 
 class ResultJsonFilterProxyModel(QSortFilterProxyModel):
     def filterAcceptsRow(self, source_row, source_parent):
@@ -33,10 +34,12 @@ class FileBrowserDock(QDockWidget):
         self._init_ui()
 
     def _init_ui(self):
-        self.model = QFileSystemModel()
+        self.model = CustomFileSystemModel()
         self.model.setRootPath(self.target_directory)
         self.model.setNameFilters(["*.json"]) # 只显示json文件
         self.model.setNameFilterDisables(False) # Enable filtering
+        # 更新高亮文件列表
+        self.model.update_highlighted_files(self.target_directory)
 
         self.proxy_model = ResultJsonFilterProxyModel(self)
         self.proxy_model.setSourceModel(self.model)
