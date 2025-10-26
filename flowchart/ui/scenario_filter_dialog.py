@@ -11,6 +11,8 @@ class ScenarioFilterDialog(QDialog):
     
     # 信号：当筛选设置改变时发出
     filter_changed = pyqtSignal(dict)
+    # 信号：当场景列表改变时发出
+    scenarios_changed = pyqtSignal()
     
     def __init__(self, all_keys, current_selected_keys=None, parent=None):
         super().__init__(parent)
@@ -286,7 +288,14 @@ class ScenarioFilterDialog(QDialog):
             }
                 
             self.scenarios[scenario_id] = new_scenario
+            
+            # 立即保存场景配置到文件
+            self._save_scenarios()
+            
             self._populate_scenario_list()  # 刷新场景列表
+            
+            # 发出场景变更信号
+            self.scenarios_changed.emit()
             
             # 选中新创建的场景
             for i in range(self.scenario_list.count()):
@@ -315,9 +324,15 @@ class ScenarioFilterDialog(QDialog):
             if scenario_id in self.scenarios:
                 del self.scenarios[scenario_id]
                 
+            # 立即保存场景配置到文件
+            self._save_scenarios()
+                
             # 删除列表项
             row = self.scenario_list.row(current_item)
             self.scenario_list.takeItem(row)
+            
+            # 发出场景变更信号
+            self.scenarios_changed.emit()
             
             # 清除当前场景
             self.current_scenario = None

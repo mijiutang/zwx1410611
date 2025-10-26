@@ -82,6 +82,10 @@ class MainWindow(QMainWindow):
         refresh_action.triggered.connect(self._refresh_file_browser)
         file_menu.addAction(refresh_action)
         
+        # 添加场景菜单
+        self.scenario_menu = menubar.addMenu("场景")
+        self._populate_scenario_menu(self.scenario_menu)
+        
         view_menu = menubar.addMenu("视图")
         settings_menu = menubar.addMenu("设置")
 
@@ -89,11 +93,6 @@ class MainWindow(QMainWindow):
         font_action = QAction("字体", self)
         font_action.triggered.connect(self.show_font_settings_dialog)
         settings_menu.addAction(font_action)
-
-        # 添加筛选动作，直接打开场景筛选对话框
-        filter_action = QAction("筛选", self)
-        filter_action.triggered.connect(self.show_scenario_filter_dialog)
-        settings_menu.addAction(filter_action)
 
         highlight_action = QAction("高亮", self)
         highlight_action.setCheckable(True)
@@ -140,6 +139,9 @@ class MainWindow(QMainWindow):
 
         self.settings = QSettings("MyOrganization", "PyQtFlowchartApp")
         self.read_settings()
+        
+        # 初始化场景菜单
+        self._refresh_scenario_menu()
 
         # 注意：_update_parsed_data_from_editor方法已移除
     # 该方法原本只是接收来自KeyValueEditorWidget的通知但不执行任何操作
@@ -492,8 +494,124 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'file_browser_dock'):
             self.file_browser_dock._refresh_view()
 
+    def _refresh_scenario_menu(self):
+        """刷新场景菜单"""
+        self._populate_scenario_menu(self.scenario_menu)
+        
+        # 确定当前选中的场景
+        scenarios = self._load_scenarios()
+        current_scenario_id = "global"  # 默认为全局场景
+        
+        # 检查当前选中的键值是否匹配某个特定场景
+        for scenario_id, config in scenarios.items():
+            if config.get("type") == "specific":
+                selected_keys = set(config.get("selected_keys", []))
+                current_keys = set(self.current_selected_keys)
+                if selected_keys == current_keys:
+                    current_scenario_id = scenario_id
+                    break
+        
+        # 更新菜单项的选中状态
+        actions = self.scenario_menu.actions()
+        for action in actions:
+            if action.isCheckable():
+                action.setChecked(False)
+        
+        if current_scenario_id == "global":
+            # 全局场景是第一个菜单项
+            if actions and actions[0].isCheckable():
+                actions[0].setChecked(True)
+        else:
+            # 查找对应的特定场景菜单项
+            scenario_name = scenarios.get(current_scenario_id, {}).get("name", current_scenario_id.replace("specific_", ""))
+            for action in actions:
+                if action.isCheckable() and action.text() == scenario_name:
+                    action.setChecked(True)
+                    break
+    
+    def _populate_scenario_menu(self, menu):
+        """填充场景菜单"""
+        menu.clear()  # 清除现有菜单项
+        
+        # 加载场景配置
+        scenarios = self._load_scenarios()
+        
+        # 添加全局场景
+        global_action = menu.addAction("全局")
+        global_action.setCheckable(True)
+        global_action.triggered.connect(lambda: self._switch_to_scenario("global"))
+        
+        # 添加特定场景
+        for scenario_id, config in scenarios.items():
+            if config.get("type") == "specific":
+                action = menu.addAction(config.get("name", scenario_id.replace("specific_", "")))
+                action.setCheckable(True)
+                action.triggered.connect(lambda checked, sid=scenario_id: self._switch_to_scenario(sid))
+        
+        # 添加分隔符
+        menu.addSeparator()
+        
+        # 添加场景管理菜单项
+        scenario_manage_action = QAction("场景管理", self)
+        scenario_manage_action.triggered.connect(self.show_scenario_filter_dialog)
+        menu.addAction(scenario_manage_action)
+        
+        # 默认选中全局场景
+        global_action.setChecked(True)
+    
+    def _load_scenarios(self):
+        """从文件加载场景配置"""
+        scenario_config_path = os.path.join(self.CACHE_DIR, 'scenarios.json')
+        try:
+            if os.path.exists(scenario_config_path):
+                with open(scenario_config_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            else:
+                return {}
+        except Exception as e:
+            print(f"加载场景配置失败: {e}")
+            return {}
+    
+    def _switch_to_scenario(self, scenario_id):
+        """切换到指定场景"""
+        scenarios = self._load_scenarios()
+        
+        if scenario_id == "global":
+            # 全局场景：显示所有键值
+            selected_keys = list(self.all_keys)
+        else:
+            # 特定场景
+            scenario = scenarios.get(scenario_id, {})
+            selected_keys = scenario.get("selected_keys", list(self.all_keys))
+        
+        # 更新当前选中的键值
+        self.current_selected_keys = selected_keys
+        
+        # 更新dock窗口内容
+        self.my_dock_widget.update_content(self.current_selected_keys)
+        
+        # 更新菜单项的选中状态
+        actions = self.scenario_menu.actions()
+        for action in actions:
+            if action.isCheckable():
+                action.setChecked(False)
+        
+        if scenario_id == "global":
+            # 全局场景是第一个菜单项
+            if actions and actions[0].isCheckable():
+                actions[0].setChecked(True)
+        else:
+            # 查找对应的特定场景菜单项
+            scenario_name = scenarios.get(scenario_id, {}).get("name", scenario_id.replace("specific_", ""))
+            for action in actions:
+                if action.isCheckable() and action.text() == scenario_name:
+                    action.setChecked(True)
+                    break
+
     def show_scenario_filter_dialog(self):
         dialog = ScenarioFilterDialog(self.all_keys, self.current_selected_keys, self)
+        # 连接场景变更信号
+        dialog.scenarios_changed.connect(self._refresh_scenario_menu)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.current_selected_keys = dialog.get_selected_keys()
             self.my_dock_widget.update_content(self.current_selected_keys)
