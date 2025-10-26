@@ -8,12 +8,16 @@ class InfoDock(QDockWidget):
         self.text_edit = QTextEdit()
         self.text_edit.setReadOnly(True)
         self.setWidget(self.text_edit)
+        self.highlight_enabled = False # New attribute to control highlighting
         self.update_content() # Display all content initially
 
+    def set_highlight_enabled(self, enabled):
+        self.highlight_enabled = enabled
+
     def _format_data_for_display(self, data, filtered_keys=None):
-        """Formats the dictionary data into a readable string, applying filters if provided."""
+        """Formats the dictionary data into a readable string with highlighted keys, applying filters if provided."""
         if not data:
-            return "No data available."
+            return "<p>No data available.</p>"
 
         display_text = []
         keys_to_display = filtered_keys if filtered_keys is not None else data.keys()
@@ -21,16 +25,19 @@ class InfoDock(QDockWidget):
         for key in keys_to_display:
             if key in data:
                 value = data[key]
-                display_text.append(f"{key}: {value}")
+                if self.highlight_enabled: # Apply highlighting if enabled
+                    display_text.append(f"<p><strong style='color: #2c3e50; background-color: pink;'>{key}:</strong> {value}</p>")
+                else:
+                    display_text.append(f"<p><strong>{key}:</strong> {value}</p>")
         return "\n".join(display_text)
 
     def update_content(self, filtered_keys=None):
-        """Updates the QTextEdit with filtered content."""
+        """Updates the QTextEdit with filtered content using HTML formatting."""
         # 检查是否有自定义格式化文本
         if hasattr(self, 'custom_formatted_text'):
-            self.text_edit.setPlainText(self.custom_formatted_text)
+            self.text_edit.setHtml(self.custom_formatted_text)
             # 显示后清理自定义文本，以便下次更新正常工作
             delattr(self, 'custom_formatted_text')
         else:
             formatted_text = self._format_data_for_display(self.parsed_data, filtered_keys)
-            self.text_edit.setPlainText(formatted_text)
+            self.text_edit.setHtml(formatted_text)

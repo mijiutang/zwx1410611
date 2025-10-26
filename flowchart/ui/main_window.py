@@ -12,6 +12,7 @@ from .key_value_editor_widget import KeyValueEditorWidget
 class MainWindow(QMainWindow):
     def __init__(self, root_dir):
         super().__init__()
+        self.highlight_enabled = False # Initialize highlight state
         self.root_dir = root_dir
         self.setWindowTitle("PyQt6 App")
         self.setGeometry(100, 100, 800, 600)
@@ -93,6 +94,12 @@ class MainWindow(QMainWindow):
         filter_action.triggered.connect(self.show_filter_dialog)
         settings_menu.addAction(filter_action)
 
+        highlight_action = QAction("高亮", self)
+        highlight_action.setCheckable(True)
+        highlight_action.setChecked(self.highlight_enabled)
+        highlight_action.triggered.connect(self._toggle_highlighting)
+        settings_menu.addAction(highlight_action)
+
         task_type_submenu = settings_menu.addMenu("任务类型")
         self._populate_task_type_menu(task_type_submenu)
 
@@ -133,7 +140,7 @@ class MainWindow(QMainWindow):
         self.settings = QSettings("MyOrganization", "PyQtFlowchartApp")
         self.read_settings()
 
-    # 注意：_update_parsed_data_from_editor方法已移除
+        # 注意：_update_parsed_data_from_editor方法已移除
     # 该方法原本只是接收来自KeyValueEditorWidget的通知但不执行任何操作
     # KeyValueEditorWidget管理自己的数据，不需要MainWindow进行额外处理
 
@@ -410,6 +417,9 @@ class MainWindow(QMainWindow):
         font.setPointSize(font_size)
         self.setFont(font)
 
+        # 读取高亮设置
+        self.highlight_enabled = self.settings.value("highlightEnabled", defaultValue=False, type=bool)
+
     def write_settings(self):
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("windowState", self.saveState())
@@ -417,6 +427,9 @@ class MainWindow(QMainWindow):
         # 保存字体设置
         current_font = self.font()
         self.settings.setValue("fontSize", current_font.pointSize())
+
+        # 保存高亮设置
+        self.settings.setValue("highlightEnabled", self.highlight_enabled)
 
     def _get_default_task_type_file(self):
         # Find all task type files and return the first one, or None
@@ -463,6 +476,16 @@ class MainWindow(QMainWindow):
             self.key_value_editor.set_task_items_file(file_path) # New method in KeyValueEditorWidget
             QMessageBox.information(self, "任务类型", f"已切换到任务类型: {os.path.basename(file_path)}")
     
+    def _toggle_highlighting(self, checked):
+        self.highlight_enabled = checked
+        self.my_dock_widget.set_highlight_enabled(checked)
+        self.previous_context_dock_widget.set_highlight_enabled(checked)
+        self.conversation_dock_widget.set_highlight_enabled(checked)
+        self.write_settings() # Save the new state immediately
+        self.my_dock_widget.update_content(self.current_selected_keys)
+        self.previous_context_dock_widget.update_content()
+        self.conversation_dock_widget.update_content()
+
     def _refresh_file_browser(self):
         """刷新文件浏览器视图"""
         if hasattr(self, 'file_browser_dock'):
