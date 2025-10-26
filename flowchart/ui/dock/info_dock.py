@@ -41,8 +41,10 @@ class InfoDock(QDockWidget):
                 # 对自定义文本中的键名应用高亮格式
                 # 使用正则表达式匹配HTML段落中的键名模式（假设格式为"<p>键名:"）
                 import re
-                custom_text = re.sub(r'(<p>)([^:]+):', 
-                                     r'\1<strong style="color: #2c3e50; background-color: pink;">\2:</strong>', 
+                # 使用全局替换，确保所有匹配的键都被高亮
+                # 匹配所有<p>标签后跟着非冒号字符直到冒号的内容，包括空行后的键
+                custom_text = re.sub(r'<p>([^:<>\s][^:<>*]*):', 
+                                     r'<p><strong style="color: #2c3e50; background-color: pink;">\1:</strong>', 
                                      custom_text)
             self.text_edit.setHtml(custom_text)
             # 显示后清理自定义文本，以便下次更新正常工作
