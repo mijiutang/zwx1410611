@@ -286,11 +286,17 @@ def open_chrome_browser(
                     with open(left_output_file, 'w', encoding='utf-8') as f:
                         json.dump(extracted_data.get("左侧信号项", {}), f, ensure_ascii=False, indent=4)
                     
+                    # 保存URL到同目录的url.txt文件
+                    url_file = os.path.join(output_dir, "url.txt")
+                    with open(url_file, 'w', encoding='utf-8') as f:
+                        f.write(page.url)
+                    
                     # 统计并显示结果
                     signal_count = len(extracted_data.get("左侧信号项", {}))
                     print(f"\n抓取完成！")
                     print(f"共提取到 {signal_count} 个左侧信号项")
                     print(f"左侧信号项已保存到: {left_output_file}")
+                    print(f"URL已保存到: {url_file}")
                 else:
                     # 提取右侧表单标签
                     extracted_data["右侧表单标签"] = {}
@@ -337,11 +343,17 @@ def open_chrome_browser(
                     with open(right_output_file, 'w', encoding='utf-8') as f:
                         json.dump(extracted_data.get("右侧表单标签", {}), f, ensure_ascii=False, indent=4)
                     
+                    # 保存URL到同目录的url.txt文件
+                    url_file = os.path.join(result_dir, "url.txt")
+                    with open(url_file, 'w', encoding='utf-8') as f:
+                        f.write(url)
+                    
                     # 统计并显示结果
                     label_count = len(extracted_data.get("右侧表单标签", {}))
                     print(f"\n抓取完成！")
                     print(f"共提取到 {label_count} 个右侧表单标签")
                     print(f"右侧表单标签已保存到: {right_output_file}")
+                    print(f"URL已保存到: {url_file}")
             
             print(f"已打开: {url}")
             
