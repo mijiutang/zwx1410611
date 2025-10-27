@@ -90,16 +90,6 @@
     "sameSite": "None"
   },
   {
-    "name": "_lxsdk_s",
-    "value": "19a2493b8a3-e13-84d-316%7C%7C0",
-    "domain": ".sankuai.com",
-    "path": "/",
-    "expires": 1761552052,
-    "httpOnly": false,
-    "secure": false,
-    "sameSite": "Lax"
-  },
-  {
     "name": "ctxId-52da4a20d2",
     "value": "lv9fzUnyWDLlEEhq1mOcm3huEcKiEjWi",
     "domain": "ssosv.sankuai.com",
@@ -136,6 +126,16 @@
     "path": "/",
     "expires": 1764142252.916256,
     "httpOnly": true,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "_lxsdk_s",
+    "value": "19a24af9fe1-bc-bc7-2b5%7C%7C0",
+    "domain": ".sankuai.com",
+    "path": "/",
+    "expires": 1761553880,
+    "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
   },

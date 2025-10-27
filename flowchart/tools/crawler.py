@@ -298,37 +298,40 @@ def open_chrome_browser(
                     # 匹配class="query-item-right-annotation"的div元素
                     annotation_divs = page.query_selector_all('div.query-item-right-annotation')
                     for div in annotation_divs:
-                        # 查找具有蓝色样式的span标签
-                        # 1. 查找直接在div中的span标签
-                        spans = div.query_selector_all('span')
-                        for span in spans:
-                            # 检查是否有蓝色样式
-                            style = span.get_attribute('style')
-                            if style and 'color: rgb(22, 119, 255)' in style:
-                                # 提取span标签的文本内容
-                                text = span.text_content().strip()
-                                if text and len(text) > 0:
-                                    # 只添加有效文本
-                                    if len(text) < 50:  # 避免过长的文本
-                                        extracted_data["右侧表单标签"][text] = ""
-                        
-                        # 2. 查找通过label中的span标签
-                        labels = div.query_selector_all('label')
-                        for label in labels:
-                            blue_spans = label.query_selector_all('span[style*="color: rgb(22, 119, 255)"]')
-                            for span in blue_spans:
-                                text = span.text_content().strip()
-                                if text and len(text) > 0:
-                                    if len(text) < 50:
-                                        extracted_data["右侧表单标签"][text] = ""
+                        # 查找所有表单项
+                        form_items = div.query_selector_all('form.label-metrics-item')
+                        for form_item in form_items:
+                            # 查找表单项的标签
+                            label_elem = form_item.query_selector('label.mtd-form-item-label span[style*="color: rgb(22, 119, 255)"]')
+                            if label_elem:
+                                label_text = label_elem.text_content().strip()
+                                if label_text:
+                                    # 查找对应的输入框或选择框
+                                    input_value = ""
+                                    
+                                    # 尝试获取输入框的值
+                                    input_elem = form_item.query_selector('input.mtd-input')
+                                    if input_elem:
+                                        # 获取输入框的实际值，包括modelvalue属性
+                                        input_value = input_elem.get_attribute('value') or input_elem.get_attribute('modelvalue') or ""
+                                    
+                                    # 如果没有输入框，尝试获取文本域的值
+                                    if not input_value:
+                                        textarea_elem = form_item.query_selector('textarea.mtd-textarea')
+                                        if textarea_elem:
+                                            # 获取文本域的实际内容
+                                            input_value = textarea_elem.input_value() or textarea_elem.text_content().strip() or ""
+                                    
+                                    # 将标签和值添加到结果中
+                                    extracted_data["右侧表单标签"][label_text] = input_value
                     
-                    # 生成输出文件名 - 保存到.cache目录
-                    cache_dir = os.path.join(ROOT_DIR, '.cache')
-                    # 确保目录存在
-                    os.makedirs(cache_dir, exist_ok=True)
+                    # 生成输出文件名 - 保存到与左侧相同的目录下的result子目录
+                    # 创建result子目录
+                    result_dir = os.path.join(output_dir, 'result')
+                    os.makedirs(result_dir, exist_ok=True)
                     
-                    # 命名规则改为：固定的任务类型_
-                    right_output_file = os.path.join(cache_dir, "任务类型_.json")
+                    # 命名规则改为：使用{sessionid}_result.json作为文件名，保存在result子目录中
+                    right_output_file = os.path.join(result_dir, f"{session_index}_result.json")
                     
                     # 保存右侧数据为JSON文件
                     with open(right_output_file, 'w', encoding='utf-8') as f:
@@ -522,17 +525,6 @@ class MainWindow(QMainWindow):
             self.crawl_right_button.setEnabled(False)
             self.crawl_right_button.setText("抓取中...")
         
-        # 如果是右侧抓取，禁用批量模式
-        if crawl_type == "right" and self.batch_checkbox.isChecked():
-            QMessageBox.warning(self, "警告", "右侧表单标签不支持批量抓取")
-            if crawl_type == "left":
-                self.crawl_left_button.setEnabled(True)
-                self.crawl_left_button.setText("爬取信息（左侧信号项）")
-            else:
-                self.crawl_right_button.setEnabled(True)
-                self.crawl_right_button.setText("爬取任务类型（右侧表单标签）")
-            return
-        
         # 清空日志
         self.log_text.clear()
         
@@ -542,8 +534,8 @@ class MainWindow(QMainWindow):
         self.completed_urls = 0
         self.threads = []
         
-        # 检查是否启用批量模式（仅左侧支持）
-        if crawl_type == "left" and self.batch_checkbox.isChecked():
+        # 检查是否启用批量模式（左侧和右侧都支持）
+        if self.batch_checkbox.isChecked():
             # 获取起始和结束索引
             try:
                 start_index = int(self.start_index_input.text().strip())
