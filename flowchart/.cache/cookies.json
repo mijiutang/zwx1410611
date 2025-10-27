@@ -90,32 +90,52 @@
     "sameSite": "None"
   },
   {
-    "name": "TGCX",
-    "value": "eAENzjsKAjEQAFACW2xh5Qm2U4RAzCQzSSdWloKFdT6TavEMnsFGsFJhWbDwBl7EUsQb2Ip7gcerq-VRjCdtklQieKWctKCCNJCD9GSjJIYEJaD2TjX97fXpYCp0Q5iKmXOkqLNh0A4wzACJbXYlALnHez9aVKv-9OsusP4-7_0ZDqLectwk3vFVNJZIR8RM3lPBAUkmYdGEkYaMU38tATBg**eAEFwYEBwDAEBMCVBKHGiX_2H6F3s3P53SSsV0SfFDmCt9uuDK9AN-q6EZg4HVGaKZpWfvYHcV8SSg",
+    "name": "_lxsdk_s",
+    "value": "19a2493b8a3-e13-84d-316%7C%7C0",
+    "domain": ".sankuai.com",
+    "path": "/",
+    "expires": 1761552052,
+    "httpOnly": false,
+    "secure": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "ctxId-52da4a20d2",
+    "value": "lv9fzUnyWDLlEEhq1mOcm3huEcKiEjWi",
     "domain": "ssosv.sankuai.com",
     "path": "/",
-    "expires": 1762497888.243891,
+    "expires": 1761553852.590325,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "ctxId",
+    "value": "lv9fzUnyWDLlEEhq1mOcm3huEcKiEjWi",
+    "domain": "ssosv.sankuai.com",
+    "path": "/",
+    "expires": 1761553852.59043,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "TGCX",
+    "value": "eAENzi0KAkEUAGAGNmwweYJtijAwzpt5b6aJySgYzPPzJolnsHgBi1UW0SBsMXsFD2DWI2x3L_Dx1dXyLMaTXZJUInilnLSggjSQg_RkoySGBCWg9k413fH5u8FU6IYwFTPnSFFnw6AdYJgBEtvsSgByr-9htKhWj_59bWHdf7r7BU6i3nLcJN5zKxpLpCNiJu-p4IAkk7BowkhDxqk_F5MwQg**eAEFwYkBwEAEBMCWON8qh6D_EjJTzMA306JQcOiav-525BuqOCxPajdkcEqidBthXmWbHj826BFs",
+    "domain": "ssosv.sankuai.com",
+    "path": "/",
+    "expires": 1762763451.76705,
     "httpOnly": true,
     "secure": true,
     "sameSite": "None"
   },
   {
     "name": "52da4a20d2_ssoid",
-    "value": "eAGFzj1KA0EYAFAGLIIIiifYTgkszM43O9-MlSwpok2EFYQ0Mr-uJm5QWJStPEMaITZJICxI8AZWdh7BUsQb2IrJCbzA47XIzuvXw1a0fHufzYFtpsxprhl17CBCYQNPvEHDHPfAJAjdBoE-dTJowOyR7O4NbYzBgKJUxilQHXNwOlaYmhg9WAhaMCVp1Dx_fi9gn7B_WbkOHW50m8nvYgYnPx8vzRTGpHXmTW596eckShGZEcKhUhjE6ma5FYGhMLjKSNqPQsKlFZYnoR245UFyoalWSnEpgnFmTKJOVlbXdWbS2055dZxfdPv3yVFvMLgZjnrh1OYTsn1nzutiVNXFZVFpyqZk-bQ-_QGKa2MS**eAEFwYEBwCAIA7CXShGh54jM_09YYqA9l8LkURoksRHeiIrUysWOPfdgql6RXNmnfKirr_ED51kP4A**Lj_eIfgLtO8L7FcP9pnn7QTNMJzNaR1v_85WFr7VdOxFhR6B3GZxX2d6ElIbdpBE6Gio9_nmK-eTBCWLX5Njpg**MjUxNzg2ODUsd2JfemhvdXpoaWh1YTAyLOWRqOW_l-WNjix3Yl96aG91emhpaHVhMDJAbWVpdHVhbi5jb20sMSxlZGNfMjUxNzg2ODUsMTc2MTU0Mzg4OTMyNA",
+    "value": "eAGFzjFKA0EUAFAGLIIIiifYTgkszP4_M3_WSsQFQUFBJGAj82dn2EgSsYhiKhsvkEZQCEsULQxprL2CB7DWI8Ta5ARe4PEaYu3j-3YlmYwe6yeEZQ2lUw5kCVsJGR9VFpgYShUQLBrXRENBlzY6pJ17sb7R8SlFxlxKm2qULlVYujQnzSkF9BidgdzKZHr3_vOCmwL-Ze0itL209zb7fB7j0exr-lrjUDRagY996IWxSDQRsDEl5TlFM7955U0EMkzzjJWnCWSOKPPgdVMrtMiBGRmUZO3IZHooks5VHgcnvZvW7kGnKKrLrHvou1j1C7_fLs5b7Qexes1ng-qiP6jaVd9JqMXkd3H6A9g1Yhk**eAEFwQcBACAMAzBLnEI7OWPHvwSSpo-xIzrzWkBH90wMlSrtsclzWZjO9Zb5E3YCu5whGPUBPg8RTQ**UnLPacifO32AE8LARR4Bnx2a1oNLW-Xwf8q25lEAnaYbqAttfwQGg6AoFP9C5nIdpZZtKl_rAotk2jH6eOkyCQ**MjUxNzg2ODUsd2JfemhvdXpoaWh1YTAyLOWRqOW_l-WNjix3Yl96aG91emhpaHVhMDJAbWVpdHVhbi5jb20sMSxlZGNfMjUxNzg2ODUsMTc2MTgwOTQ1Mjg0NA",
     "domain": "aida-eval.sankuai.com",
     "path": "/",
-    "expires": 1763876689.368877,
+    "expires": 1764142252.916256,
     "httpOnly": true,
-    "secure": false,
-    "sameSite": "Lax"
-  },
-  {
-    "name": "_lxsdk_s",
-    "value": "19a156efc54-627-27b-409%7C%7C0",
-    "domain": ".sankuai.com",
-    "path": "/",
-    "expires": 1761297986,
-    "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
   },
