@@ -1,9 +1,9 @@
-from PyQt6.QtWidgets import QDockWidget, QTreeView, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QMenu
-from PyQt6.QtGui import QFileSystemModel
-from PyQt6.QtGui import QAction
-from PyQt6.QtCore import Qt, pyqtSignal, QSortFilterProxyModel, QDir
+from PyQt6.QtWidgets import QDockWidget, QTreeView, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QMenu, QMessageBox
+from PyQt6.QtGui import QFileSystemModel, QAction
+from PyQt6.QtCore import Qt, pyqtSignal, QSortFilterProxyModel, QDir, QProcess
 from PyQt6.QtGui import QContextMenuEvent
 import os
+import sys
 
 class ResultJsonFilterProxyModel(QSortFilterProxyModel):
     def filterAcceptsRow(self, source_row, source_parent):
@@ -12,7 +12,7 @@ class ResultJsonFilterProxyModel(QSortFilterProxyModel):
         file_path = model.filePath(index)
         file_name = model.fileName(index)
         
-        # Exclude files ending with _result.json
+        # Exclude files ending with _result.json (we don't want to show them directly)
         if file_name.endswith("_result.json"):
             return False
         
@@ -60,8 +60,78 @@ class FileBrowserDock(QDockWidget):
 
     def _on_context_menu(self, position):
         """Handle context menu request"""
-        # No context menu options for directories
-        pass
+        index = self.tree_view.indexAt(position)
+        if not index.isValid():
+            return
+            
+        source_index = self.proxy_model.mapToSource(index)
+        file_path = self.model.filePath(source_index)
+        file_name = os.path.basename(file_path)
+        
+        # 只对.json文件显示右键菜单（排除_result.json）
+        if not file_name.endswith(".json") or file_name.endswith("_result.json"):
+            return
+            
+        # 创建右键菜单
+        context_menu = QMenu(self)
+        
+        # 添加"回填"动作
+        backfill_action = QAction("回填", self)
+        backfill_action.triggered.connect(lambda: self._on_backfill_action(file_path))
+        context_menu.addAction(backfill_action)
+        
+        # 显示菜单
+        context_menu.exec(self.tree_view.viewport().mapToGlobal(position))
+    
+    def _on_backfill_action(self, file_path):
+        """处理回填动作"""
+        try:
+            # 获取文件的基本名称（不带扩展名）
+            base_name = os.path.splitext(os.path.basename(file_path))[0]
+            
+            # 构建result文件夹中对应的_result.json文件路径
+            dir_path = os.path.dirname(file_path)
+            result_dir = os.path.join(dir_path, "result")
+            result_file_path = os.path.join(result_dir, f"{base_name}_result.json")
+            
+            # 检查result文件是否存在
+            if not os.path.exists(result_file_path):
+                QMessageBox.critical(self, "错误", f"找不到对应的result文件: {result_file_path}")
+                return
+                
+            # 获取fill_form_data.py的路径
+            # 从当前文件位置计算到tools目录的路径
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            # 从ui/dock目录回到flowchart根目录，然后进入tools目录
+            script_dir = os.path.dirname(os.path.dirname(current_dir))
+            fill_form_script = os.path.join(script_dir, "tools", "fill_form_data.py")
+            
+            # 检查脚本是否存在
+            if not os.path.exists(fill_form_script):
+                QMessageBox.critical(self, "错误", f"找不到回填脚本: {fill_form_script}")
+                return
+                
+            # 创建进程运行脚本
+            process = QProcess(self)
+            
+            # 构建命令
+            if sys.platform == "win32":
+                # Windows系统
+                command = f'python "{fill_form_script}" "{result_file_path}" --no-headless'
+                process.startCommand(command)
+            else:
+                # 其他系统
+                process.start("python", [fill_form_script, result_file_path, "--no-headless"])
+                
+            # 等待进程启动
+            if not process.waitForStarted(3000):
+                QMessageBox.critical(self, "错误", "无法启动回填脚本")
+                return
+                
+            QMessageBox.information(self, "提示", f"已启动回填脚本处理文件: {os.path.basename(result_file_path)}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"执行回填操作时出错: {str(e)}")
 
     def _on_file_double_clicked(self, index):
         source_index = self.proxy_model.mapToSource(index)
