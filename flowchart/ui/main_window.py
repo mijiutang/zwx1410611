@@ -76,8 +76,6 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.file_browser_dock)
         # Connect the file_double_clicked signal
         self.file_browser_dock.file_double_clicked.connect(self._on_file_double_clicked_in_browser)
-        # Connect the batch generate signal
-        self.file_browser_dock.batch_generate_result_json.connect(self._on_batch_generate_result_json)
 
         # Add menus
         file_menu = menubar.addMenu("文件")
@@ -237,7 +235,7 @@ class MainWindow(QMainWindow):
                 self.conversation_dock_widget.parsed_data = conversation_data
                 self.conversation_dock_widget.update_content()
 
-            # --- New logic for _result.json and KeyValueEditorWidget ---
+            # --- Logic for _result.json and KeyValueEditorWidget ---
             # Create result directory if it doesn't exist
             result_dir = os.path.join(os.path.dirname(file_path), "result")
             os.makedirs(result_dir, exist_ok=True)
@@ -247,162 +245,44 @@ class MainWindow(QMainWindow):
             result_json_path = os.path.join(result_dir, base_name + "_result.json")
             editor_initial_data = {}
             
-            should_create_result_json = False
-
             if os.path.exists(result_json_path):
                 try:
                     with open(result_json_path, 'r', encoding='utf-8') as f_result:
                         editor_initial_data = json.load(f_result)
                 except json.JSONDecodeError:
                     QMessageBox.warning(self, "警告", f"无法解析 {os.path.basename(result_json_path)} 为JSON，将使用原始JSON的键并重新创建。")
-                    editor_initial_data = {key: "" for key in self.key_value_editor.task_item_options.keys()} # Initialize with keys from task_item_options
-                    should_create_result_json = True
+                    editor_initial_data = {key: "" for key in self.key_value_editor.task_item_options.keys()}
+                    try:
+                        with open(result_json_path, 'w', encoding='utf-8') as f_result:
+                            json.dump(editor_initial_data, f_result, ensure_ascii=False, indent=4)
+                    except Exception as e:
+                        QMessageBox.warning(self, "错误", f"创建/更新 {os.path.basename(result_json_path)} 失败: {e}")
                 except Exception as e:
                     QMessageBox.warning(self, "警告", f"读取 {os.path.basename(result_json_path)} 时发生错误: {e}，将使用任务项的键并重新创建。")
-                    editor_initial_data = {key: "" for key in self.key_value_editor.task_item_options.keys()} # Initialize with keys from task_item_options
-                    should_create_result_json = True
+                    editor_initial_data = {key: "" for key in self.key_value_editor.task_item_options.keys()}
+                    try:
+                        with open(result_json_path, 'w', encoding='utf-8') as f_result:
+                            json.dump(editor_initial_data, f_result, ensure_ascii=False, indent=4)
+                    except Exception as e:
+                        QMessageBox.warning(self, "错误", f"创建/更新 {os.path.basename(result_json_path)} 失败: {e}")
             else:
-                # If _result.json does not exist, initialize with keys from task_item_options and mark for creation
+                # If _result.json does not exist, initialize with keys from task_item_options
                 editor_initial_data = {key: "" for key in self.key_value_editor.task_item_options.keys()}
-                should_create_result_json = True  # 修改这里，确保在文件不存在时也创建
-            
-            # If _result.json needs to be created or recreated, save it now
-            if should_create_result_json:
                 try:
                     with open(result_json_path, 'w', encoding='utf-8') as f_result:
                         json.dump(editor_initial_data, f_result, ensure_ascii=False, indent=4)
                 except Exception as e:
-                    QMessageBox.warning(self, "错误", f"创建/更新 {os.path.basename(result_json_path)} 失败: {e}")
+                    QMessageBox.warning(self, "错误", f"创建 {os.path.basename(result_json_path)} 失败: {e}")
 
             self.key_value_editor.load_data(editor_initial_data)
             self.key_value_editor.set_save_target(result_json_path)
             self.key_value_editor.show_table() # Show the table after loading data
-            # --- End new logic ---
+            # --- End logic ---
 
         except json.JSONDecodeError as e:
             QMessageBox.warning(self, "错误", f"无法解析文件 {os.path.basename(file_path)} 为JSON: {e}")
         except Exception as e:
             QMessageBox.warning(self, "错误", f"读取文件 {os.path.basename(file_path)} 时发生错误: {e}")
-
-    def _on_batch_generate_result_json(self, directory_path, task_type_file):
-        """Handle batch generation of _result.json files for a directory"""
-        # Create task type selection dialog
-        task_type_file = self._show_task_type_selection_dialog()
-        if not task_type_file:
-            return  # User cancelled the dialog
-            
-        # Find all JSON files in the directory
-        json_files = []
-        for root, dirs, files in os.walk(directory_path):
-            for file in files:
-                if file.endswith('.json') and not file.endswith('_result.json'):
-                    json_files.append(os.path.join(root, file))
-        
-        if not json_files:
-            QMessageBox.information(self, "信息", "在选定的目录中未找到JSON文件。")
-            return
-            
-        # Process each JSON file
-        generated_count = 0
-        for file_path in json_files:
-            try:
-                # Create result directory if it doesn't exist
-                result_dir = os.path.join(os.path.dirname(file_path), "result")
-                os.makedirs(result_dir, exist_ok=True)
-                
-                # Generate _result.json path in result directory
-                base_name = os.path.splitext(os.path.basename(file_path))[0]
-                result_json_path = os.path.join(result_dir, base_name + "_result.json")
-                
-                # Skip if _result.json already exists
-                if os.path.exists(result_json_path):
-                    continue
-                
-                # Load task items from selected task type file
-                task_item_options = self._load_task_items_from_file(task_type_file)
-                
-                # Create initial data with keys from task items
-                editor_initial_data = {key: "" for key in task_item_options.keys()}
-                
-                # Save _result.json file
-                with open(result_json_path, 'w', encoding='utf-8') as f_result:
-                    json.dump(editor_initial_data, f_result, ensure_ascii=False, indent=4)
-                generated_count += 1
-            except Exception as e:
-                QMessageBox.warning(self, "警告", f"创建 {os.path.basename(result_json_path)} 时发生错误: {e}")
-        
-        QMessageBox.information(self, "完成", f"批量生成完成，共创建了 {generated_count} 个 _result.json 文件。")
-
-    def _show_task_type_selection_dialog(self):
-        """Show dialog to select task type file"""
-        task_type_files = self._find_task_type_files()
-        if not task_type_files:
-            QMessageBox.warning(self, "错误", "未找到任何任务类型文件。")
-            return None
-            
-        # Create dialog
-        dialog = QDialog(self)
-        dialog.setWindowTitle("选择任务类型")
-        layout = QVBoxLayout()
-        
-        # Create radio buttons for each task type file
-        button_group = QButtonGroup()
-        radio_buttons = []
-        
-        for i, file_path in enumerate(task_type_files):
-            file_name = os.path.basename(file_path)
-            match = re.match(r"任务类型_(\d+)\.json", file_name)
-            if match:
-                display_name = match.group(1)
-            else:
-                display_name = file_name
-                
-            radio_button = QRadioButton(display_name)
-            if file_path == self.current_task_type_file:
-                radio_button.setChecked(True)
-            button_group.addButton(radio_button, i)
-            radio_buttons.append((radio_button, file_path))
-            layout.addWidget(radio_button)
-        
-        # Add buttons
-        button_layout = QHBoxLayout()
-        ok_button = QPushButton("确定")
-        cancel_button = QPushButton("取消")
-        button_layout.addWidget(ok_button)
-        button_layout.addWidget(cancel_button)
-        layout.addLayout(button_layout)
-        
-        dialog.setLayout(layout)
-        
-        # Connect buttons
-        ok_button.clicked.connect(dialog.accept)
-        cancel_button.clicked.connect(dialog.reject)
-        
-        # Show dialog and get result
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            selected_button = button_group.checkedButton()
-            if selected_button:
-                for radio_button, file_path in radio_buttons:
-                    if radio_button == selected_button:
-                        return file_path
-        return None
-
-    def _load_task_items_from_file(self, file_path):
-        """Load task items from a task type file"""
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                json_data = json.load(f)
-                if isinstance(json_data, dict):
-                    return json_data
-                else:
-                    QMessageBox.warning(self, "错误", "任务项文件格式不正确，应为JSON对象。")
-                    return {}
-        except json.JSONDecodeError as e:
-            QMessageBox.warning(self, "错误", f"解析任务项JSON文件失败: {e}")
-            return {}
-        except Exception as e:
-            QMessageBox.warning(self, "错误", f"加载任务项文件失败: {e}")
-            return {}
 
     def closeEvent(self, event):
         self.write_settings()

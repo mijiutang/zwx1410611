@@ -24,7 +24,6 @@ class ResultJsonFilterProxyModel(QSortFilterProxyModel):
 
 class FileBrowserDock(QDockWidget):
     file_double_clicked = pyqtSignal(str)
-    batch_generate_result_json = pyqtSignal(str, str)  # Signal for batch generating _result.json files (directory, task_type_file)
 
     def __init__(self, title, target_directory, parent=None):
         super().__init__(title, parent)
@@ -61,32 +60,8 @@ class FileBrowserDock(QDockWidget):
 
     def _on_context_menu(self, position):
         """Handle context menu request"""
-        index = self.tree_view.indexAt(position)
-        if not index.isValid():
-            return
-            
-        # Map the index to the source model
-        source_index = self.proxy_model.mapToSource(index)
-        file_path = self.model.filePath(source_index)
-        
-        # Create context menu
-        menu = QMenu()
-        
-        # Check if the selected item is a directory
-        if os.path.isdir(file_path):
-            batch_generate_action = QAction("批量生成_result.json文件", self)
-            batch_generate_action.triggered.connect(lambda: self._on_batch_generate_result_json(file_path))
-            menu.addAction(batch_generate_action)
-        
-        # Show the context menu
-        menu.exec(self.tree_view.viewport().mapToGlobal(position))
-
-    def _on_batch_generate_result_json(self, directory_path):
-        """Handle batch generation of _result.json files"""
-        # Emit signal to let main window handle the actual generation
-        # We'll pass the directory path and current task type file from main window
-        if self.parent_main_window and hasattr(self.parent_main_window, 'current_task_type_file'):
-            self.batch_generate_result_json.emit(directory_path, self.parent_main_window.current_task_type_file)
+        # No context menu options for directories
+        pass
 
     def _on_file_double_clicked(self, index):
         source_index = self.proxy_model.mapToSource(index)
