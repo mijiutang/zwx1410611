@@ -2,6 +2,11 @@
   type: string
   required: false
   description: '约束字段: 是否建议剔除'
+  pattern: 电饭锅
+  pattern_description: 发的苟富贵
+  options:
+  - 是
+  - 否
 剔除原因:
   type: string
   required: false
@@ -10,6 +15,11 @@
   type: string
   required: true
   description: '约束字段: 实验场景'
+  options:
+  - 无骑手
+  - 速度
+  - 是多少
+  - 速度
 修改后的agent信号:
   type: string
   required: true

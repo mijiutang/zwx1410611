@@ -16,7 +16,8 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
     QTableWidget, QTableWidgetItem, QPushButton, QDialog, QDialogButtonBox,
     QMessageBox, QFileDialog, QHeaderView, QLabel, QComboBox,
-    QLineEdit, QTextEdit, QCheckBox, QSpinBox, QFormLayout
+    QLineEdit, QTextEdit, QCheckBox, QSpinBox, QFormLayout,
+    QAbstractItemView
 )
 from PyQt6.QtCore import Qt
 
@@ -27,16 +28,12 @@ class FieldConstraint:
     def __init__(
         self,
         required: bool = False,
-        min_length: Optional[int] = None,
-        max_length: Optional[int] = None,
         pattern: Optional[str] = None,
         pattern_description: str = "",
         options: Optional[List[str]] = None,
         error_message: str = ""
     ):
         self.required = required
-        self.min_length = min_length
-        self.max_length = max_length
         self.pattern = pattern
         self.pattern_description = pattern_description
         self.options = options or []
@@ -47,13 +44,6 @@ class FieldConstraint:
         # 必填验证
         if self.required and not value.strip():
             return False, self.error_message or "此字段为必填项"
-        
-        # 长度验证
-        if self.min_length is not None and len(value) < self.min_length:
-            return False, f"输入长度不能少于{self.min_length}个字符"
-        
-        if self.max_length is not None and len(value) > self.max_length:
-            return False, f"输入长度不能超过{self.max_length}个字符"
         
         # 正则表达式验证
         if self.pattern and value:
@@ -126,14 +116,15 @@ class ConstraintConfig:
                                 # 简化格式，转换为标准格式
                                 constraint = FieldConstraint(
                                     required=constraint_data.get('required', False),
+                                    pattern=constraint_data.get('pattern'),
+                                    pattern_description=constraint_data.get('pattern_description', ''),
+                                    options=constraint_data.get('options', []),
                                     error_message=constraint_data.get('description', f"请输入有效的{field_name}")
                                 )
                             else:
                                 # 标准格式，包含所有属性
                                 constraint = FieldConstraint(
                                     required=constraint_data.get('required', False),
-                                    max_length=constraint_data.get('max_length'),
-                                    min_length=constraint_data.get('min_length'),
                                     pattern=constraint_data.get('pattern'),
                                     pattern_description=constraint_data.get('pattern_description', ''),
                                     options=constraint_data.get('options', []),
@@ -170,12 +161,6 @@ class ConstraintConfig:
                 constraint_data["type"] = "string"
                 constraint_data["required"] = constraint.required
                 constraint_data["description"] = constraint.error_message
-                
-                if constraint.min_length is not None:
-                    constraint_data["min_length"] = constraint.min_length
-                
-                if constraint.max_length is not None:
-                    constraint_data["max_length"] = constraint.max_length
                 
                 if constraint.pattern:
                     constraint_data["pattern"] = constraint.pattern
@@ -247,20 +232,6 @@ class ConstraintEditDialog(QDialog):
         self.required_check = QCheckBox()
         form_layout.addRow("必填:", self.required_check)
         
-        # 最小长度
-        self.min_length_spin = QSpinBox()
-        self.min_length_spin.setRange(0, 1000)
-        self.min_length_spin.setSpecialValueText("无限制")
-        self.min_length_spin.setValue(0)
-        form_layout.addRow("最小长度:", self.min_length_spin)
-        
-        # 最大长度
-        self.max_length_spin = QSpinBox()
-        self.max_length_spin.setRange(0, 1000)
-        self.max_length_spin.setSpecialValueText("无限制")
-        self.max_length_spin.setValue(0)
-        form_layout.addRow("最大长度:", self.max_length_spin)
-        
         # 正则表达式
         self.pattern_edit = QLineEdit()
         form_layout.addRow("正则表达式:", self.pattern_edit)
@@ -295,13 +266,6 @@ class ConstraintEditDialog(QDialog):
             return
         
         self.required_check.setChecked(self.constraint.required)
-        
-        if self.constraint.min_length is not None:
-            self.min_length_spin.setValue(self.constraint.min_length)
-        
-        if self.constraint.max_length is not None:
-            self.max_length_spin.setValue(self.constraint.max_length)
-        
         self.pattern_edit.setText(self.constraint.pattern or "")
         self.pattern_desc_edit.setText(self.constraint.pattern_description or "")
         
@@ -312,22 +276,12 @@ class ConstraintEditDialog(QDialog):
     
     def get_constraint(self) -> FieldConstraint:
         """获取约束数据"""
-        min_length = None
-        if self.min_length_spin.value() > 0:
-            min_length = self.min_length_spin.value()
-        
-        max_length = None
-        if self.max_length_spin.value() > 0:
-            max_length = self.max_length_spin.value()
-        
         options = []
         if self.options_edit.toPlainText().strip():
             options = [line.strip() for line in self.options_edit.toPlainText().split("\n") if line.strip()]
         
         return FieldConstraint(
             required=self.required_check.isChecked(),
-            min_length=min_length,
-            max_length=max_length,
             pattern=self.pattern_edit.text().strip() or None,
             pattern_description=self.pattern_desc_edit.text().strip(),
             options=options,
@@ -394,16 +348,22 @@ class ConstraintEditorWindow(QMainWindow):
         
         # 约束表格
         self.table_widget = QTableWidget()
-        self.table_widget.setColumnCount(7)
+        self.table_widget.setColumnCount(5)
         self.table_widget.setHorizontalHeaderLabels([
-            "字段名称", "必填", "最小长度", "最大长度", "正则表达式", "选项数量", "错误消息"
+            "字段名称", "必填", "正则表达式", "选项数量", "错误消息"
         ])
+        
+        # 禁用表格编辑功能
+        self.table_widget.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        
+        # 添加双击事件处理
+        self.table_widget.cellDoubleClicked.connect(self.on_table_double_clicked)
         
         # 设置列宽
         header = self.table_widget.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
@@ -448,24 +408,23 @@ class ConstraintEditorWindow(QMainWindow):
             # 必填
             self.table_widget.setItem(row, 1, QTableWidgetItem("是" if constraint.required else "否"))
             
-            # 最小长度
-            min_len = str(constraint.min_length) if constraint.min_length is not None else ""
-            self.table_widget.setItem(row, 2, QTableWidgetItem(min_len))
-            
-            # 最大长度
-            max_len = str(constraint.max_length) if constraint.max_length is not None else ""
-            self.table_widget.setItem(row, 3, QTableWidgetItem(max_len))
-            
             # 正则表达式
             pattern = constraint.pattern if constraint.pattern else ""
-            self.table_widget.setItem(row, 4, QTableWidgetItem(pattern))
+            self.table_widget.setItem(row, 2, QTableWidgetItem(pattern))
             
             # 选项数量
             option_count = str(len(constraint.options)) if constraint.options else "0"
-            self.table_widget.setItem(row, 5, QTableWidgetItem(option_count))
+            self.table_widget.setItem(row, 3, QTableWidgetItem(option_count))
             
             # 错误消息
-            self.table_widget.setItem(row, 6, QTableWidgetItem(constraint.error_message))
+            self.table_widget.setItem(row, 4, QTableWidgetItem(constraint.error_message))
+    
+    def on_table_double_clicked(self, row, column):
+        """处理表格双击事件"""
+        # 设置当前行为选中行
+        self.table_widget.selectRow(row)
+        # 调用编辑约束方法
+        self.edit_constraint()
     
     def edit_constraint(self):
         """编辑选中的约束"""
