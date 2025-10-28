@@ -107,12 +107,14 @@ class MainWindow(QMainWindow):
         highlight_action.triggered.connect(self._toggle_highlighting)
         settings_menu.addAction(highlight_action)
         
-        # 添加约束管理菜单项
-        constraint_action = QAction("约束管理", self)
-        constraint_action.triggered.connect(self.show_constraint_manager_dialog)
-        settings_menu.addAction(constraint_action)
+        
 
-        # 添加约束子菜单
+        # 添加打开约束编辑器菜单项
+        open_constraint_editor_action = QAction("打开约束编辑器", self)
+        open_constraint_editor_action.triggered.connect(self.open_constraint_editor)
+        settings_menu.addAction(open_constraint_editor_action)
+        
+          # 添加约束子菜单
         constraints_menu = menubar.addMenu("约束")
         self._populate_constraints_menu(constraints_menu)
 
@@ -535,21 +537,7 @@ class MainWindow(QMainWindow):
             self.write_settings()
             QMessageBox.information(self, "成功", f"字体大小已更改为 {new_size}px")
 
-    def show_constraint_manager_dialog(self):
-        """显示约束管理对话框"""
-        from .constraint_manager import ConstraintManagerDialog
-        import os
-        
-        # 获取约束配置文件路径
-        cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache")
-        os.makedirs(cache_dir, exist_ok=True)  # 确保缓存目录存在
-        constraint_file_path = os.path.join(cache_dir, "field_constraints.yaml")
-        
-        # 创建约束管理对话框
-        dialog = ConstraintManagerDialog(constraint_file_path, self)
-        
-        # 显示对话框
-        dialog.exec()
+    
 
 
 
@@ -640,6 +628,29 @@ class MainWindow(QMainWindow):
             
         except Exception as e:
             QMessageBox.critical(self, "错误", f"启动爬虫程序时发生错误：{str(e)}")
+    
+    def open_constraint_editor(self):
+        """打开独立的约束编辑器"""
+        import os
+        import subprocess
+        import sys
+        from PyQt6.QtWidgets import QMessageBox
+        
+        try:
+            # 获取约束编辑器路径
+            tools_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tools")
+            editor_script = os.path.join(tools_dir, "constraint_editor.py")
+            
+            # 检查约束编辑器文件是否存在
+            if not os.path.exists(editor_script):
+                QMessageBox.warning(self, "错误", f"约束编辑器文件不存在: {editor_script}")
+                return
+            
+            # 使用当前Python解释器启动约束编辑器
+            subprocess.Popen([sys.executable, editor_script], cwd=tools_dir)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"启动约束编辑器时发生错误: {str(e)}")
     
     def _populate_constraints_menu(self, constraints_menu):
         """填充约束菜单，列出可用的约束文件"""

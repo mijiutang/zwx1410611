@@ -106,14 +106,18 @@ class ConstraintEditDialog(QDialog):
 class ConstraintManagerDialog(QDialog):
     """约束管理对话框"""
     
-    def __init__(self, constraint_file_path=None, parent=None):
+    def __init__(self, constraint_file_path=None, parent=None, close_on_load_failure=False):
         super().__init__(parent)
         self.constraint_file_path = constraint_file_path
         self.init_ui()
         self.load_constraints()
         # 如果提供了约束文件路径，则从该文件加载约束
         if self.constraint_file_path:
-            self.load_constraints_from_file(self.constraint_file_path)
+            if not self.load_constraints_from_file(self.constraint_file_path):
+                # 如果加载失败且设置了close_on_load_failure为True，则关闭窗口
+                if close_on_load_failure:
+                    self.reject()
+                    return
         
     def init_ui(self):
         self.setWindowTitle("字段约束管理")
@@ -256,15 +260,19 @@ class ConstraintManagerDialog(QDialog):
             )
             
             if not file_path:
-                return  # 用户取消选择
+                return True  # 用户取消选择，不算失败
         
         if file_path:
             if constraint_config.load_from_file(file_path):
                 self.constraint_file_path = file_path
                 self.load_constraints()
                 # 成功加载时不显示提示信息
+                return True
             else:
                 QMessageBox.warning(self, "错误", "约束配置加载失败！")
+                return False
+        
+        return True
     
     def save_constraints_to_file(self):
         """保存约束配置到文件"""
@@ -278,39 +286,10 @@ class ConstraintManagerDialog(QDialog):
         
         if self.constraint_file_path:
             try:
-                # 准备保存数据
-                save_data = {"constraints": {}}
-                
-                for field_name, constraint in constraint_config.constraints.items():
-                    constraint_data = {
-                        "required": constraint.required,
-                        "error_message": constraint.error_message
-                    }
-                    
-                    if constraint.min_length is not None:
-                        constraint_data["min_length"] = constraint.min_length
-                    
-                    if constraint.max_length is not None:
-                        constraint_data["max_length"] = constraint.max_length
-                    
-                    if constraint.pattern:
-                        constraint_data["pattern"] = constraint.pattern
-                    
-                    if constraint.pattern_description:
-                        constraint_data["pattern_description"] = constraint.pattern_description
-                    
-                    if constraint.options:
-                        constraint_data["options"] = constraint.options
-                    
-                    save_data["constraints"][field_name] = constraint_data
-                
-                # 保存到文件
-                with open(self.constraint_file_path, 'w', encoding='utf-8') as f:
-                    if self.constraint_file_path.endswith(('.yml', '.yaml')):
-                        yaml.dump(save_data, f, allow_unicode=True, default_flow_style=False, indent=2)
-                    else:
-                        json.dump(save_data, f, ensure_ascii=False, indent=4)
-                
-                QMessageBox.information(self, "成功", f"约束配置已保存到 {self.constraint_file_path}")
+                # 使用constraint_config的save_to_file方法，保持原始文件格式
+                if constraint_config.save_to_file(self.constraint_file_path):
+                    QMessageBox.information(self, "成功", f"约束配置已保存到 {self.constraint_file_path}")
+                else:
+                    QMessageBox.warning(self, "错误", "保存约束配置失败！")
             except Exception as e:
                 QMessageBox.warning(self, "错误", f"保存约束配置失败: {e}")

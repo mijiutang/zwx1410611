@@ -233,13 +233,15 @@ class ConstraintConfig:
     def save_to_file(self, file_path: str):
         """将约束配置保存到文件"""
         try:
-            # 准备保存数据
-            save_data = {"constraints": {}}
+            # 准备保存数据 - 使用统一的格式（不带constraints包装，使用type/description格式）
+            save_data = {}
             
             for field_name, constraint in self.constraints.items():
+                # 使用统一的type/description格式
                 constraint_data = {
+                    "type": "string",
                     "required": constraint.required,
-                    "error_message": constraint.error_message
+                    "description": constraint.error_message
                 }
                 
                 if constraint.min_length is not None:
@@ -257,7 +259,7 @@ class ConstraintConfig:
                 if constraint.options:
                     constraint_data["options"] = constraint.options
                 
-                save_data["constraints"][field_name] = constraint_data
+                save_data[field_name] = constraint_data
             
             # 保存到文件
             with open(file_path, 'w', encoding='utf-8') as f:
