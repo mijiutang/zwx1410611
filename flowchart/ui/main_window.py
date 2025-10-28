@@ -333,12 +333,12 @@ class MainWindow(QMainWindow):
         return None
 
     def _find_task_type_files(self):
-        # Find all files matching "任务类型_*.json" in CACHE_DIR
+        # Find all files matching "*.yml" or "*.yaml" in CACHE_DIR
         files = []
         if not os.path.exists(self.CACHE_DIR):
             os.makedirs(self.CACHE_DIR) # Ensure CACHE_DIR exists
         for f in os.listdir(self.CACHE_DIR):
-            if f.startswith("任务类型_") and f.endswith(".json"):
+            if f.endswith((".yml", ".yaml")):
                 files.append(os.path.join(self.CACHE_DIR, f))
         files.sort() # Sort to ensure consistent order
         return files
@@ -351,13 +351,9 @@ class MainWindow(QMainWindow):
             menu.addAction("无可用任务类型文件").setEnabled(False)
         else:
             for file_path in task_type_files:
-                # Extract "1", "2" from "任务类型_1.json"
+                # Use the filename without extension as display name
                 file_name = os.path.basename(file_path)
-                match = re.match(r"任务类型_(\d+)\.json", file_name)
-                if match:
-                    display_name = match.group(1)
-                else:
-                    display_name = file_name # Fallback if naming convention is not followed
+                display_name = os.path.splitext(file_name)[0]  # Remove extension
 
                 action = menu.addAction(display_name)
                 action.setCheckable(True)

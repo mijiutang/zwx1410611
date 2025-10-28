@@ -3,6 +3,7 @@ from PyQt6.QtCore import pyqtSignal, Qt
 from .dock.combo_box_delegate import ComboBoxDelegate # Import the new delegate
 import os
 import json
+import yaml
 
 class KeyValueEditorWidget(QWidget):
     data_changed = pyqtSignal(dict)
@@ -50,9 +51,14 @@ class KeyValueEditorWidget(QWidget):
     def _load_task_items_from_file(self):
         try:
             with open(self.task_items_file_path, 'r', encoding='utf-8') as f:
-                json_data = json.load(f)
-                if isinstance(json_data, dict):
-                    self.task_item_options = json_data
+                # Determine file format by extension
+                if self.task_items_file_path.endswith(('.yml', '.yaml')):
+                    data = yaml.safe_load(f)
+                else:
+                    data = json.load(f)
+                
+                if isinstance(data, dict):
+                    self.task_item_options = data
                     for task_item, options in self.task_item_options.items():
                         row_position = self.table_widget.rowCount()
                         self.table_widget.insertRow(row_position)
@@ -67,9 +73,10 @@ class KeyValueEditorWidget(QWidget):
                         else:
                             self.table_widget.setItem(row_position, 1, QTableWidgetItem(""))
                 else:
-                    QMessageBox.warning(self, "错误", "任务项文件格式不正确，应为JSON对象。")
-        except json.JSONDecodeError as e:
-            QMessageBox.warning(self, "错误", f"解析任务项JSON文件失败: {e}")
+                    QMessageBox.warning(self, "错误", "任务项文件格式不正确，应为对象。")
+        except (json.JSONDecodeError, yaml.YAMLError) as e:
+            file_format = "YAML" if self.task_items_file_path.endswith(('.yml', '.yaml')) else "JSON"
+            QMessageBox.warning(self, "错误", f"解析任务项{file_format}文件失败: {e}")
         except Exception as e:
             QMessageBox.warning(self, "错误", f"加载任务项文件失败: {e}")
 
@@ -126,10 +133,15 @@ class KeyValueEditorWidget(QWidget):
         if self.save_target_file_path:
             try:
                 with open(self.save_target_file_path, 'w', encoding='utf-8') as f:
-                    json.dump(self.current_data, f, ensure_ascii=False, indent=4)
+                    # Determine file format by extension
+                    if self.save_target_file_path.endswith(('.yml', '.yaml')):
+                        yaml.dump(self.current_data, f, allow_unicode=True, default_flow_style=False, indent=2)
+                    else:
+                        json.dump(self.current_data, f, ensure_ascii=False, indent=4)
                 # QMessageBox.information(self, "保存", f"更改已保存到 {os.path.basename(self.save_target_file_path)}。") # Removed intrusive message
             except Exception as e:
-                QMessageBox.warning(self, "错误", f"保存文件失败: {e}")
+                file_format = "YAML" if self.save_target_file_path.endswith(('.yml', '.yaml')) else "JSON"
+                QMessageBox.warning(self, "错误", f"保存{file_format}文件失败: {e}")
         # else: # Removed message for unsaved changes in memory
             # QMessageBox.information(self, "保存", "更改已保存到内存中，但未指定保存文件。")
 
@@ -164,9 +176,14 @@ class KeyValueEditorWidget(QWidget):
                 if self.task_items_file_path:
                     try:
                         with open(self.task_items_file_path, 'w', encoding='utf-8') as f:
-                            json.dump(self.task_item_options, f, ensure_ascii=False, indent=4)
+                            # Determine file format by extension
+                            if self.task_items_file_path.endswith(('.yml', '.yaml')):
+                                yaml.dump(self.task_item_options, f, allow_unicode=True, default_flow_style=False, indent=2)
+                            else:
+                                json.dump(self.task_item_options, f, ensure_ascii=False, indent=4)
                     except Exception as e:
-                        QMessageBox.warning(self, "保存失败", f"保存任务项文件失败: {e}")
+                        file_format = "YAML" if self.task_items_file_path.endswith(('.yml', '.yaml')) else "JSON"
+                        QMessageBox.warning(self, "保存失败", f"保存任务项{file_format}文件失败: {e}")
                 
                 # Refresh the table to update the QComboBoxes with the new option
                 self.load_data(self.get_data())
