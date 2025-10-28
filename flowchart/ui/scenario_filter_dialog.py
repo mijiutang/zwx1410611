@@ -54,6 +54,8 @@ class ScenarioFilterDialog(QDialog):
         
         # 底部按钮
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box.button(QDialogButtonBox.StandardButton.Ok).setText("确定")
+        button_box.button(QDialogButtonBox.StandardButton.Cancel).setText("取消")
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         main_layout.addWidget(button_box)
@@ -158,13 +160,16 @@ class ScenarioFilterDialog(QDialog):
             
         # 加载场景配置
         if scenario_id == "global":
-            # 全局场景：显示所有键值
-            self.current_scenario = {
+            # 全局场景：从保存的配置中加载
+            saved_global_scenario = self.scenarios.get("global", {
                 "id": "global",
                 "name": "全局",
                 "type": "global",
                 "selected_keys": list(self.global_selected_keys)
-            }
+            })
+            self.current_scenario = saved_global_scenario
+            # 更新全局选中的键值
+            self.global_selected_keys = list(saved_global_scenario.get("selected_keys", []))
         else:
             # 特定场景
             self.current_scenario = self.scenarios.get(scenario_id, {
@@ -353,11 +358,12 @@ class ScenarioFilterDialog(QDialog):
         # 如果是全局场景，更新全局选中的键值
         if self.current_scenario.get("type") == "global":
             self.global_selected_keys = selected_keys
+            # 将全局场景配置也保存到场景字典中
+            self.scenarios["global"] = self.current_scenario
             
         # 保存到场景字典
         scenario_id = self.current_scenario["id"]
-        if scenario_id != "global":  # 不保存默认全局场景
-            self.scenarios[scenario_id] = self.current_scenario
+        self.scenarios[scenario_id] = self.current_scenario
             
         # 保存到文件
         self._save_scenarios()
@@ -372,6 +378,12 @@ class ScenarioFilterDialog(QDialog):
             if os.path.exists(self.scenario_config_path):
                 with open(self.scenario_config_path, 'r', encoding='utf-8') as f:
                     self.scenarios = json.load(f)
+                    
+                # 如果保存的配置中有全局场景，则加载其选中的键值
+                if "global" in self.scenarios:
+                    global_scenario = self.scenarios["global"]
+                    if "selected_keys" in global_scenario:
+                        self.global_selected_keys = list(global_scenario["selected_keys"])
             else:
                 # 创建默认场景配置文件
                 self.scenarios = {}
@@ -426,6 +438,20 @@ class ScenarioFilterDialog(QDialog):
         
         # 不在这里自动保存，等待对话框关闭时再保存
             
+    def closeEvent(self, event):
+        """重写closeEvent方法，在对话框关闭前保存场景配置"""
+        # 保存当前场景配置
+        self._save_current_scenario(show_message=False)
+        
+        # 发出筛选改变信号
+        self.filter_changed.emit({
+            "selected_keys": self.get_selected_keys(),
+            "scenario": self.get_current_scenario()
+        })
+        
+        # 接受关闭事件
+        event.accept()
+        
     def accept(self):
         """重写accept方法，在对话框关闭前保存场景配置"""
         # 保存当前场景配置

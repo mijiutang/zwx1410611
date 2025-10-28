@@ -35,6 +35,9 @@
   type: string
   required: true
   description: '约束字段: 是否建议剔除'
+  options:
+  - 是
+  - 否
 正确的关联动作:
   type: string
   required: true
