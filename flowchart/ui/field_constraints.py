@@ -6,6 +6,7 @@
 import re
 import yaml
 import json
+import os
 from typing import Dict, List, Optional, Union, Callable
 
 
@@ -172,8 +173,16 @@ class ConstraintConfig:
     def load_from_file(self, file_path: str):
         """从文件加载约束配置"""
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                if file_path.endswith(('.yml', '.yaml')):
+            # 确保路径格式正确
+            normalized_path = os.path.normpath(file_path)
+            
+            # 检查文件是否存在
+            if not os.path.exists(normalized_path):
+                print(f"约束文件不存在: {normalized_path}")
+                return False
+            
+            with open(normalized_path, 'r', encoding='utf-8') as f:
+                if normalized_path.endswith(('.yml', '.yaml')):
                     config_data = yaml.safe_load(f)
                 else:
                     config_data = json.load(f)
@@ -189,15 +198,24 @@ class ConstraintConfig:
                     # 处理两种格式的约束数据
                     if isinstance(constraint_data, dict):
                         # 标准格式，包含所有属性
-                        constraint = FieldConstraint(
-                            required=constraint_data.get('required', False),
-                            max_length=constraint_data.get('max_length'),
-                            min_length=constraint_data.get('min_length'),
-                            pattern=constraint_data.get('pattern'),
-                            pattern_description=constraint_data.get('pattern_description', ''),
-                            options=constraint_data.get('options', []),
-                            error_message=constraint_data.get('error_message', '输入不符合要求')
-                        )
+                        # 检查是否是简化的约束格式（只有type, required, description）
+                        if 'type' in constraint_data and 'required' in constraint_data and 'description' in constraint_data:
+                            # 简化格式，转换为标准格式
+                            constraint = FieldConstraint(
+                                required=constraint_data.get('required', False),
+                                error_message=constraint_data.get('description', f"请输入有效的{field_name}")
+                            )
+                        else:
+                            # 标准格式，包含所有属性
+                            constraint = FieldConstraint(
+                                required=constraint_data.get('required', False),
+                                max_length=constraint_data.get('max_length'),
+                                min_length=constraint_data.get('min_length'),
+                                pattern=constraint_data.get('pattern'),
+                                pattern_description=constraint_data.get('pattern_description', ''),
+                                options=constraint_data.get('options', []),
+                                error_message=constraint_data.get('error_message', '输入不符合要求')
+                            )
                     else:
                         # 简单格式，只包含值
                         constraint = FieldConstraint(

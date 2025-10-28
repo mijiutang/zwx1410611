@@ -4,6 +4,8 @@ from PyQt6.QtCore import Qt, QSettings
 import json
 import os
 import re
+import yaml
+import collections
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 from .scenario_filter_dialog import ScenarioFilterDialog
 from .dock.file_browser_dock import FileBrowserDock
@@ -726,9 +728,9 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "警告", f"文件不存在: {file_path}")
                 return
             
-            # 读取JSON文件
+            # 读取JSON文件，保持原始顺序
             with open(file_path, 'r', encoding='utf-8') as f:
-                result_data = json.load(f)
+                result_data = json.load(f, object_pairs_hook=collections.OrderedDict)
             
             # 获取结果数据中的所有键
             if not isinstance(result_data, dict):
@@ -744,8 +746,9 @@ class MainWindow(QMainWindow):
             if not file_name.endswith('.yaml') and not file_name.endswith('.yml'):
                 file_name += '.yaml'
             
-            # 创建约束文件内容
-            constraint_content = {}
+            # 创建约束文件内容，保持原始顺序
+            from collections import OrderedDict
+            constraint_content = OrderedDict()
             for key in result_data.keys():
                 constraint_content[key] = {
                     "type": "string",
@@ -767,9 +770,11 @@ class MainWindow(QMainWindow):
                 if reply != QMessageBox.StandardButton.Yes:
                     return
             
-            # 写入YAML文件
+            # 写入YAML文件，保持原始顺序
             with open(constraint_file_path, 'w', encoding='utf-8') as f:
-                yaml.dump(constraint_content, f, default_flow_style=False, allow_unicode=True)
+                # 转换为普通字典再写入，避免Python对象序列化问题
+                normal_dict = dict(constraint_content)
+                yaml.dump(normal_dict, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
             
             # 显示成功消息
             QMessageBox.information(self, "成功", f"约束文件 {file_name} 已创建成功！")
@@ -826,6 +831,8 @@ class MainWindow(QMainWindow):
                 
                 # 成功应用约束文件时不显示提示信息
             else:
-                QMessageBox.warning(self, "错误", f"加载约束文件失败: {file_path}")
+                # 使用规范化路径显示错误信息
+                normalized_path = os.path.normpath(file_path)
+                QMessageBox.warning(self, "错误", f"加载约束文件失败: {normalized_path}")
         except Exception as e:
             QMessageBox.critical(self, "错误", f"应用约束文件时发生错误: {str(e)}")
