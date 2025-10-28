@@ -111,10 +111,10 @@
   },
   {
     "name": "_lxsdk_s",
-    "value": "19a24fa7fee-aed-038-95c%7C%7C0",
+    "value": "19a28db37a1-1b4-061-15e%7C%7C0",
     "domain": ".sankuai.com",
     "path": "/",
-    "expires": 1761558787,
+    "expires": 1761623846,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
