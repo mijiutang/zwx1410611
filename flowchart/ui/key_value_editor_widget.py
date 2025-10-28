@@ -87,11 +87,6 @@ class KeyValueEditorWidget(QWidget):
         self.table_widget.setRowCount(0) # Clear existing rows
         self.current_data = data
         
-        # 确保所有约束字段都在表格中显示
-        for field_name in constraint_config.constraints.keys():
-            if field_name not in self.current_data:
-                self.current_data[field_name] = ""
-        
         for key, value in self.current_data.items():
             row_position = self.table_widget.rowCount()
             self.table_widget.insertRow(row_position)
@@ -149,6 +144,11 @@ class KeyValueEditorWidget(QWidget):
         
         if self.save_target_file_path:
             try:
+                # Ensure the directory exists before saving
+                save_dir = os.path.dirname(self.save_target_file_path)
+                if save_dir and not os.path.exists(save_dir):
+                    os.makedirs(save_dir, exist_ok=True)
+                    
                 with open(self.save_target_file_path, 'w', encoding='utf-8') as f:
                     # Determine file format by extension
                     if self.save_target_file_path.endswith(('.yml', '.yaml')):

@@ -248,43 +248,25 @@ class MainWindow(QMainWindow):
                 self.conversation_dock_widget.update_content()
 
             # --- Logic for _result.json and KeyValueEditorWidget ---
-            # Create result directory if it doesn't exist
-            result_dir = os.path.join(os.path.dirname(file_path), "result")
-            os.makedirs(result_dir, exist_ok=True)
-            
             # Generate _result.json path in result directory
+            result_dir = os.path.join(os.path.dirname(file_path), "result")
             base_name = os.path.splitext(os.path.basename(file_path))[0]
             result_json_path = os.path.join(result_dir, base_name + "_result.json")
             editor_initial_data = {}
             
+            # Only load data if the result file exists, don't create it automatically
             if os.path.exists(result_json_path):
                 try:
                     with open(result_json_path, 'r', encoding='utf-8') as f_result:
                         editor_initial_data = json.load(f_result)
                 except json.JSONDecodeError:
-                    QMessageBox.warning(self, "警告", f"无法解析 {os.path.basename(result_json_path)} 为JSON，将使用约束字段的键并重新创建。")
-                    editor_initial_data = {key: "" for key in self.key_value_editor.task_item_options.keys()}
-                    try:
-                        with open(result_json_path, 'w', encoding='utf-8') as f_result:
-                            json.dump(editor_initial_data, f_result, ensure_ascii=False, indent=4)
-                    except Exception as e:
-                        QMessageBox.warning(self, "错误", f"创建/更新 {os.path.basename(result_json_path)} 失败: {e}")
+                    QMessageBox.warning(self, "警告", f"无法解析 {os.path.basename(result_json_path)} 为JSON，将显示空表格。")
+                    editor_initial_data = {}
                 except Exception as e:
-                    QMessageBox.warning(self, "警告", f"读取 {os.path.basename(result_json_path)} 时发生错误: {e}，将使用约束字段的键并重新创建。")
-                    editor_initial_data = {key: "" for key in self.key_value_editor.task_item_options.keys()}
-                    try:
-                        with open(result_json_path, 'w', encoding='utf-8') as f_result:
-                            json.dump(editor_initial_data, f_result, ensure_ascii=False, indent=4)
-                    except Exception as e:
-                        QMessageBox.warning(self, "错误", f"创建/更新 {os.path.basename(result_json_path)} 失败: {e}")
-            else:
-                # If _result.json does not exist, initialize with keys from constraint fields
-                editor_initial_data = {key: "" for key in self.key_value_editor.task_item_options.keys()}
-                try:
-                    with open(result_json_path, 'w', encoding='utf-8') as f_result:
-                        json.dump(editor_initial_data, f_result, ensure_ascii=False, indent=4)
-                except Exception as e:
-                    QMessageBox.warning(self, "错误", f"创建 {os.path.basename(result_json_path)} 失败: {e}")
+                    QMessageBox.warning(self, "警告", f"读取 {os.path.basename(result_json_path)} 时发生错误: {e}，将显示空表格。")
+                    editor_initial_data = {}
+            # If _result.json does not exist, we don't create it automatically
+            # The file will only be created when the user saves data
 
             self.key_value_editor.load_data(editor_initial_data)
             self.key_value_editor.set_save_target(result_json_path)
