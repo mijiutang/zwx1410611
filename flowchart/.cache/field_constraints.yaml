@@ -1,14 +1,14 @@
 修改后的agent信号:
   type: string
-  required: true
+  required: false
   description: '约束字段: 修改后的agent信号'
 修改后的上文:
   type: string
-  required: true
+  required: false
   description: '约束字段: 修改后的上文'
 修改后的外呼:
   type: string
-  required: true
+  required: false
   description: '约束字段: 修改后的外呼'
 剔除原因:
   type: string
@@ -23,9 +23,14 @@
   required: true
   description: '约束字段: 实验场景'
   options:
-  - 无骑手接单
-  - 骑手接单不取餐
+  - 没有骑手接单
+  - 骑手接单不取
   - 骑手取错餐
+  - 骑手取消配送
+  - 骑手提前点送达
+  - 如何申请餐损
+  - 联系不到用户
+  - 咨询订单问题
 是否建议剔除:
   type: string
   required: true
@@ -34,9 +39,6 @@
   type: string
   required: true
   description: '约束字段: 正确的关联动作'
-  options:
-  - 是
-  - 否
 正确的话术:
   type: string
   required: true
