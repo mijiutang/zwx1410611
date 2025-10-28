@@ -46,6 +46,10 @@ class KeyValueEditorWidget(QWidget):
         # 更新ComboBoxDelegate的选项
         if hasattr(self, 'combo_box_delegate'):
             self.combo_box_delegate.update_options(self.task_item_options)
+            
+        # 重新加载当前数据以更新表格中的下拉框
+        if hasattr(self, 'current_data') and self.current_data:
+            self.load_data(self.current_data)
     
     def init_ui(self):
         self.main_layout = QVBoxLayout(self)

@@ -200,9 +200,10 @@ class ConstraintConfig:
                         # 标准格式，包含所有属性
                         # 检查是否是简化的约束格式（只有type, required, description）
                         if 'type' in constraint_data and 'required' in constraint_data and 'description' in constraint_data:
-                            # 简化格式，转换为标准格式
+                            # 简化格式，转换为标准格式，但保留options
                             constraint = FieldConstraint(
                                 required=constraint_data.get('required', False),
+                                options=constraint_data.get('options', []),  # 保留options
                                 error_message=constraint_data.get('description', f"请输入有效的{field_name}")
                             )
                         else:

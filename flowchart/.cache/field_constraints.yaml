@@ -1,43 +1,47 @@
 修改后的agent信号:
+  type: string
+  required: true
   description: '约束字段: 修改后的agent信号'
-  required: true
-  type: string
 修改后的上文:
+  type: string
+  required: true
   description: '约束字段: 修改后的上文'
-  required: true
-  type: string
 修改后的外呼:
+  type: string
+  required: true
   description: '约束字段: 修改后的外呼'
-  required: true
-  type: string
 剔除原因:
+  type: string
+  required: false
   description: '约束字段: 剔除原因'
-  required: true
-  type: string
 备注:
+  type: string
+  required: false
   description: '约束字段: 备注'
-  required: true
-  type: string
 实验场景:
-  description: '约束字段: 实验场景'
-  required: true
   type: string
+  required: true
+  description: '约束字段: 实验场景'
+  options:
+  - 无骑手接单
+  - 骑手接单不取餐
+  - 骑手取错餐
 是否建议剔除:
+  type: string
+  required: true
   description: '约束字段: 是否建议剔除'
+正确的关联动作:
+  type: string
+  required: true
+  description: '约束字段: 正确的关联动作'
   options:
   - 是
   - 否
-  required: false
-  type: string
-正确的关联动作:
-  description: '约束字段: 正确的关联动作'
-  required: true
-  type: string
 正确的话术:
+  type: string
+  required: true
   description: '约束字段: 正确的话术'
-  required: true
-  type: string
 正确知识编号:
-  description: '约束字段: 正确知识编号'
-  required: true
   type: string
+  required: true
+  description: '约束字段: 正确知识编号'
