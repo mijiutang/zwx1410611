@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import QStyledItemDelegate, QComboBox, QMessageBox, QPushButton
 from PyQt6.QtCore import Qt, pyqtSignal
+from ..field_constraints import constraint_config # Import the constraint configuration
 
 class ComboBoxDelegate(QStyledItemDelegate):
     # 定义添加选项请求信号
@@ -64,6 +65,18 @@ class ComboBoxDelegate(QStyledItemDelegate):
             # 假设是类似QLineEdit的文本编辑器
             new_value = editor.text()
 
+        # 使用约束配置验证字段
+        is_valid, error_msg = constraint_config.validate_field(key, new_value)
+        if not is_valid:
+            # 显示验证错误
+            QMessageBox.warning(
+                None, 
+                "验证失败", 
+                f"字段 '{key}' 不符合约束要求:\n\n{error_msg}"
+            )
+            # 验证失败，不设置数据
+            return
+        
         # 检查是否需要进行值验证
         has_predefined_options = (key in self.task_item_options and 
                                 isinstance(self.task_item_options[key], list) and 

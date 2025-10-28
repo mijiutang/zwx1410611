@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QAbstractItemView, QMessageBox, QComboBox, QHeaderView
 from PyQt6.QtCore import pyqtSignal, Qt
 from .dock.combo_box_delegate import ComboBoxDelegate # Import the new delegate
+from .field_constraints import constraint_config # Import the constraint configuration
 import os
 import json
 import yaml
@@ -14,6 +15,12 @@ class KeyValueEditorWidget(QWidget):
         self.task_items_file_path = task_items_file_path
         self.task_item_options = {} # Stores options for each task item
         self.save_target_file_path = None # New attribute to store the target file for saving
+        
+        # 尝试加载约束配置文件
+        constraint_file_path = os.path.join(os.path.dirname(self.task_items_file_path) if self.task_items_file_path else ".cache", "field_constraints.yaml")
+        if os.path.exists(constraint_file_path):
+            constraint_config.load_from_file(constraint_file_path)
+        
         self.init_ui()
         
         # Load initial task items if path is provided
@@ -126,6 +133,21 @@ class KeyValueEditorWidget(QWidget):
                     updated_data[key] = value
                 else:
                     QMessageBox.warning(self, "警告", f"第 {i+1} 行的键不能为空，该行将被忽略。")
+        
+        # 验证数据是否符合约束
+        is_valid, errors = constraint_config.validate_all(updated_data)
+        if not is_valid:
+            # 显示验证错误
+            error_messages = []
+            for field_name, error_msg in errors.items():
+                error_messages.append(f"- {field_name}: {error_msg}")
+            
+            QMessageBox.warning(
+                self, 
+                "验证失败", 
+                "以下字段不符合约束要求:\n\n" + "\n".join(error_messages)
+            )
+            return False  # 验证失败，不保存数据
             
         self.current_data = updated_data
         self.data_changed.emit(self.current_data)
@@ -139,11 +161,14 @@ class KeyValueEditorWidget(QWidget):
                     else:
                         json.dump(self.current_data, f, ensure_ascii=False, indent=4)
                 # QMessageBox.information(self, "保存", f"更改已保存到 {os.path.basename(self.save_target_file_path)}。") # Removed intrusive message
+                return True  # 保存成功
             except Exception as e:
                 file_format = "YAML" if self.save_target_file_path.endswith(('.yml', '.yaml')) else "JSON"
                 QMessageBox.warning(self, "错误", f"保存{file_format}文件失败: {e}")
+                return False  # 保存失败
         # else: # Removed message for unsaved changes in memory
             # QMessageBox.information(self, "保存", "更改已保存到内存中，但未指定保存文件。")
+        return True  # 内存保存成功
 
     def get_data(self):
         # Ensure data is up-to-date before returning

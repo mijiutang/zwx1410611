@@ -105,6 +105,11 @@ class MainWindow(QMainWindow):
 
         task_type_submenu = settings_menu.addMenu("任务类型")
         self._populate_task_type_menu(task_type_submenu)
+        
+        # 添加约束管理菜单项
+        constraint_action = QAction("约束管理", self)
+        constraint_action.triggered.connect(self.show_constraint_manager_dialog)
+        settings_menu.addAction(constraint_action)
 
         # Actions for controlling dock visibility
         info_dock_toggle_action = QAction("显示/隐藏 信号面板", self)
@@ -565,6 +570,16 @@ class MainWindow(QMainWindow):
             # 保存设置
             self.write_settings()
             QMessageBox.information(self, "成功", f"字体大小已更改为 {new_size}px")
+
+    def show_constraint_manager_dialog(self):
+        """显示约束管理对话框"""
+        from .constraint_manager import ConstraintManagerDialog
+        
+        # 创建约束管理对话框
+        dialog = ConstraintManagerDialog(self)
+        
+        # 显示对话框
+        dialog.exec()
 
 
 
