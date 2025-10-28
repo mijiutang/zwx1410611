@@ -1,6 +1,6 @@
 是否建议剔除:
   type: string
-  required: true
+  required: false
   description: '约束字段: 是否建议剔除'
 剔除原因:
   type: string

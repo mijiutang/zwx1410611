@@ -384,24 +384,11 @@ class ConstraintEditorWindow(QMainWindow):
         self.save_button.setEnabled(False)
         toolbar_layout.addWidget(self.save_button)
         
-        self.save_as_button = QPushButton("另存为")
-        self.save_as_button.clicked.connect(self.save_as_file)
-        self.save_as_button.setEnabled(False)
-        toolbar_layout.addWidget(self.save_as_button)
-        
         toolbar_layout.addStretch()
-        
-        self.add_button = QPushButton("添加约束")
-        self.add_button.clicked.connect(self.add_constraint)
-        toolbar_layout.addWidget(self.add_button)
         
         self.edit_button = QPushButton("编辑约束")
         self.edit_button.clicked.connect(self.edit_constraint)
         toolbar_layout.addWidget(self.edit_button)
-        
-        self.delete_button = QPushButton("删除约束")
-        self.delete_button.clicked.connect(self.delete_constraint)
-        toolbar_layout.addWidget(self.delete_button)
         
         layout.addLayout(toolbar_layout)
         
@@ -435,7 +422,6 @@ class ConstraintEditorWindow(QMainWindow):
                 self.current_file_path = file_path
                 self.file_path_label.setText(f"当前文件: {file_path}")
                 self.save_button.setEnabled(True)
-                self.save_as_button.setEnabled(True)
                 self.load_constraints()
             else:
                 QMessageBox.warning(self, "错误", "约束配置加载失败！")
@@ -445,20 +431,6 @@ class ConstraintEditorWindow(QMainWindow):
         if self.current_file_path:
             if self.constraint_config.save_to_file(self.current_file_path):
                 QMessageBox.information(self, "成功", f"约束配置已保存到 {self.current_file_path}")
-            else:
-                QMessageBox.warning(self, "错误", "保存约束配置失败！")
-    
-    def save_as_file(self):
-        """另存为约束文件"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "保存约束配置", "", "YAML文件 (*.yaml *.yml);;JSON文件 (*.json);;所有文件 (*)"
-        )
-        
-        if file_path:
-            if self.constraint_config.save_to_file(file_path):
-                self.current_file_path = file_path
-                self.file_path_label.setText(f"当前文件: {file_path}")
-                QMessageBox.information(self, "成功", f"约束配置已保存到 {file_path}")
             else:
                 QMessageBox.warning(self, "错误", "保存约束配置失败！")
     
@@ -495,15 +467,6 @@ class ConstraintEditorWindow(QMainWindow):
             # 错误消息
             self.table_widget.setItem(row, 6, QTableWidgetItem(constraint.error_message))
     
-    def add_constraint(self):
-        """添加新约束"""
-        dialog = ConstraintEditDialog(parent=self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            field_name = dialog.field_name_edit.text().strip()
-            if field_name:
-                self.constraint_config.add_constraint(field_name, dialog.get_constraint())
-                self.load_constraints()
-    
     def edit_constraint(self):
         """编辑选中的约束"""
         current_row = self.table_widget.currentRow()
@@ -521,21 +484,6 @@ class ConstraintEditorWindow(QMainWindow):
                     
                     self.constraint_config.add_constraint(new_field_name, dialog.get_constraint())
                     self.load_constraints()
-    
-    def delete_constraint(self):
-        """删除选中的约束"""
-        current_row = self.table_widget.currentRow()
-        if current_row >= 0:
-            field_name = self.table_widget.item(current_row, 0).text()
-            reply = QMessageBox.question(
-                self, "确认删除", 
-                f"确定要删除字段 '{field_name}' 的约束吗？",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-            
-            if reply == QMessageBox.StandardButton.Yes:
-                self.constraint_config.remove_constraint(field_name)
-                self.load_constraints()
     
     def scan_cache_files(self):
         """扫描缓存目录中的YAML文件"""
@@ -575,7 +523,6 @@ class ConstraintEditorWindow(QMainWindow):
             self.current_file_path = file_path
             self.load_constraints()
             self.save_button.setEnabled(True)
-            self.save_as_button.setEnabled(True)
         else:
             QMessageBox.warning(self, "错误", f"加载约束文件失败: {file_name}")
 

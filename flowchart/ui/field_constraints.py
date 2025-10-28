@@ -93,40 +93,7 @@ class ConstraintConfig:
     def __init__(self):
         """初始化约束配置"""
         self.constraints: Dict[str, FieldConstraint] = {}
-        self._load_default_constraints()
-    
-    def _load_default_constraints(self):
-        """加载默认约束配置"""
-        # 示例约束配置
-        self.add_constraint("是否建议剔除", FieldConstraint(
-            required=True,
-            options=["是", "否"],
-            error_message="请选择'是'或'否'"
-        ))
-        
-        self.add_constraint("剔除原因", FieldConstraint(
-            required=False,
-            max_length=500,
-            error_message="剔除原因不能超过500个字符"
-        ))
-        
-        self.add_constraint("实验场景", FieldConstraint(
-            required=True,
-            max_length=100,
-            error_message="实验场景为必填项且不能超过100个字符"
-        ))
-        
-        self.add_constraint("联系方式", FieldConstraint(
-            pattern=r"^1[3-9]\d{9}$",
-            pattern_description="请输入有效的11位手机号码",
-            error_message="手机号码格式不正确"
-        ))
-        
-        self.add_constraint("邮箱", FieldConstraint(
-            pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
-            pattern_description="请输入有效的邮箱地址",
-            error_message="邮箱格式不正确"
-        ))
+        # 不再加载默认约束配置，只使用YAML文件中的配置
     
     def add_constraint(self, field_name: str, constraint: FieldConstraint):
         """添加字段约束"""
