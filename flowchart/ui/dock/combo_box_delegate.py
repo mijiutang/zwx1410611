@@ -96,3 +96,7 @@ class ComboBoxDelegate(QStyledItemDelegate):
     def updateEditorGeometry(self, editor, option, index):
         # 设置编辑器的几何位置
         editor.setGeometry(option.rect)
+    
+    def update_options(self, new_options):
+        """更新选项列表"""
+        self.task_item_options = new_options

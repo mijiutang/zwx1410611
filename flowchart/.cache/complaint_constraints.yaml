@@ -1,0 +1,23 @@
+constraints:
+  是否建议剔除:
+    error_message: 请选择'是'或'否'
+    options:
+    - 是
+    - 否
+    - 无法确定
+    required: true
+  投诉类型:
+    error_message: 请选择有效的投诉类型
+    options:
+    - 服务态度问题
+    - 配送延迟
+    - 餐品问题
+    - 其他
+    required: true
+  处理结果:
+    error_message: 请选择处理结果
+    options:
+    - 已解决
+    - 未解决
+    - 部分解决
+    required: false

@@ -14,6 +14,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.highlight_enabled = True # Initialize highlight state as enabled by default
         self.root_dir = root_dir
+        # 添加当前选中的约束文件路径属性
+        self.current_constraint_file_path = None
         self.setWindowTitle("PyQt6 App")
         self.setGeometry(100, 100, 800, 600)
         
@@ -40,8 +42,8 @@ class MainWindow(QMainWindow):
         self.all_keys = cached_data["all_keys"]
         self.current_selected_keys = cached_data["selected_keys"]
 
-        self.current_task_type_file = self._get_default_task_type_file() # New method to determine default
-        self.key_value_editor = KeyValueEditorWidget(initial_data={}, task_items_file_path=self.current_task_type_file)
+        self.current_task_type_file = None # 不再使用任务类型文件
+        self.key_value_editor = KeyValueEditorWidget(initial_data={})
         # 不再需要连接data_changed信号，因为KeyValueEditorWidget自行管理数据
         self.setCentralWidget(self.key_value_editor)
 
@@ -102,14 +104,15 @@ class MainWindow(QMainWindow):
         highlight_action.setChecked(self.highlight_enabled)
         highlight_action.triggered.connect(self._toggle_highlighting)
         settings_menu.addAction(highlight_action)
-
-        task_type_submenu = settings_menu.addMenu("任务类型")
-        self._populate_task_type_menu(task_type_submenu)
         
         # 添加约束管理菜单项
         constraint_action = QAction("约束管理", self)
         constraint_action.triggered.connect(self.show_constraint_manager_dialog)
         settings_menu.addAction(constraint_action)
+
+        # 添加约束子菜单
+        constraints_menu = menubar.addMenu("约束")
+        self._populate_constraints_menu(constraints_menu)
 
         # Actions for controlling dock visibility
         info_dock_toggle_action = QAction("显示/隐藏 信号面板", self)
@@ -255,7 +258,7 @@ class MainWindow(QMainWindow):
                     with open(result_json_path, 'r', encoding='utf-8') as f_result:
                         editor_initial_data = json.load(f_result)
                 except json.JSONDecodeError:
-                    QMessageBox.warning(self, "警告", f"无法解析 {os.path.basename(result_json_path)} 为JSON，将使用原始JSON的键并重新创建。")
+                    QMessageBox.warning(self, "警告", f"无法解析 {os.path.basename(result_json_path)} 为JSON，将使用约束字段的键并重新创建。")
                     editor_initial_data = {key: "" for key in self.key_value_editor.task_item_options.keys()}
                     try:
                         with open(result_json_path, 'w', encoding='utf-8') as f_result:
@@ -263,7 +266,7 @@ class MainWindow(QMainWindow):
                     except Exception as e:
                         QMessageBox.warning(self, "错误", f"创建/更新 {os.path.basename(result_json_path)} 失败: {e}")
                 except Exception as e:
-                    QMessageBox.warning(self, "警告", f"读取 {os.path.basename(result_json_path)} 时发生错误: {e}，将使用任务项的键并重新创建。")
+                    QMessageBox.warning(self, "警告", f"读取 {os.path.basename(result_json_path)} 时发生错误: {e}，将使用约束字段的键并重新创建。")
                     editor_initial_data = {key: "" for key in self.key_value_editor.task_item_options.keys()}
                     try:
                         with open(result_json_path, 'w', encoding='utf-8') as f_result:
@@ -271,7 +274,7 @@ class MainWindow(QMainWindow):
                     except Exception as e:
                         QMessageBox.warning(self, "错误", f"创建/更新 {os.path.basename(result_json_path)} 失败: {e}")
             else:
-                # If _result.json does not exist, initialize with keys from task_item_options
+                # If _result.json does not exist, initialize with keys from constraint fields
                 editor_initial_data = {key: "" for key in self.key_value_editor.task_item_options.keys()}
                 try:
                     with open(result_json_path, 'w', encoding='utf-8') as f_result:
@@ -330,47 +333,6 @@ class MainWindow(QMainWindow):
         # 保存高亮设置
         self.settings.setValue("highlightEnabled", self.highlight_enabled)
 
-    def _get_default_task_type_file(self):
-        # Find all task type files and return the first one, or None
-        task_type_files = self._find_task_type_files()
-        if task_type_files:
-            return task_type_files[0]
-        return None
-
-    def _find_task_type_files(self):
-        # Find all files matching "*.yml" or "*.yaml" in CACHE_DIR
-        files = []
-        if not os.path.exists(self.CACHE_DIR):
-            os.makedirs(self.CACHE_DIR) # Ensure CACHE_DIR exists
-        for f in os.listdir(self.CACHE_DIR):
-            if f.endswith((".yml", ".yaml")):
-                files.append(os.path.join(self.CACHE_DIR, f))
-        files.sort() # Sort to ensure consistent order
-        return files
-
-    def _populate_task_type_menu(self, menu: QMenu):
-        menu.clear() # Clear existing actions
-        task_type_files = self._find_task_type_files()
-
-        if not task_type_files:
-            menu.addAction("无可用任务类型文件").setEnabled(False)
-        else:
-            for file_path in task_type_files:
-                # Use the filename without extension as display name
-                file_name = os.path.basename(file_path)
-                display_name = os.path.splitext(file_name)[0]  # Remove extension
-
-                action = menu.addAction(display_name)
-                action.setCheckable(True)
-                action.setChecked(file_path == self.current_task_type_file)
-                action.triggered.connect(lambda checked, path=file_path: self._set_current_task_type_file(path))
-
-    def _set_current_task_type_file(self, file_path):
-        if self.current_task_type_file != file_path:
-            self.current_task_type_file = file_path
-            self.key_value_editor.set_task_items_file(file_path) # New method in KeyValueEditorWidget
-            QMessageBox.information(self, "任务类型", f"已切换到任务类型: {os.path.basename(file_path)}")
-    
     def _toggle_highlighting(self, checked):
         self.highlight_enabled = checked
         self.my_dock_widget.set_highlight_enabled(checked)
@@ -574,9 +536,15 @@ class MainWindow(QMainWindow):
     def show_constraint_manager_dialog(self):
         """显示约束管理对话框"""
         from .constraint_manager import ConstraintManagerDialog
+        import os
+        
+        # 获取约束配置文件路径
+        cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache")
+        os.makedirs(cache_dir, exist_ok=True)  # 确保缓存目录存在
+        constraint_file_path = os.path.join(cache_dir, "field_constraints.yaml")
         
         # 创建约束管理对话框
-        dialog = ConstraintManagerDialog(self)
+        dialog = ConstraintManagerDialog(constraint_file_path, self)
         
         # 显示对话框
         dialog.exec()
@@ -670,3 +638,103 @@ class MainWindow(QMainWindow):
             
         except Exception as e:
             QMessageBox.critical(self, "错误", f"启动爬虫程序时发生错误：{str(e)}")
+    
+    def _populate_constraints_menu(self, constraints_menu):
+        """填充约束菜单，列出可用的约束文件"""
+        import os
+        import glob
+        from PyQt6.QtGui import QAction, QActionGroup
+        
+        # 清空现有菜单项
+        constraints_menu.clear()
+        
+        # 添加"刷新"动作
+        refresh_action = QAction("刷新", self)
+        refresh_action.triggered.connect(lambda: self._populate_constraints_menu(constraints_menu))
+        constraints_menu.addAction(refresh_action)
+        
+        constraints_menu.addSeparator()
+        
+        # 获取约束文件目录
+        cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # 搜索所有yaml和yml文件
+        constraint_files = glob.glob(os.path.join(cache_dir, "*.yaml")) + glob.glob(os.path.join(cache_dir, "*.yml"))
+        
+        # 如果没有找到约束文件，显示提示
+        if not constraint_files:
+            no_files_action = QAction("无可用约束文件", self)
+            no_files_action.setEnabled(False)
+            constraints_menu.addAction(no_files_action)
+            return
+        
+        # 创建动作组，确保只能选择一个选项
+        action_group = QActionGroup(self)
+        action_group.setExclusive(True)
+        
+        # 获取当前实际使用的约束文件路径
+        current_constraint_file = os.path.join(cache_dir, "field_constraints.yaml")
+        
+        # 如果还没有设置当前约束文件路径，则初始化为默认文件
+        if self.current_constraint_file_path is None:
+            self.current_constraint_file_path = current_constraint_file
+        
+        # 添加每个约束文件到菜单
+        for file_path in constraint_files:
+            file_name = os.path.basename(file_path)
+            action = QAction(file_name, self)
+            action.setCheckable(True)
+            
+            # 将动作添加到动作组
+            action_group.addAction(action)
+            
+            # 检查是否是当前使用的约束文件（通过比较文件路径）
+            if os.path.abspath(file_path) == os.path.abspath(self.current_constraint_file_path):
+                action.setChecked(True)
+            
+            # 连接点击事件
+            action.triggered.connect(lambda checked, path=file_path: self._apply_constraint_file(path))
+            constraints_menu.addAction(action)
+    
+    def _apply_constraint_file(self, file_path):
+        """应用指定的约束文件"""
+        from .field_constraints import constraint_config
+        import os
+        from PyQt6.QtWidgets import QMessageBox
+        
+        try:
+            # 获取缓存目录
+            cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache")
+            current_constraint_file = os.path.join(cache_dir, "field_constraints.yaml")
+            
+            # 如果不是默认文件，则复制为默认文件
+            if os.path.abspath(file_path) != os.path.abspath(current_constraint_file):
+                import shutil
+                shutil.copy2(file_path, current_constraint_file)
+            
+            # 更新当前选中的约束文件路径
+            self.current_constraint_file_path = file_path
+            
+            # 重新加载约束配置
+            if constraint_config.load_from_file(current_constraint_file):
+                # 更新编辑器中的约束选项
+                if hasattr(self, 'key_value_editor'):
+                    self.key_value_editor._load_fields_from_constraints()
+                
+                # 刷新约束菜单
+                menubar = self.menuBar()
+                constraints_menu = None
+                for action in menubar.actions():
+                    if action.text() == "约束":
+                        constraints_menu = action.menu()
+                        break
+                
+                if constraints_menu:
+                    self._populate_constraints_menu(constraints_menu)
+                
+                QMessageBox.information(self, "成功", f"已成功应用约束文件: {os.path.basename(file_path)}")
+            else:
+                QMessageBox.warning(self, "错误", f"加载约束文件失败: {file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"应用约束文件时发生错误: {str(e)}")

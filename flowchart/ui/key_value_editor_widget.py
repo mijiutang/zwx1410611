@@ -9,29 +9,44 @@ import yaml
 class KeyValueEditorWidget(QWidget):
     data_changed = pyqtSignal(dict)
 
-    def __init__(self, initial_data=None, task_items_file_path=None, parent=None):
+    def __init__(self, initial_data=None, parent=None):
         super().__init__(parent)
         self.current_data = initial_data if initial_data is not None else {}
-        self.task_items_file_path = task_items_file_path
         self.task_item_options = {} # Stores options for each task item
         self.save_target_file_path = None # New attribute to store the target file for saving
         
         # 尝试加载约束配置文件
-        constraint_file_path = os.path.join(os.path.dirname(self.task_items_file_path) if self.task_items_file_path else ".cache", "field_constraints.yaml")
+        cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache")
+        constraint_file_path = os.path.join(cache_dir, "field_constraints.yaml")
         if os.path.exists(constraint_file_path):
             constraint_config.load_from_file(constraint_file_path)
+            # 从约束配置中提取字段和选项
+            self._load_fields_from_constraints()
         
         self.init_ui()
-        
-        # Load initial task items if path is provided
-        if self.task_items_file_path:
-            self._load_task_items_from_file()
         
         # Set the custom delegate for the "内容" column (column 1) AFTER task_item_options is loaded
         self.combo_box_delegate = ComboBoxDelegate(self, self.task_item_options)
         self.table_widget.setItemDelegateForColumn(1, self.combo_box_delegate)
         self.combo_box_delegate.add_option_requested.connect(self._handle_add_option_request) # Connect the new signal
 
+    def _load_fields_from_constraints(self):
+        """从约束配置中提取字段和选项"""
+        self.task_item_options = {}
+        
+        # 遍历约束配置中的所有字段
+        for field_name, constraint in constraint_config.constraints.items():
+            # 如果字段有预定义选项，则使用这些选项
+            if hasattr(constraint, 'options') and constraint.options:
+                self.task_item_options[field_name] = constraint.options
+            else:
+                # 否则创建空列表，表示可以自由输入
+                self.task_item_options[field_name] = []
+        
+        # 更新ComboBoxDelegate的选项
+        if hasattr(self, 'combo_box_delegate'):
+            self.combo_box_delegate.update_options(self.task_item_options)
+    
     def init_ui(self):
         self.main_layout = QVBoxLayout(self)
 
@@ -55,37 +70,7 @@ class KeyValueEditorWidget(QWidget):
         
         self.main_layout.addLayout(control_layout)
 
-    def _load_task_items_from_file(self):
-        try:
-            with open(self.task_items_file_path, 'r', encoding='utf-8') as f:
-                # Determine file format by extension
-                if self.task_items_file_path.endswith(('.yml', '.yaml')):
-                    data = yaml.safe_load(f)
-                else:
-                    data = json.load(f)
-                
-                if isinstance(data, dict):
-                    self.task_item_options = data
-                    for task_item, options in self.task_item_options.items():
-                        row_position = self.table_widget.rowCount()
-                        self.table_widget.insertRow(row_position)
-                        self.table_widget.setItem(row_position, 0, QTableWidgetItem(task_item))
-                        
-                        if isinstance(options, list) and options:
-                            combo_box = QComboBox()
-                            combo_box.addItems(options)
-                            combo_box.setEditable(True)
-                            combo_box.currentTextChanged.connect(self.save_changes) # Connect for auto-save
-                            self.table_widget.setCellWidget(row_position, 1, combo_box)
-                        else:
-                            self.table_widget.setItem(row_position, 1, QTableWidgetItem(""))
-                else:
-                    QMessageBox.warning(self, "错误", "任务项文件格式不正确，应为对象。")
-        except (json.JSONDecodeError, yaml.YAMLError) as e:
-            file_format = "YAML" if self.task_items_file_path.endswith(('.yml', '.yaml')) else "JSON"
-            QMessageBox.warning(self, "错误", f"解析任务项{file_format}文件失败: {e}")
-        except Exception as e:
-            QMessageBox.warning(self, "错误", f"加载任务项文件失败: {e}")
+
 
     def load_data(self, data):
         # 断开信号，防止在加载数据时触发保存
@@ -97,6 +82,12 @@ class KeyValueEditorWidget(QWidget):
         
         self.table_widget.setRowCount(0) # Clear existing rows
         self.current_data = data
+        
+        # 确保所有约束字段都在表格中显示
+        for field_name in constraint_config.constraints.keys():
+            if field_name not in self.current_data:
+                self.current_data[field_name] = ""
+        
         for key, value in self.current_data.items():
             row_position = self.table_widget.rowCount()
             self.table_widget.insertRow(row_position)
@@ -181,13 +172,7 @@ class KeyValueEditorWidget(QWidget):
     def show_table(self):
         self.table_widget.show()
 
-    def set_task_items_file(self, file_path):
-        self.task_items_file_path = file_path
-        self._load_task_items_from_file()
-        # Update the delegate's task_item_options
-        self.combo_box_delegate.task_item_options = self.task_item_options
-        # After loading new task items, refresh the table to reflect new combo box options
-        self.load_data(self.get_data())
+
 
     def _handle_add_option_request(self, key, new_option):
         if key in self.task_item_options and isinstance(self.task_item_options[key], list):
@@ -197,18 +182,8 @@ class KeyValueEditorWidget(QWidget):
                 self.task_item_options[key].sort()
                 QMessageBox.information(self, "添加成功", f"'{new_option}' 已添加到 '{key}' 的选项中。")
                 
-                # Save the updated task_item_options to the current task file
-                if self.task_items_file_path:
-                    try:
-                        with open(self.task_items_file_path, 'w', encoding='utf-8') as f:
-                            # Determine file format by extension
-                            if self.task_items_file_path.endswith(('.yml', '.yaml')):
-                                yaml.dump(self.task_item_options, f, allow_unicode=True, default_flow_style=False, indent=2)
-                            else:
-                                json.dump(self.task_item_options, f, ensure_ascii=False, indent=4)
-                    except Exception as e:
-                        file_format = "YAML" if self.task_items_file_path.endswith(('.yml', '.yaml')) else "JSON"
-                        QMessageBox.warning(self, "保存失败", f"保存任务项{file_format}文件失败: {e}")
+                # Update the constraint configuration file
+                self._update_constraint_file(key, new_option)
                 
                 # Refresh the table to update the QComboBoxes with the new option
                 self.load_data(self.get_data())
@@ -216,3 +191,17 @@ class KeyValueEditorWidget(QWidget):
                 QMessageBox.information(self, "已存在", f"'{new_option}' 已在 '{key}' 的选项中。")
         else:
             QMessageBox.warning(self, "错误", f"无法为 '{key}' 添加选项，因为它没有预定义的选项列表。") # Reload current data to update combo boxes
+    
+    def _update_constraint_file(self, field_name, new_option):
+        """更新约束配置文件中的选项"""
+        if field_name in constraint_config.constraints:
+            constraint = constraint_config.constraints[field_name]
+            if hasattr(constraint, 'options') and constraint.options:
+                if new_option not in constraint.options:
+                    constraint.options.append(new_option)
+                    
+                    # 保存更新后的约束配置
+                    cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache")
+                    constraint_file_path = os.path.join(cache_dir, "field_constraints.yaml")
+                    if not constraint_config.save_to_file(constraint_file_path):
+                        QMessageBox.warning(self, "错误", f"保存约束配置失败: 无法写入文件 {constraint_file_path}")

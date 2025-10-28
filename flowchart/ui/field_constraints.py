@@ -202,8 +202,44 @@ class ConstraintConfig:
     
     def save_to_file(self, file_path: str):
         """将约束配置保存到文件"""
-        # 这里可以实现将约束配置保存为JSON/YAML文件的逻辑
-        pass
+        try:
+            # 准备保存数据
+            save_data = {"constraints": {}}
+            
+            for field_name, constraint in self.constraints.items():
+                constraint_data = {
+                    "required": constraint.required,
+                    "error_message": constraint.error_message
+                }
+                
+                if constraint.min_length is not None:
+                    constraint_data["min_length"] = constraint.min_length
+                
+                if constraint.max_length is not None:
+                    constraint_data["max_length"] = constraint.max_length
+                
+                if constraint.pattern:
+                    constraint_data["pattern"] = constraint.pattern
+                
+                if constraint.pattern_description:
+                    constraint_data["pattern_description"] = constraint.pattern_description
+                
+                if constraint.options:
+                    constraint_data["options"] = constraint.options
+                
+                save_data["constraints"][field_name] = constraint_data
+            
+            # 保存到文件
+            with open(file_path, 'w', encoding='utf-8') as f:
+                if file_path.endswith(('.yml', '.yaml')):
+                    yaml.dump(save_data, f, allow_unicode=True, default_flow_style=False, indent=2)
+                else:
+                    json.dump(save_data, f, ensure_ascii=False, indent=4)
+            
+            return True
+        except Exception as e:
+            print(f"保存约束配置文件失败: {e}")
+            return False
 
 
 # 全局约束配置实例
