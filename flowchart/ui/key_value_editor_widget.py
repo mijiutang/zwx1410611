@@ -32,8 +32,7 @@ class KeyValueEditorWidget(QWidget):
         
         # 设置表格属性，避免重影
         self.table_widget.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.table_widget.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
-        self.table_widget.viewport().setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
+        # 移除WA_OpaquePaintEvent属性，因为它可能导致黑色背景问题
 
     def _load_fields_from_constraints(self):
         """从约束配置中提取字段和选项"""
@@ -89,21 +88,40 @@ class KeyValueEditorWidget(QWidget):
             # 如果信号未连接，则忽略错误
             pass 
         
-        # 关闭所有活动的编辑器，避免重影
-        # QTableWidget没有closePersistentEditors方法，需要逐个关闭
+        # 彻底清理表格，避免残留
+        # 1. 关闭所有活动的编辑器
         for row in range(self.table_widget.rowCount()):
             for col in range(self.table_widget.columnCount()):
                 item = self.table_widget.item(row, col)
                 if item:
                     self.table_widget.closePersistentEditor(item)
         
-        # 遍历表格，移除所有单元格部件
+        # 2. 移除所有单元格部件
         for row in range(self.table_widget.rowCount()):
             for col in range(self.table_widget.columnCount()):
-                if self.table_widget.cellWidget(row, col):
+                widget = self.table_widget.cellWidget(row, col)
+                if widget:
+                    widget.setParent(None)
+                    widget.deleteLater()
                     self.table_widget.removeCellWidget(row, col)
         
-        self.table_widget.setRowCount(0) # Clear existing rows
+        # 3. 清除所有表格项
+        self.table_widget.clearContents()
+        
+        # 4. 清除所有行
+        self.table_widget.setRowCount(0)
+        
+        # 5. 重置表格选择和当前单元格
+        self.table_widget.setCurrentCell(-1, -1)
+        self.table_widget.clearSelection()
+        
+        # 6. 强制刷新视图
+        self.table_widget.viewport().update()
+        self.table_widget.update()
+        
+        # 7. 重置表格样式
+        self.table_widget.setStyleSheet("")
+        
         self.current_data = data
         
         for key, value in self.current_data.items():
@@ -121,6 +139,9 @@ class KeyValueEditorWidget(QWidget):
 
         # 重新连接信号
         self.table_widget.itemChanged.connect(self.save_changes)
+        
+        # 确保表格在加载数据后可见
+        self.table_widget.show()
 
     def save_changes(self):
         # 关闭所有活动的编辑器，避免重影
@@ -201,6 +222,8 @@ class KeyValueEditorWidget(QWidget):
         self.save_target_file_path = file_path
 
     def show_table(self):
+        # 只显示表格，不进行清理
+        # 清理逻辑已经在load_data方法中处理
         self.table_widget.show()
 
 
@@ -216,19 +239,39 @@ class KeyValueEditorWidget(QWidget):
                 # Update the constraint configuration file
                 self._update_constraint_file(key, new_option)
                 
-                # 关闭所有活动的编辑器，避免重影
-                # QTableWidget没有closePersistentEditors方法，需要逐个关闭
+                # 彻底清理表格，避免残留
+                # 1. 关闭所有活动的编辑器
                 for row in range(self.table_widget.rowCount()):
                     for col in range(self.table_widget.columnCount()):
                         item = self.table_widget.item(row, col)
                         if item:
                             self.table_widget.closePersistentEditor(item)
                 
-                # 遍历表格，移除所有单元格部件
+                # 2. 移除所有单元格部件
                 for row in range(self.table_widget.rowCount()):
                     for col in range(self.table_widget.columnCount()):
-                        if self.table_widget.cellWidget(row, col):
+                        widget = self.table_widget.cellWidget(row, col)
+                        if widget:
+                            widget.setParent(None)
+                            widget.deleteLater()
                             self.table_widget.removeCellWidget(row, col)
+                
+                # 3. 清除所有表格项
+                self.table_widget.clearContents()
+                
+                # 4. 清除所有行
+                self.table_widget.setRowCount(0)
+                
+                # 5. 重置表格选择和当前单元格
+                self.table_widget.setCurrentCell(-1, -1)
+                self.table_widget.clearSelection()
+                
+                # 6. 强制刷新视图
+                self.table_widget.viewport().update()
+                self.table_widget.update()
+                
+                # 7. 重置表格样式
+                self.table_widget.setStyleSheet("")
                 
                 # Refresh the table to update the QComboBoxes with the new option
                 self.load_data(self.get_data())
