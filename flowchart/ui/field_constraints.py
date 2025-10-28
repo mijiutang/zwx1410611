@@ -182,8 +182,13 @@ class ConstraintConfig:
                 self.constraints.clear()
                 
                 # 从配置文件加载约束
-                if 'constraints' in config_data:
-                    for field_name, constraint_data in config_data['constraints'].items():
+                # 支持两种格式：带"constraints"包装的和不带包装的
+                constraint_data_dict = config_data if 'constraints' not in config_data else config_data['constraints']
+                
+                for field_name, constraint_data in constraint_data_dict.items():
+                    # 处理两种格式的约束数据
+                    if isinstance(constraint_data, dict):
+                        # 标准格式，包含所有属性
                         constraint = FieldConstraint(
                             required=constraint_data.get('required', False),
                             max_length=constraint_data.get('max_length'),
@@ -193,7 +198,14 @@ class ConstraintConfig:
                             options=constraint_data.get('options', []),
                             error_message=constraint_data.get('error_message', '输入不符合要求')
                         )
-                        self.add_constraint(field_name, constraint)
+                    else:
+                        # 简单格式，只包含值
+                        constraint = FieldConstraint(
+                            required=True,
+                            error_message=f"请输入有效的{field_name}"
+                        )
+                    
+                    self.add_constraint(field_name, constraint)
                 
                 return True
         except Exception as e:

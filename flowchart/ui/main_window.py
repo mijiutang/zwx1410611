@@ -653,6 +653,11 @@ class MainWindow(QMainWindow):
         refresh_action.triggered.connect(lambda: self._populate_constraints_menu(constraints_menu))
         constraints_menu.addAction(refresh_action)
         
+        # 添加"添加约束yml"动作
+        add_constraint_action = QAction("添加约束yml", self)
+        add_constraint_action.triggered.connect(self._add_new_constraint_file)
+        constraints_menu.addAction(add_constraint_action)
+        
         constraints_menu.addSeparator()
         
         # 获取约束文件目录
@@ -697,6 +702,92 @@ class MainWindow(QMainWindow):
             action.triggered.connect(lambda checked, path=file_path: self._apply_constraint_file(path))
             constraints_menu.addAction(action)
     
+    def _add_new_constraint_file(self):
+        """添加新的约束yml文件，通过弹窗输入文件路径"""
+        import os
+        import json
+        import yaml
+        from PyQt6.QtWidgets import QInputDialog, QMessageBox, QFileDialog
+        
+        try:
+            # 弹窗选择JSON文件
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, 
+                "选择JSON文件", 
+                os.path.join(self.root_dir, "out"),
+                "JSON文件 (*.json)"
+            )
+            
+            if not file_path:
+                return  # 用户取消选择
+            
+            # 检查文件是否存在
+            if not os.path.exists(file_path):
+                QMessageBox.warning(self, "警告", f"文件不存在: {file_path}")
+                return
+            
+            # 读取JSON文件
+            with open(file_path, 'r', encoding='utf-8') as f:
+                result_data = json.load(f)
+            
+            # 获取结果数据中的所有键
+            if not isinstance(result_data, dict):
+                QMessageBox.warning(self, "警告", "文件格式不正确，无法获取字段信息。")
+                return
+            
+            # 弹窗输入文件名
+            file_name, ok = QInputDialog.getText(self, "新建约束文件", "请输入约束文件名(不含扩展名):")
+            if not ok or not file_name.strip():
+                return  # 用户取消或未输入文件名
+            
+            # 确保文件名以.yaml结尾
+            if not file_name.endswith('.yaml') and not file_name.endswith('.yml'):
+                file_name += '.yaml'
+            
+            # 创建约束文件内容
+            constraint_content = {}
+            for key in result_data.keys():
+                constraint_content[key] = {
+                    "type": "string",
+                    "required": True,
+                    "description": f"约束字段: {key}"
+                }
+            
+            # 保存约束文件到.cache目录
+            cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache")
+            os.makedirs(cache_dir, exist_ok=True)
+            
+            constraint_file_path = os.path.join(cache_dir, file_name)
+            
+            # 检查文件是否已存在
+            if os.path.exists(constraint_file_path):
+                reply = QMessageBox.question(self, "文件已存在", 
+                                          f"文件 {file_name} 已存在，是否覆盖？",
+                                          QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
+            
+            # 写入YAML文件
+            with open(constraint_file_path, 'w', encoding='utf-8') as f:
+                yaml.dump(constraint_content, f, default_flow_style=False, allow_unicode=True)
+            
+            # 显示成功消息
+            QMessageBox.information(self, "成功", f"约束文件 {file_name} 已创建成功！")
+            
+            # 刷新约束菜单
+            menubar = self.menuBar()
+            constraints_menu = None
+            for action in menubar.actions():
+                if action.text() == "约束":
+                    constraints_menu = action.menu()
+                    break
+            
+            if constraints_menu:
+                self._populate_constraints_menu(constraints_menu)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"创建约束文件时出错: {str(e)}")
+
     def _apply_constraint_file(self, file_path):
         """应用指定的约束文件"""
         from .field_constraints import constraint_config
@@ -733,7 +824,7 @@ class MainWindow(QMainWindow):
                 if constraints_menu:
                     self._populate_constraints_menu(constraints_menu)
                 
-                QMessageBox.information(self, "成功", f"已成功应用约束文件: {os.path.basename(file_path)}")
+                # 成功应用约束文件时不显示提示信息
             else:
                 QMessageBox.warning(self, "错误", f"加载约束文件失败: {file_path}")
         except Exception as e:

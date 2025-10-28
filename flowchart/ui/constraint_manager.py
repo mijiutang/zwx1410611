@@ -111,6 +111,9 @@ class ConstraintManagerDialog(QDialog):
         self.constraint_file_path = constraint_file_path
         self.init_ui()
         self.load_constraints()
+        # 如果提供了约束文件路径，则从该文件加载约束
+        if self.constraint_file_path:
+            self.load_constraints_from_file(self.constraint_file_path)
         
     def init_ui(self):
         self.setWindowTitle("字段约束管理")
@@ -245,17 +248,21 @@ class ConstraintManagerDialog(QDialog):
                 constraint_config.remove_constraint(field_name)
                 self.load_constraints()
     
-    def load_constraints_from_file(self):
+    def load_constraints_from_file(self, file_path=None):
         """从文件加载约束配置"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择约束配置文件", "", "YAML文件 (*.yaml *.yml);;JSON文件 (*.json);;所有文件 (*)"
-        )
+        if file_path is None:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "选择约束配置文件", "", "YAML文件 (*.yaml *.yml);;JSON文件 (*.json);;所有文件 (*)"
+            )
+            
+            if not file_path:
+                return  # 用户取消选择
         
         if file_path:
             if constraint_config.load_from_file(file_path):
                 self.constraint_file_path = file_path
                 self.load_constraints()
-                QMessageBox.information(self, "成功", "约束配置加载成功！")
+                # 成功加载时不显示提示信息
             else:
                 QMessageBox.warning(self, "错误", "约束配置加载失败！")
     
