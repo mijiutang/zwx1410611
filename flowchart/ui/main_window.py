@@ -648,6 +648,11 @@ class MainWindow(QMainWindow):
         refresh_action.triggered.connect(lambda: self._populate_constraints_menu(constraints_menu))
         constraints_menu.addAction(refresh_action)
         
+        # 添加"重新加载约束配置"动作
+        reload_action = QAction("重新加载约束配置", self)
+        reload_action.triggered.connect(self._reload_constraint_config)
+        constraints_menu.addAction(reload_action)
+        
         # 添加"添加约束yml"动作
         add_constraint_action = QAction("添加约束yml", self)
         add_constraint_action.triggered.connect(self._add_new_constraint_file)
@@ -786,6 +791,33 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"创建约束文件时出错: {str(e)}")
 
+    def _reload_constraint_config(self):
+        """重新加载当前约束配置"""
+        from .field_constraints import constraint_config
+        import os
+        from PyQt6.QtWidgets import QMessageBox
+        
+        try:
+            # 获取缓存目录
+            cache_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache")
+            current_constraint_file = os.path.join(cache_dir, "field_constraints.yaml")
+            
+            # 如果文件存在，则重新加载
+            if os.path.exists(current_constraint_file):
+                # 重新加载约束配置
+                if constraint_config.load_from_file(current_constraint_file):
+                    # 更新编辑器中的约束选项
+                    if hasattr(self, 'key_value_editor'):
+                        self.key_value_editor._load_fields_from_constraints()
+                    
+                    QMessageBox.information(self, "成功", "约束配置已重新加载！")
+                else:
+                    QMessageBox.warning(self, "错误", f"加载约束文件失败: {current_constraint_file}")
+            else:
+                QMessageBox.information(self, "提示", "约束文件不存在，无需重新加载")
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"重新加载约束配置时发生错误: {str(e)}")
+            
     def _apply_constraint_file(self, file_path):
         """应用指定的约束文件"""
         from .field_constraints import constraint_config
