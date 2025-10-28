@@ -29,6 +29,11 @@ class KeyValueEditorWidget(QWidget):
         self.combo_box_delegate = ComboBoxDelegate(self, self.task_item_options)
         self.table_widget.setItemDelegateForColumn(1, self.combo_box_delegate)
         self.combo_box_delegate.add_option_requested.connect(self._handle_add_option_request) # Connect the new signal
+        
+        # 设置表格属性，避免重影
+        self.table_widget.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.table_widget.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
+        self.table_widget.viewport().setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
 
     def _load_fields_from_constraints(self):
         """从约束配置中提取字段和选项"""
@@ -84,6 +89,20 @@ class KeyValueEditorWidget(QWidget):
             # 如果信号未连接，则忽略错误
             pass 
         
+        # 关闭所有活动的编辑器，避免重影
+        # QTableWidget没有closePersistentEditors方法，需要逐个关闭
+        for row in range(self.table_widget.rowCount()):
+            for col in range(self.table_widget.columnCount()):
+                item = self.table_widget.item(row, col)
+                if item:
+                    self.table_widget.closePersistentEditor(item)
+        
+        # 遍历表格，移除所有单元格部件
+        for row in range(self.table_widget.rowCount()):
+            for col in range(self.table_widget.columnCount()):
+                if self.table_widget.cellWidget(row, col):
+                    self.table_widget.removeCellWidget(row, col)
+        
         self.table_widget.setRowCount(0) # Clear existing rows
         self.current_data = data
         
@@ -104,6 +123,14 @@ class KeyValueEditorWidget(QWidget):
         self.table_widget.itemChanged.connect(self.save_changes)
 
     def save_changes(self):
+        # 关闭所有活动的编辑器，避免重影
+        # QTableWidget没有closePersistentEditors方法，需要逐个关闭
+        for row in range(self.table_widget.rowCount()):
+            for col in range(self.table_widget.columnCount()):
+                item = self.table_widget.item(row, col)
+                if item:
+                    self.table_widget.closePersistentEditor(item)
+        
         updated_data = {}
         for i in range(self.table_widget.rowCount()):
             key_item = self.table_widget.item(i, 0)
@@ -188,6 +215,20 @@ class KeyValueEditorWidget(QWidget):
                 
                 # Update the constraint configuration file
                 self._update_constraint_file(key, new_option)
+                
+                # 关闭所有活动的编辑器，避免重影
+                # QTableWidget没有closePersistentEditors方法，需要逐个关闭
+                for row in range(self.table_widget.rowCount()):
+                    for col in range(self.table_widget.columnCount()):
+                        item = self.table_widget.item(row, col)
+                        if item:
+                            self.table_widget.closePersistentEditor(item)
+                
+                # 遍历表格，移除所有单元格部件
+                for row in range(self.table_widget.rowCount()):
+                    for col in range(self.table_widget.columnCount()):
+                        if self.table_widget.cellWidget(row, col):
+                            self.table_widget.removeCellWidget(row, col)
                 
                 # Refresh the table to update the QComboBoxes with the new option
                 self.load_data(self.get_data())

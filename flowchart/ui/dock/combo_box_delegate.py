@@ -20,6 +20,10 @@ class ComboBoxDelegate(QStyledItemDelegate):
             editor = QComboBox(parent)
             editor.addItems(self.task_item_options[key])
             editor.setEditable(True)
+            # 设置编辑器的样式，避免重影
+            editor.setFrame(True)
+            # 设置编辑器的背景色，确保不透明
+            editor.setStyleSheet("background-color: white;")
             return editor
         # 否则使用默认编辑器
         return super().createEditor(parent, option, index)
@@ -92,10 +96,23 @@ class ComboBoxDelegate(QStyledItemDelegate):
         else:
             # 没有预定义选项，直接设置值
             model.setData(index, new_value, Qt.ItemDataRole.EditRole)
+        
+        # 确保编辑器关闭
+        if isinstance(editor, QComboBox):
+            editor.hide()
 
     def updateEditorGeometry(self, editor, option, index):
         # 设置编辑器的几何位置
         editor.setGeometry(option.rect)
+    
+    def destroyEditor(self, editor, index):
+        # 确保编辑器被正确销毁，避免重影
+        if editor:
+            # 先隐藏编辑器
+            editor.hide()
+            # 延迟删除编辑器，确保所有事件处理完成
+            editor.deleteLater()
+        super().destroyEditor(editor, index)
     
     def update_options(self, new_options):
         """更新选项列表"""
