@@ -42,7 +42,17 @@ class FieldConstraint:
         self.min_length = min_length
         self.pattern = pattern
         self.pattern_description = pattern_description
-        self.options = options if options is not None else []
+        # 对选项进行去重处理，保持顺序
+        if options:
+            seen = set()
+            unique_options = []
+            for option in options:
+                if option and option not in seen:
+                    seen.add(option)
+                    unique_options.append(option)
+            self.options = unique_options
+        else:
+            self.options = []
         self.custom_validator = custom_validator
         self.error_message = error_message
         self.exclude_patterns = exclude_patterns
@@ -53,13 +63,21 @@ class FieldConstraint:
         # 编译排除正则表达式
         self.compiled_exclude_patterns = []
         if exclude_patterns:
-            # 使用中文逗号分隔多个排除模式
-            patterns = [p.strip() for p in exclude_patterns.split('，') if p.strip()]
-            for p in patterns:
-                try:
-                    self.compiled_exclude_patterns.append(re.compile(p))
-                except re.error as e:
-                    print(f"无效的排除正则表达式 '{p}': {e}")
+            # 每行一个排除模式，并进行去重处理
+            seen_patterns = set()
+            unique_patterns = []
+            for pattern_line in exclude_patterns.split('\n'):
+                pattern = pattern_line.strip()
+                if pattern and pattern not in seen_patterns:
+                    seen_patterns.add(pattern)
+                    unique_patterns.append(pattern)
+                    try:
+                        self.compiled_exclude_patterns.append(re.compile(pattern))
+                    except re.error as e:
+                        print(f"无效的排除正则表达式 '{pattern}': {e}")
+            
+            # 更新exclude_patterns为去重后的内容
+            self.exclude_patterns = "\n".join(unique_patterns)
     
     def validate(self, value: str) -> tuple[bool, str]:
         """

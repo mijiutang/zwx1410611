@@ -48,8 +48,8 @@ class FieldConstraint:
         # 编译排除正则表达式
         self.compiled_exclude_patterns = []
         if exclude_patterns:
-            # 使用中文逗号分隔多个排除模式
-            patterns = [p.strip() for p in exclude_patterns.split('，') if p.strip()]
+            # 每行一个排除模式
+            patterns = [p.strip() for p in exclude_patterns.split('\n') if p.strip()]
             for p in patterns:
                 try:
                     self.compiled_exclude_patterns.append(re.compile(p))
@@ -281,7 +281,7 @@ class ConstraintEditDialog(QDialog):
         
         # 排除正则表达式
         self.exclude_patterns_edit = QTextEdit()
-        self.exclude_patterns_edit.setPlaceholderText("输入要排除的正则表达式，多个用中文逗号分隔")
+        self.exclude_patterns_edit.setPlaceholderText("每行一个排除正则表达式")
         self.exclude_patterns_edit.setMaximumHeight(60)
         form_layout.addRow("排除正则表达式:", self.exclude_patterns_edit)
         
@@ -316,9 +316,28 @@ class ConstraintEditDialog(QDialog):
         """获取约束数据"""
         options = []
         if self.options_edit.toPlainText().strip():
-            options = [line.strip() for line in self.options_edit.toPlainText().split("\n") if line.strip()]
+            # 获取选项并去重，保持顺序
+            seen = set()
+            unique_options = []
+            for line in self.options_edit.toPlainText().split("\n"):
+                option = line.strip()
+                if option and option not in seen:
+                    seen.add(option)
+                    unique_options.append(option)
+            options = unique_options
         
         exclude_patterns = self.exclude_patterns_edit.toPlainText().strip()
+        
+        # 对排除正则表达式进行去重处理
+        if exclude_patterns:
+            seen_patterns = set()
+            unique_patterns = []
+            for line in exclude_patterns.split("\n"):
+                pattern = line.strip()
+                if pattern and pattern not in seen_patterns:
+                    seen_patterns.add(pattern)
+                    unique_patterns.append(pattern)
+            exclude_patterns = "\n".join(unique_patterns)
         
         return FieldConstraint(
             required=self.required_check.isChecked(),
