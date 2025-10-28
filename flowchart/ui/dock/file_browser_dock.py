@@ -47,7 +47,7 @@ class FileBrowserDock(QDockWidget):
         self.tree_view.setColumnHidden(2, True) # Hide type column
         self.tree_view.setColumnHidden(3, True) # Hide date modified column
         self.tree_view.setHeaderHidden(True) # Hide the header to remove "Name" label
-        self.tree_view.doubleClicked.connect(self._on_file_double_clicked)
+        self.tree_view.clicked.connect(self._on_file_clicked)
         self.tree_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_view.customContextMenuRequested.connect(self._on_context_menu)
 
@@ -133,7 +133,7 @@ class FileBrowserDock(QDockWidget):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"执行回填操作时出错: {str(e)}")
 
-    def _on_file_double_clicked(self, index):
+    def _on_file_clicked(self, index):
         source_index = self.proxy_model.mapToSource(index)
         file_path = self.model.filePath(source_index)
         if os.path.isfile(file_path) and file_path.endswith(".json"):
