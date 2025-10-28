@@ -31,13 +31,30 @@ class FieldConstraint:
         pattern: Optional[str] = None,
         pattern_description: str = "",
         options: Optional[List[str]] = None,
-        error_message: str = ""
+        error_message: str = "",
+        exclude_patterns: Optional[str] = None
     ):
         self.required = required
         self.pattern = pattern
         self.pattern_description = pattern_description
         self.options = options or []
         self.error_message = error_message
+        self.exclude_patterns = exclude_patterns
+        
+        # 编译正则表达式
+        import re
+        self.compiled_pattern = re.compile(pattern) if pattern else None
+        
+        # 编译排除正则表达式
+        self.compiled_exclude_patterns = []
+        if exclude_patterns:
+            # 使用中文逗号分隔多个排除模式
+            patterns = [p.strip() for p in exclude_patterns.split('，') if p.strip()]
+            for p in patterns:
+                try:
+                    self.compiled_exclude_patterns.append(re.compile(p))
+                except re.error as e:
+                    print(f"无效的排除正则表达式 '{p}': {e}")
     
     def validate(self, value: str) -> Tuple[bool, str]:
         """验证输入值是否符合约束"""
@@ -45,11 +62,18 @@ class FieldConstraint:
         if self.required and not value.strip():
             return False, self.error_message or "此字段为必填项"
         
+        # 如果值为空且不是必填，则跳过其他验证
+        if not value.strip():
+            return True, ""
+        
+        # 排除正则表达式验证 - 检查是否包含排除的字符或模式
+        for compiled_pattern in self.compiled_exclude_patterns:
+            if compiled_pattern.search(value):
+                return False, f"输入不能包含: {compiled_pattern.pattern}"
+        
         # 正则表达式验证
-        if self.pattern and value:
-            import re
-            if not re.match(self.pattern, value):
-                return False, self.pattern_description or self.error_message or "输入格式不正确"
+        if self.compiled_pattern and not self.compiled_pattern.match(value):
+            return False, self.pattern_description or self.error_message or "输入格式不正确"
         
         # 选项验证
         if self.options and value not in self.options:
@@ -119,7 +143,8 @@ class ConstraintConfig:
                                     pattern=constraint_data.get('pattern'),
                                     pattern_description=constraint_data.get('pattern_description', ''),
                                     options=constraint_data.get('options', []),
-                                    error_message=constraint_data.get('description', f"请输入有效的{field_name}")
+                                    error_message=constraint_data.get('description', f"请输入有效的{field_name}"),
+                                    exclude_patterns=constraint_data.get('exclude_patterns')
                                 )
                             else:
                                 # 标准格式，包含所有属性
@@ -128,7 +153,8 @@ class ConstraintConfig:
                                     pattern=constraint_data.get('pattern'),
                                     pattern_description=constraint_data.get('pattern_description', ''),
                                     options=constraint_data.get('options', []),
-                                    error_message=constraint_data.get('error_message', '输入不符合要求')
+                                    error_message=constraint_data.get('error_message', '输入不符合要求'),
+                                    exclude_patterns=constraint_data.get('exclude_patterns')
                                 )
                         else:
                             # 简单格式，只包含值
@@ -170,6 +196,9 @@ class ConstraintConfig:
                 
                 if constraint.options:
                     constraint_data["options"] = constraint.options
+                
+                if constraint.exclude_patterns:
+                    constraint_data["exclude_patterns"] = constraint.exclude_patterns
                 
                 save_data[field_name] = constraint_data
             
@@ -250,6 +279,12 @@ class ConstraintEditDialog(QDialog):
         self.error_message_edit = QLineEdit()
         form_layout.addRow("错误消息:", self.error_message_edit)
         
+        # 排除正则表达式
+        self.exclude_patterns_edit = QTextEdit()
+        self.exclude_patterns_edit.setPlaceholderText("输入要排除的正则表达式，多个用中文逗号分隔")
+        self.exclude_patterns_edit.setMaximumHeight(60)
+        form_layout.addRow("排除正则表达式:", self.exclude_patterns_edit)
+        
         layout.addLayout(form_layout)
         
         # 按钮
@@ -273,6 +308,9 @@ class ConstraintEditDialog(QDialog):
             self.options_edit.setPlainText("\n".join(self.constraint.options))
         
         self.error_message_edit.setText(self.constraint.error_message)
+        
+        if hasattr(self.constraint, 'exclude_patterns') and self.constraint.exclude_patterns:
+            self.exclude_patterns_edit.setPlainText(self.constraint.exclude_patterns)
     
     def get_constraint(self) -> FieldConstraint:
         """获取约束数据"""
@@ -280,12 +318,15 @@ class ConstraintEditDialog(QDialog):
         if self.options_edit.toPlainText().strip():
             options = [line.strip() for line in self.options_edit.toPlainText().split("\n") if line.strip()]
         
+        exclude_patterns = self.exclude_patterns_edit.toPlainText().strip()
+        
         return FieldConstraint(
             required=self.required_check.isChecked(),
             pattern=self.pattern_edit.text().strip() or None,
             pattern_description=self.pattern_desc_edit.text().strip(),
             options=options,
-            error_message=self.error_message_edit.text().strip() or "输入不符合要求"
+            error_message=self.error_message_edit.text().strip() or "输入不符合要求",
+            exclude_patterns=exclude_patterns if exclude_patterns else None
         )
 
 
@@ -348,9 +389,9 @@ class ConstraintEditorWindow(QMainWindow):
         
         # 约束表格
         self.table_widget = QTableWidget()
-        self.table_widget.setColumnCount(5)
+        self.table_widget.setColumnCount(6)
         self.table_widget.setHorizontalHeaderLabels([
-            "字段名称", "必填", "正则表达式", "选项数量", "错误消息"
+            "字段名称", "必填", "正则表达式", "选项数量", "错误消息", "排除正则表达式"
         ])
         
         # 禁用表格编辑功能
@@ -366,8 +407,7 @@ class ConstraintEditorWindow(QMainWindow):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
         
         layout.addWidget(self.table_widget)
     
@@ -383,6 +423,11 @@ class ConstraintEditorWindow(QMainWindow):
                 self.file_path_label.setText(f"当前文件: {file_path}")
                 self.save_button.setEnabled(True)
                 self.load_constraints()
+                
+                # 更新窗口标题，显示当前打开的文件名
+                file_name = os.path.basename(file_path)
+                base_name = os.path.splitext(file_name)[0]  # 去掉扩展名
+                self.setWindowTitle(f"约束配置编辑器 - {base_name}")
             else:
                 QMessageBox.warning(self, "错误", "约束配置加载失败！")
     
@@ -418,6 +463,10 @@ class ConstraintEditorWindow(QMainWindow):
             
             # 错误消息
             self.table_widget.setItem(row, 4, QTableWidgetItem(constraint.error_message))
+            
+            # 排除正则表达式
+            exclude_patterns = getattr(constraint, 'exclude_patterns', '') if hasattr(constraint, 'exclude_patterns') else ""
+            self.table_widget.setItem(row, 5, QTableWidgetItem(exclude_patterns))
     
     def on_table_double_clicked(self, row, column):
         """处理表格双击事件"""
@@ -482,6 +531,10 @@ class ConstraintEditorWindow(QMainWindow):
             self.current_file_path = file_path
             self.load_constraints()
             self.save_button.setEnabled(True)
+            
+            # 更新窗口标题，显示当前选择的文件名
+            base_name = os.path.splitext(file_name)[0]  # 去掉扩展名
+            self.setWindowTitle(f"约束配置编辑器 - {base_name}")
         else:
             QMessageBox.warning(self, "错误", f"加载约束文件失败: {file_name}")
 

@@ -20,7 +20,6 @@
   - 速度
   - 是多少
   - 速度
-  - 阿萨德
 修改后的agent信号:
   type: string
   required: true
@@ -41,6 +40,11 @@
   type: string
   required: true
   description: '约束字段: 正确的话术'
+  options:
+  - 是
+  - 速度
+  - 速度
+  exclude_patterns: 你，小美
 正确的关联动作:
   type: string
   required: true

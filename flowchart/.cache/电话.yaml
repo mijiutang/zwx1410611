@@ -22,7 +22,7 @@
   - 速度
 修改后的agent信号:
   type: string
-  required: true
+  required: false
   description: '约束字段: 修改后的agent信号'
 修改后的上文:
   type: string

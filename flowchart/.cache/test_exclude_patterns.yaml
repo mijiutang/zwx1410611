@@ -1,0 +1,11 @@
+email:
+  description: 输入不符合要求
+  exclude_patterns: test，example
+  pattern: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
+  required: true
+  type: string
+username:
+  description: 输入不符合要求
+  exclude_patterns: admin，root，[0-9]+
+  required: true
+  type: string

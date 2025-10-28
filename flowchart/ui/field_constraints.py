@@ -21,7 +21,8 @@ class FieldConstraint:
                  pattern_description: str = "",
                  options: Optional[List[str]] = None,
                  custom_validator: Optional[Callable[[str], bool]] = None,
-                 error_message: str = "输入不符合要求"):
+                 error_message: str = "输入不符合要求",
+                 exclude_patterns: Optional[str] = None):
         """
         初始化字段约束
         
@@ -34,6 +35,7 @@ class FieldConstraint:
             options: 预定义选项列表
             custom_validator: 自定义验证函数
             error_message: 验证失败时的错误消息
+            exclude_patterns: 排除正则表达式，多个用中文逗号分隔
         """
         self.required = required
         self.max_length = max_length
@@ -43,9 +45,21 @@ class FieldConstraint:
         self.options = options if options is not None else []
         self.custom_validator = custom_validator
         self.error_message = error_message
+        self.exclude_patterns = exclude_patterns
         
         # 编译正则表达式
         self.compiled_pattern = re.compile(pattern) if pattern else None
+        
+        # 编译排除正则表达式
+        self.compiled_exclude_patterns = []
+        if exclude_patterns:
+            # 使用中文逗号分隔多个排除模式
+            patterns = [p.strip() for p in exclude_patterns.split('，') if p.strip()]
+            for p in patterns:
+                try:
+                    self.compiled_exclude_patterns.append(re.compile(p))
+                except re.error as e:
+                    print(f"无效的排除正则表达式 '{p}': {e}")
     
     def validate(self, value: str) -> tuple[bool, str]:
         """
@@ -71,6 +85,11 @@ class FieldConstraint:
             
         if self.min_length is not None and len(value) < self.min_length:
             return False, f"输入长度不能少于{self.min_length}个字符"
+        
+        # 排除正则表达式验证 - 检查是否包含排除的字符或模式
+        for compiled_pattern in self.compiled_exclude_patterns:
+            if compiled_pattern.search(value):
+                return False, f"输入不能包含: {compiled_pattern.pattern}"
         
         # 正则表达式验证
         if self.compiled_pattern and not self.compiled_pattern.match(value):
@@ -166,7 +185,21 @@ class ConstraintConfig:
                     if isinstance(constraint_data, dict):
                         # 标准格式，包含所有属性
                         # 检查是否是简化的约束格式（只有type, required, description）
-                        if 'type' in constraint_data and 'required' in constraint_data and 'description' in constraint_data:
+                        # 如果包含pattern、max_length、min_length或exclude_patterns中的任何一个，则视为标准格式
+                        is_simple_format = (
+                            'type' in constraint_data and 
+                            'required' in constraint_data and 
+                            'description' in constraint_data and
+                            'pattern' not in constraint_data and
+                            'max_length' not in constraint_data and
+                            'min_length' not in constraint_data and
+                            'exclude_patterns' not in constraint_data and
+                            'pattern_description' not in constraint_data and
+                            'options' not in constraint_data and
+                            'error_message' not in constraint_data
+                        )
+                        
+                        if is_simple_format:
                             # 简化格式，转换为标准格式，但保留options
                             constraint = FieldConstraint(
                                 required=constraint_data.get('required', False),
@@ -182,7 +215,8 @@ class ConstraintConfig:
                                 pattern=constraint_data.get('pattern'),
                                 pattern_description=constraint_data.get('pattern_description', ''),
                                 options=constraint_data.get('options', []),
-                                error_message=constraint_data.get('error_message', '输入不符合要求')
+                                error_message=constraint_data.get('error_message', '输入不符合要求'),
+                                exclude_patterns=constraint_data.get('exclude_patterns')
                             )
                     else:
                         # 简单格式，只包含值
@@ -226,6 +260,9 @@ class ConstraintConfig:
                 
                 if constraint.options:
                     constraint_data["options"] = constraint.options
+                
+                if constraint.exclude_patterns:
+                    constraint_data["exclude_patterns"] = constraint.exclude_patterns
                 
                 save_data[field_name] = constraint_data
             
