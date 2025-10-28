@@ -128,7 +128,7 @@ class FileBrowserDock(QDockWidget):
                 QMessageBox.critical(self, "错误", "无法启动回填脚本")
                 return
                 
-            QMessageBox.information(self, "提示", f"已启动回填脚本处理文件: {os.path.basename(result_file_path)}")
+            # 成功启动，不显示提示信息
             
         except Exception as e:
             QMessageBox.critical(self, "错误", f"执行回填操作时出错: {str(e)}")
